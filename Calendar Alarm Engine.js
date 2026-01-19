@@ -1161,18 +1161,28 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
   for (const ev of events) {
     const notes = String(ev.notes ?? "");
 
+    const hasAlarmName = /\balarmName\b/i.test(notes);
+    const hasOffsetMin = /\boffsetMin\b/i.test(notes);
+    const hasBrackets = notes.includes("[") && notes.includes("]");
+
     const sub = extractFirstAlarmJSONArraySubstring(notes); // your stricter extractor
-    if (!sub) {
-      // optional: better "silent JSON break" warning
-      if (/\balarmName\b/i.test(notes)) {
-        addError(`WARN: event "${ev.title}" seems to contain alarm JSON, but no valid alarm array could be parsed (check quotes/commas).`);
+    if (!hasAlarmName) {
+      if (hasOffsetMin) {
+        addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
       }
       continue;
     }
 
+    if (hasBrackets && !sub) {
+      addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
+      continue;
+    }
+
+    if (!sub) continue;
+
     const parsed = safeJSONParse(sub);
     if (!parsed.ok || !Array.isArray(parsed.val)) {
-      addError(`WARN: event "${ev.title}" notes JSON invalid; skipping.`);
+      addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
       continue;
     }
 
