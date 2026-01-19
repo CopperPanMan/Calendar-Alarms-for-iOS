@@ -9,21 +9,22 @@
 // 3) Lock staleness uses real-time "now" each retry (not a frozen timestamp).
 // 4) Verifier no longer deletes “not expected” registry entries just because they’re in-window.
 //    It only deletes per the cleanup/TTL rules (plus duplicate-registry cleanup).
-// 5) NEW taskRow behavior (your correction):
-//    - taskRow>0 causes a repeating loop until the task is complete.
-//    - For QR alarms + taskRow:
-//        * While ringing (qrActive true): minute QR loop until scan sets qrActive=false (qrScanner).
-//        * After scan: a “post-scan tick” schedules a cooldown alarm at now+reschedMinutes.
+// 5) NEW taskIDs behavior (your correction):
+//    - taskIDs length>0 causes a repeating loop until the task is complete.
+//    - For QR alarms + taskIDs:
+//        * While ringing (qrActive true): QR loop until scan sets qrActive=false (qrScanner).
+//        * After scan: a “post-scan tick” schedules a cooldown alarm at now+taskLoopMin.
 //        * When that cooldown alarm fires: QR re-arms and starts ringing again if still incomplete.
 //        * When the task becomes complete: it stops (no more reschedules), and the entry is latched as taskSatisfied=true
 //          so Verifier won’t re-schedule it even though Calendar still defines it.
-//    - For non-QR alarms + taskRow:
-//        * Every time it fires: if incomplete -> reschedule at now+reschedMinutes (no maxReschedules decrement).
+//    - For non-QR alarms + taskIDs:
+//        * Every time it fires: if incomplete -> reschedule at now+taskLoopMin (no maxReschedules decrement).
 //        * If complete -> stop and latch taskSatisfied=true.
 //
-// IMPORTANT: This introduces two registry-only keys:
+// IMPORTANT: This introduces registry-only keys:
 // - taskSatisfied (boolean): suppresses future scheduling for that calendar alarm until TTL cleanup.
-// - taskCooldownScheduled (boolean): QR+taskRow internal state to distinguish post-scan tick vs cooldown-fire.
+// - taskCooldownScheduled (boolean): QR+task internal state to distinguish post-scan tick vs cooldown-fire.
+// - qrBackupFireTime (number): backup QR loop fire time (failsafe alarm).
 //
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
 // Output: JSON string set via Script.setShortcutOutput()
@@ -36,7 +37,10 @@ const BOOKMARK_NAME = "Shortcuts"; // MUST exist as Scriptable File Bookmark poi
 // NOTE: Your new requirement is NOT fail-open; it wants a loop until complete.
 // But if the query fails, your original spec says treat as complete. You did not retract that.
 // So: network failure => treat as COMPLETE (stops task loop) + warning logged.
-const TASK_ENDPOINT_BASE_URL = ""; // e.g. "https://script.google.com/macros/s/XXXXX/exec"
+const TASK_WEBAPP_ID = ""; // e.g. "webappid"
+const TASK_ENDPOINT_BASE_URL = TASK_WEBAPP_ID
+  ? `https://script.google.com/macros/s/${TASK_WEBAPP_ID}/exec`
+  : "";
 
 // Constants
 const CONFLICT_BUFFER_MIN = 10;
@@ -49,6 +53,10 @@ const WINDOW_PAST_SEC = 60 * 60;        // now - 1h
 const WINDOW_FUTURE_SEC = 24 * 60 * 60; // now + 24h
 const TTL_HARD_SEC = 24 * 60 * 60;      // calcFireTime older than 24h => purge
 const QR_TIMEOUT_SEC = 60 * 60;         // qrActive for >60m => purge
+const QR_LOOP_MINUTES = 1;              // 1/2/3 minute loop interval (dev-tunable)
+const QR_LOOP_INTERVAL_SEC = QR_LOOP_MINUTES * 60;
+const QR_BACKUP_MULTIPLIER = 3;
+const QR_BACKUP_INTERVAL_SEC = QR_LOOP_INTERVAL_SEC * QR_BACKUP_MULTIPLIER;
 const RESCHED_CLAMP_FUTURE_SEC = 4 * 60 * 60;
 
 const FILES = {
@@ -302,7 +310,7 @@ async function releaseLock(fm, lockPath) {
 // ---------- Input parsing (index-aligned) ----------
 // New input shape (still delimiter-based):
 // labels:;:hours:;:minutes:;:currentFocus[:;:lat:;:lon]
-// - If lat/lon are missing or invalid, currentLocation=null (location features ignored)
+// - If lat/lon are missing or invalid, currentLocation=null (location request may be triggered)
 function parseEngineInput(inputStr) {
   const raw = String(inputStr ?? "");
   const parts = raw.split(DELIM);
@@ -468,10 +476,14 @@ function normalizeCalendarAlarmObject(rawObj) {
   if (Array.isArray(rawObj.locations)) {
     const tmp = [];
     for (const pair of rawObj.locations) {
-      if (!Array.isArray(pair) || pair.length !== 2) continue;
+      if (!Array.isArray(pair) || pair.length < 2) continue;
       const lat = Number(pair[0]), lon = Number(pair[1]);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      tmp.push([lat, lon]);
+      let radiusMeters = Number(pair[2]);
+      if (!Number.isFinite(radiusMeters)) radiusMeters = Number(rawObj.radiusMeters);
+      if (!Number.isFinite(radiusMeters)) radiusMeters = 50;
+      const radius = Math.min(500, Math.max(1, Math.trunc(radiusMeters)));
+      tmp.push([lat, lon, radius]);
     }
     locations = tmp;
   }
@@ -488,7 +500,10 @@ function normalizeCalendarAlarmObject(rawObj) {
     : [];
 
   const reschedMinutes = intInRange(rawObj.reschedMinutes, 0, 0, 500);
-  const taskRow = intInRange(rawObj.taskRow, 0, 0, 1e9);
+  const taskLoopMin = intInRange(rawObj.taskLoopMin, 0, 0, 500);
+  const taskIDs = Array.isArray(rawObj.taskIDs)
+    ? rawObj.taskIDs.filter((x) => typeof x === "string" && x.trim())
+    : [];
   const maxReschedules = intInRange(rawObj.maxReschedules, 1, 1, 10);
 
   return {
@@ -510,7 +525,8 @@ function normalizeCalendarAlarmObject(rawObj) {
       silenceIfDriving,
       conflictingCalendars,
       reschedMinutes,
-      taskRow,
+      taskLoopMin,
+      taskIDs,
       maxReschedules,
     },
   };
@@ -544,6 +560,8 @@ function ensureRegistryEntryShape(entry) {
   }
 
   entry.qrActive = !!entry.qrActive;
+  const qb = Number(entry.qrBackupFireTime);
+  entry.qrBackupFireTime = Number.isFinite(qb) ? floorToMinute(Math.trunc(qb)) : 0;
 
   // NEW registry-only task keys
   entry.taskSatisfied = !!entry.taskSatisfied;              // suppress scheduling when true
@@ -568,7 +586,16 @@ function ensureRegistryEntryShape(entry) {
   if (typeof entry.silenceIfDriving !== "string") entry.silenceIfDriving = "OFF";
   if (!Array.isArray(entry.conflictingCalendars)) entry.conflictingCalendars = [];
   if (!Number.isFinite(Number(entry.reschedMinutes))) entry.reschedMinutes = 0;
-  if (!Number.isFinite(Number(entry.taskRow))) entry.taskRow = 0;
+  if (!Number.isFinite(Number(entry.taskLoopMin))) entry.taskLoopMin = 0;
+  if (!Array.isArray(entry.taskIDs)) {
+    if (Number.isFinite(Number(entry.taskRow)) && Number(entry.taskRow) > 0) {
+      entry.taskIDs = [String(entry.taskRow)];
+    } else {
+      entry.taskIDs = [];
+    }
+  } else {
+    entry.taskIDs = entry.taskIDs.filter((x) => typeof x === "string" && x.trim());
+  }
   if (!Number.isFinite(Number(entry.maxReschedules))) entry.maxReschedules = 1;
 
   return entry;
@@ -741,53 +768,56 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function getCurrentLocationFailOpen() {
-  try {
-    const loc = await Location.current();
-    if (!loc || !Number.isFinite(loc.latitude) || !Number.isFinite(loc.longitude)) return null;
-    return { lat: loc.latitude, lon: loc.longitude };
-  } catch (e) {
-    addError(`WARN: location unavailable; treating as allowed. (${String(e)})`);
-    return null;
-  }
-}
-
-async function checkTaskRowCompleteFailOpen(taskRow) {
-  if (!taskRow || taskRow <= 0) return true;
+async function checkTaskIDsCompleteFailOpen(taskIDs) {
+  if (!Array.isArray(taskIDs) || taskIDs.length === 0) return true;
 
   if (!TASK_ENDPOINT_BASE_URL) {
-    addError("WARN: taskRow set but TASK_ENDPOINT_BASE_URL not configured; treating as complete.");
+    addError("WARN: taskIDs set but TASK_WEBAPP_ID not configured; treating as complete.");
     return true;
   }
 
-  try {
-    const url = `${TASK_ENDPOINT_BASE_URL}${TASK_ENDPOINT_BASE_URL.includes("?") ? "&" : "?"}row=${encodeURIComponent(
-      String(taskRow)
-    )}`;
-    const req = new Request(url);
-    req.timeoutInterval = 5;
-    const resp = await req.loadString();
-    const trimmed = String(resp ?? "").trim();
+  for (const rawID of taskIDs) {
+    const taskID = String(rawID ?? "").trim();
+    if (!taskID) continue;
 
-    const pj = safeJSONParse(trimmed);
-    if (pj.ok) {
-      const v = pj.val;
-      if (typeof v === "boolean") return v;
-      if (v && typeof v === "object") {
-        if (typeof v.complete === "boolean") return v.complete;
-        if (typeof v.done === "boolean") return v.done;
+    try {
+      const metrics = `%22${encodeURIComponent(taskID)}%22`;
+      const key = "%22isComplete%22";
+      const url = `${TASK_ENDPOINT_BASE_URL}?metrics=${metrics}&key=${key}`;
+      const req = new Request(url);
+      req.timeoutInterval = 5;
+      const resp = await req.loadString();
+      const trimmed = String(resp ?? "").trim();
+
+      const pj = safeJSONParse(trimmed);
+      if (pj.ok) {
+        const v = pj.val;
+        if (typeof v === "boolean") {
+          if (!v) return false;
+          continue;
+        }
+        if (v && typeof v === "object") {
+          if (typeof v.complete === "boolean") {
+            if (!v.complete) return false;
+            continue;
+          }
+          if (typeof v.done === "boolean") {
+            if (!v.done) return false;
+            continue;
+          }
+        }
       }
+
+      if (/^true$/i.test(trimmed)) continue;
+      if (/^false$/i.test(trimmed)) return false;
+
+      addError("WARN: taskIDs endpoint returned unrecognized response; treating as complete.");
+    } catch (e) {
+      addError(`WARN: taskIDs query failed; treating as complete. (${String(e)})`);
     }
-
-    if (/^true$/i.test(trimmed)) return true;
-    if (/^false$/i.test(trimmed)) return false;
-
-    addError("WARN: taskRow endpoint returned unrecognized response; treating as complete.");
-    return true;
-  } catch (e) {
-    addError(`WARN: taskRow query failed; treating as complete. (${String(e)})`);
-    return true;
   }
+
+  return true;
 }
 
 async function findConflictReadyAt(entry, fireEpoch) {
@@ -832,6 +862,7 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   if (conflictReady !== null) candidates.push(conflictReady);
 
   const reschedMinutes = Number(entry.reschedMinutes ?? 0);
+  const taskLoopMin = Number(entry.taskLoopMin ?? 0);
 
   // Driving baseline
   const focus = String(currentFocus ?? "").trim().toLowerCase();
@@ -840,14 +871,14 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   }
 
   // Task baseline (for task loops + task gating)
-  if (includeTaskBaseline && reschedMinutes > 0) {
-    candidates.push(floorToMinute(fireEpoch + reschedMinutes * 60));
+  if (includeTaskBaseline && taskLoopMin > 0) {
+    candidates.push(floorToMinute(fireEpoch + taskLoopMin * 60));
   }
 
-  // Location gating baselines (FAIL-OPEN if no provided location)
+  // Location gating baselines (requires provided location)
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   const locs = Array.isArray(entry.locations) ? entry.locations : [];
-  const radius = Number(entry.radiusMeters ?? 50);
+  const defaultRadius = Number(entry.radiusMeters ?? 50);
 
   if ((locationMode === "whitelist" || locationMode === "blacklist") && locs.length > 0) {
     const cur = currentLocation; // <- provided by Shortcuts; null means "ignore location features"
@@ -856,9 +887,10 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
       let insideAny = false;
 
       for (const pair of locs) {
-        if (!Array.isArray(pair) || pair.length !== 2) continue;
+        if (!Array.isArray(pair) || pair.length < 2) continue;
         const lat = Number(pair[0]), lon = Number(pair[1]);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
 
         const d = haversineMeters(cur.lat, cur.lon, lat, lon);
         if (nearest === null || d < nearest) nearest = d;
@@ -893,6 +925,54 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   return next;
 }
 
+function entryUsesLocation(entry) {
+  const locationMode = String(entry.locationMode ?? "off").toLowerCase();
+  if (locationMode !== "whitelist" && locationMode !== "blacklist") return false;
+  if (!Array.isArray(entry.locations) || entry.locations.length === 0) return false;
+  if (entry.taskSatisfied === true) return false;
+  if (String(entry.status ?? "ON").toUpperCase() !== "ON") return false;
+  return true;
+}
+
+function registryNeedsLocation(registryEntries) {
+  if (!Array.isArray(registryEntries)) return false;
+  return registryEntries.some(entryUsesLocation);
+}
+
+function outputLocationRequestAndExit() {
+  Script.setShortcutOutput(JSON.stringify([{ locationRequest: true }]));
+  return;
+}
+
+function updateQRBackupAlarm(entry, baseEpoch, iosAlarms) {
+  const base = floorToMinute(baseEpoch);
+  const backup = base + QR_BACKUP_INTERVAL_SEC;
+
+  const existing = Number(entry.qrBackupFireTime ?? 0);
+  if (Number.isFinite(existing) && existing > 0 && existing !== backup) {
+    queueDeleteIOSIfUnique(iosAlarms, entry.alarmName, existing);
+  }
+
+  entry.qrBackupFireTime = backup;
+  queueAddIOSIfMissing(iosAlarms, entry.alarmName, backup);
+}
+
+function clearQRBackupAlarm(entry, iosAlarms) {
+  const existing = Number(entry.qrBackupFireTime ?? 0);
+  if (Number.isFinite(existing) && existing > 0) {
+    queueDeleteIOSIfUnique(iosAlarms, entry.alarmName, existing);
+  }
+  entry.qrBackupFireTime = 0;
+}
+
+function scheduleQRLoop(entry, baseEpoch, iosAlarms) {
+  const base = floorToMinute(baseEpoch);
+  const next = base + QR_LOOP_INTERVAL_SEC;
+  updateQRBackupAlarm(entry, base, iosAlarms);
+  queueAddIOSIfMissing(iosAlarms, entry.alarmName, next);
+  return next;
+}
+
 
 // ---------- Fast-path ----------
 async function tryFastPath(input, registryAfter) {
@@ -919,37 +999,39 @@ async function tryFastPath(input, registryAfter) {
   }
 
   const hasQR = String(entry.qrCodeID ?? "").trim() !== "";
-  const hasTask = Number(entry.taskRow ?? 0) > 0;
+  const taskIDs = Array.isArray(entry.taskIDs) ? entry.taskIDs : [];
+  const hasTask = taskIDs.length > 0;
 
   // --- TASK LOOP (new behavior) ---
   if (hasTask) {
-    const complete = await checkTaskRowCompleteFailOpen(Number(entry.taskRow));
+    const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
 
     if (complete) {
       // Stop behavior: delete this instance and suppress future scheduling until TTL cleanup.
       entry.taskSatisfied = true;
       entry.qrActive = false;
       entry.taskCooldownScheduled = false;
+      clearQRBackupAlarm(entry, input.iosAlarms);
 
       output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
       return { handled: true };
     }
 
     // Incomplete => continue looping
-    const reschedMinutes = Number(entry.reschedMinutes ?? 0);
-    if (reschedMinutes <= 0) {
+    const taskLoopMin = Number(entry.taskLoopMin ?? 0);
+    if (taskLoopMin <= 0) {
       // Cannot loop without an interval
-      addError(`ERR: taskRow>0 but reschedMinutes==0 for "${name}". Task loop cannot continue.`);
+      addError(`ERR: taskIDs set but taskLoopMin==0 for "${name}". Task loop cannot continue.`);
       output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
       return { handled: true };
     }
 
     if (hasQR) {
-      // QR + taskRow combined loop:
-      // - If qrActive true => stay in QR minute-loop.
+      // QR + taskIDs combined loop:
+      // - If qrActive true => stay in QR loop.
       // - If qrActive false:
       //     * If firstQRFireTime not set => initial ring (start QR loop).
-      //     * Else if taskCooldownScheduled false => post-scan tick => schedule cooldown at now+reschedMinutes.
+      //     * Else if taskCooldownScheduled false => post-scan tick => schedule cooldown at now+taskLoopMin.
       //     * Else (taskCooldownScheduled true) => cooldown alarm fired => re-arm QR loop.
 
       const firstSet = typeof entry.firstQRFireTime === "number" && Number.isFinite(entry.firstQRFireTime);
@@ -961,12 +1043,11 @@ async function tryFastPath(input, registryAfter) {
       if (entry.qrActive === true) {
         // Continue QR ringing minute-loop
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(now) + 60;
+        entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
         // Ensure firstQRFireTime present
         if (!firstSet) entry.firstQRFireTime = now;
 
-        queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
         output.qrLoop = true;
 
         // Only run shortcutOnTrigger when QR becomes active initially
@@ -982,9 +1063,8 @@ async function tryFastPath(input, registryAfter) {
         entry.taskCooldownScheduled = false;
 
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(now) + 60;
+        entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
-        queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
         output.qrLoop = true;
 
         const trig = String(entry.shortcutOnTrigger ?? "").trim();
@@ -994,13 +1074,14 @@ async function tryFastPath(input, registryAfter) {
       }
 
       if (entry.taskCooldownScheduled === false) {
-        // Post-scan tick: schedule cooldown at now+reschedMinutes (no QR loop)
+        // Post-scan tick: schedule cooldown at now+taskLoopMin (no QR loop)
         await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
+        entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
 
         entry.qrActive = false;
         entry.taskCooldownScheduled = true;
+        clearQRBackupAlarm(entry, input.iosAlarms);
 
         queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
         return { handled: true };
@@ -1012,9 +1093,8 @@ async function tryFastPath(input, registryAfter) {
 
       // Do NOT reset firstQRFireTime; keep original for the 60-minute QR timeout safety net.
       entry.prevFireTime = entry.nextFireTime;
-      entry.nextFireTime = floorToMinute(now) + 60;
+      entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
-      queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
       output.qrLoop = true;
 
       const trig = String(entry.shortcutOnTrigger ?? "").trim();
@@ -1023,12 +1103,12 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
-    // Non-QR task loop: delete fired + reschedule at now+reschedMinutes (no decrement)
+    // Non-QR task loop: delete fired + reschedule at now+taskLoopMin (no decrement)
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
     await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
     entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
+    entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
 
     queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
     return { handled: true };
@@ -1052,14 +1132,15 @@ async function tryFastPath(input, registryAfter) {
 
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   if ((locationMode === "whitelist" || locationMode === "blacklist") && Array.isArray(entry.locations) && entry.locations.length > 0) {
-    const cur = await getCurrentLocationFailOpen();
+    const cur = input.currentLocation;
     if (cur) {
-      const radius = Number(entry.radiusMeters ?? 50);
+      const defaultRadius = Number(entry.radiusMeters ?? 50);
       let insideAny = false;
       for (const pair of entry.locations) {
-        if (!Array.isArray(pair) || pair.length !== 2) continue;
+        if (!Array.isArray(pair) || pair.length < 2) continue;
         const lat = Number(pair[0]), lon = Number(pair[1]);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
         if (haversineMeters(cur.lat, cur.lon, lat, lon) <= radius) insideAny = true;
       }
       if (locationMode === "whitelist" && !insideAny) gated = true;
@@ -1109,6 +1190,7 @@ async function tryFastPath(input, registryAfter) {
         // Optional: clear scheduling pointers so verifier can cleanly re-establish later
         entry.prevFireTime = entry.nextFireTime;
         entry.nextFireTime = 0;
+        clearQRBackupAlarm(entry, input.iosAlarms);
         output.qrLoop = false;
         return { handled: true };
       }
@@ -1123,9 +1205,7 @@ async function tryFastPath(input, registryAfter) {
 
     // Continue ringing (minute tick)
     entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(now) + 60;
-
-    queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+    entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
     output.qrLoop = true;
     return { handled: true };
   }
@@ -1153,18 +1233,28 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
   for (const ev of events) {
     const notes = String(ev.notes ?? "");
 
+    const hasAlarmName = /\balarmName\b/i.test(notes);
+    const hasOffsetMin = /\boffsetMin\b/i.test(notes);
+    const hasBrackets = notes.includes("[") && notes.includes("]");
+
     const sub = extractFirstAlarmJSONArraySubstring(notes); // your stricter extractor
-    if (!sub) {
-      // optional: better "silent JSON break" warning
-      if (/\balarmName\b/i.test(notes)) {
-        addError(`WARN: event "${ev.title}" seems to contain alarm JSON, but no valid alarm array could be parsed (check quotes/commas).`);
+    if (!hasAlarmName) {
+      if (hasOffsetMin) {
+        addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
       }
       continue;
     }
 
+    if (hasBrackets && !sub) {
+      addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
+      continue;
+    }
+
+    if (!sub) continue;
+
     const parsed = safeJSONParse(sub);
     if (!parsed.ok || !Array.isArray(parsed.val)) {
-      addError(`WARN: event "${ev.title}" notes JSON invalid; skipping.`);
+      addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
       continue;
     }
 
@@ -1199,6 +1289,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         qrActive: false,
         taskSatisfied: false,
         taskCooldownScheduled: false,
+        qrBackupFireTime: 0,
       });
     }
   }
@@ -1252,6 +1343,14 @@ async function runVerifier(input, registryAfter) {
         keysToDelete.add(k);
         continue;
       }
+      const backupTime = Number(r.qrBackupFireTime ?? 0);
+      if (Number.isFinite(backupTime) && backupTime < nowMinute) {
+        queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, backupTime);
+        r.qrBackupFireTime = 0;
+      }
+    } else if (Number(r.qrBackupFireTime ?? 0) > 0) {
+      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+      r.qrBackupFireTime = 0;
     }
 
     // ✅ Delete any owned iOS alarms that are in the past (but NOT this minute)
@@ -1264,8 +1363,7 @@ async function runVerifier(input, registryAfter) {
     // push it forward to the next minute so the loop continues cleanly.
     if (r.qrActive === true && r.nextFireTime < nowMinute) {
       r.prevFireTime = r.nextFireTime;
-      r.nextFireTime = nowMinute + 60;
-      queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+      r.nextFireTime = scheduleQRLoop(r, nowMinute, input.iosAlarms);
     }
   }
 
@@ -1297,7 +1395,8 @@ async function runVerifier(input, registryAfter) {
     r.silenceIfDriving = exp.silenceIfDriving;
     r.conflictingCalendars = exp.conflictingCalendars;
     r.reschedMinutes = exp.reschedMinutes;
-    r.taskRow = exp.taskRow;
+    r.taskLoopMin = exp.taskLoopMin;
+    r.taskIDs = exp.taskIDs;
 
     // Keep remaining maxReschedules conservative
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
@@ -1313,6 +1412,7 @@ async function runVerifier(input, registryAfter) {
     // Ensure iOS alarm exists for nextFireTime if it's within the next 24h (and not taskSatisfied)
     if (!r.taskSatisfied && r.nextFireTime >= now && r.nextFireTime <= calcMax) {
       queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+      if (r.qrActive === true) updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
     }
   }
 
@@ -1340,7 +1440,8 @@ async function runVerifier(input, registryAfter) {
     r.silenceIfDriving = exp.silenceIfDriving;
     r.conflictingCalendars = exp.conflictingCalendars;
     r.reschedMinutes = exp.reschedMinutes;
-    r.taskRow = exp.taskRow;
+    r.taskLoopMin = exp.taskLoopMin;
+    r.taskIDs = exp.taskIDs;
 
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
     const oldRem = Math.trunc(Number(r.maxReschedules ?? newMax));
@@ -1357,6 +1458,7 @@ async function runVerifier(input, registryAfter) {
     // If it's rescheduled into the future, ensure iOS alarm exists (only if within next 24h)
     if (!r.taskSatisfied && r.nextFireTime >= now && r.nextFireTime <= calcMax) {
       queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+      if (r.qrActive === true) updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
     }
   }
 
@@ -1369,6 +1471,9 @@ async function runVerifier(input, registryAfter) {
       queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
     }
     queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.nextFireTime);
+    if (Number(r.qrBackupFireTime ?? 0) > 0) {
+      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+    }
 
     regMap.delete(k);
   }
@@ -1388,9 +1493,9 @@ async function runVerifier(input, registryAfter) {
       // ensure it stays scheduled in the future
       if (r.nextFireTime < nowMinute) {
         r.prevFireTime = r.nextFireTime;
-        r.nextFireTime = nowMinute + 60;
-        queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+        r.nextFireTime = scheduleQRLoop(r, nowMinute, input.iosAlarms);
       }
+      updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
       continue;
     }
 
@@ -1399,6 +1504,9 @@ async function runVerifier(input, registryAfter) {
       queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
     }
     queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.nextFireTime);
+    if (Number(r.qrBackupFireTime ?? 0) > 0) {
+      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+    }
 
     regMap.delete(k);
   }
@@ -1440,6 +1548,11 @@ let registryAfter = deepClone(registryBefore);
 
 // Parse input
 const input = parseEngineInput(args.shortcutParameter);
+
+if (registryNeedsLocation(registryAfter) && !input.currentLocation) {
+  outputLocationRequestAndExit();
+  return;
+}
 
 // Phase B — Fast-path
 const fast = await tryFastPath(input, registryAfter);
