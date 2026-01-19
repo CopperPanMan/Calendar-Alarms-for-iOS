@@ -85,6 +85,7 @@ const output = {
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
   qrLoop: false,
+  debug: {},
   errorRegistry: "",
 };
 
@@ -871,6 +872,9 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
     const cur = currentLocation; // null means "ignore location features"
     if (cur) {
       let nearest = null;
+      let nearestLat = null;
+      let nearestLon = null;
+      let nearestRadius = null;
       let insideAny = false;
 
       for (const pair of locs) {
@@ -880,8 +884,27 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
         const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
 
         const d = haversineMeters(cur.lat, cur.lon, lat, lon);
-        if (nearest === null || d < nearest) nearest = d;
+        if (nearest === null || d < nearest) {
+          nearest = d;
+          nearestLat = lat;
+          nearestLon = lon;
+          nearestRadius = radius;
+        }
         if (d <= radius) insideAny = true;
+      }
+
+      if (nearest !== null) {
+        output.debug.location = {
+          current: { lat: cur.lat, lon: cur.lon },
+          nearest: {
+            lat: nearestLat,
+            lon: nearestLon,
+            distanceMeters: Math.round(nearest),
+            radiusMeters: Number.isFinite(nearestRadius) ? nearestRadius : null,
+          },
+          insideAny,
+          mode: locationMode,
+        };
       }
 
       if (locationMode === "whitelist") {
