@@ -12,7 +12,7 @@
 // 5) NEW taskRow behavior (your correction):
 //    - taskRow>0 causes a repeating loop until the task is complete.
 //    - For QR alarms + taskRow:
-//        * While ringing (qrActive true): minute QR loop until scan sets qrActive=false (qrScanner).
+//        * While ringing (qrActive true): QR loop until scan sets qrActive=false (qrScanner).
 //        * After scan: a “post-scan tick” schedules a cooldown alarm at now+reschedMinutes.
 //        * When that cooldown alarm fires: QR re-arms and starts ringing again if still incomplete.
 //        * When the task becomes complete: it stops (no more reschedules), and the entry is latched as taskSatisfied=true
@@ -49,6 +49,8 @@ const WINDOW_PAST_SEC = 60 * 60;        // now - 1h
 const WINDOW_FUTURE_SEC = 24 * 60 * 60; // now + 24h
 const TTL_HARD_SEC = 24 * 60 * 60;      // calcFireTime older than 24h => purge
 const QR_TIMEOUT_SEC = 60 * 60;         // qrActive for >60m => purge
+const QR_LOOP_MINUTES = 1;              // 1/2/3 minute loop interval (dev-tunable)
+const QR_LOOP_INTERVAL_SEC = QR_LOOP_MINUTES * 60;
 const RESCHED_CLAMP_FUTURE_SEC = 4 * 60 * 60;
 
 const FILES = {
@@ -969,7 +971,7 @@ async function tryFastPath(input, registryAfter) {
       if (entry.qrActive === true) {
         // Continue QR ringing minute-loop
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(now) + 60;
+        entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
 
         // Ensure firstQRFireTime present
         if (!firstSet) entry.firstQRFireTime = now;
@@ -990,7 +992,7 @@ async function tryFastPath(input, registryAfter) {
         entry.taskCooldownScheduled = false;
 
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(now) + 60;
+        entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
 
         queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
         output.qrLoop = true;
@@ -1020,7 +1022,7 @@ async function tryFastPath(input, registryAfter) {
 
       // Do NOT reset firstQRFireTime; keep original for the 60-minute QR timeout safety net.
       entry.prevFireTime = entry.nextFireTime;
-      entry.nextFireTime = floorToMinute(now) + 60;
+      entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
 
       queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
       output.qrLoop = true;
@@ -1131,7 +1133,7 @@ async function tryFastPath(input, registryAfter) {
 
     // Continue ringing (minute tick)
     entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(now) + 60;
+    entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
 
     queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
     output.qrLoop = true;
@@ -1282,7 +1284,7 @@ async function runVerifier(input, registryAfter) {
     // push it forward to the next minute so the loop continues cleanly.
     if (r.qrActive === true && r.nextFireTime < nowMinute) {
       r.prevFireTime = r.nextFireTime;
-      r.nextFireTime = nowMinute + 60;
+      r.nextFireTime = nowMinute + QR_LOOP_INTERVAL_SEC;
       queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
     }
   }
@@ -1406,7 +1408,7 @@ async function runVerifier(input, registryAfter) {
       // ensure it stays scheduled in the future
       if (r.nextFireTime < nowMinute) {
         r.prevFireTime = r.nextFireTime;
-        r.nextFireTime = nowMinute + 60;
+        r.nextFireTime = nowMinute + QR_LOOP_INTERVAL_SEC;
         queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
       }
       continue;
