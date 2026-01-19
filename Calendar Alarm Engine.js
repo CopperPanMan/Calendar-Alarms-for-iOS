@@ -302,7 +302,7 @@ async function releaseLock(fm, lockPath) {
 // ---------- Input parsing (index-aligned) ----------
 // New input shape (still delimiter-based):
 // labels:;:hours:;:minutes:;:currentFocus[:;:lat:;:lon]
-// - If lat/lon are missing or invalid, currentLocation=null (location features ignored)
+// - If lat/lon are missing or invalid, currentLocation=null (location request may be triggered)
 function parseEngineInput(inputStr) {
   const raw = String(inputStr ?? "");
   const parts = raw.split(DELIM);
@@ -741,17 +741,6 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function getCurrentLocationFailOpen() {
-  try {
-    const loc = await Location.current();
-    if (!loc || !Number.isFinite(loc.latitude) || !Number.isFinite(loc.longitude)) return null;
-    return { lat: loc.latitude, lon: loc.longitude };
-  } catch (e) {
-    addError(`WARN: location unavailable; treating as allowed. (${String(e)})`);
-    return null;
-  }
-}
-
 async function checkTaskRowCompleteFailOpen(taskRow) {
   if (!taskRow || taskRow <= 0) return true;
 
@@ -844,7 +833,7 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
     candidates.push(floorToMinute(fireEpoch + reschedMinutes * 60));
   }
 
-  // Location gating baselines (FAIL-OPEN if no provided location)
+  // Location gating baselines (requires provided location)
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   const locs = Array.isArray(entry.locations) ? entry.locations : [];
   const radius = Number(entry.radiusMeters ?? 50);
@@ -891,6 +880,25 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   if (next < minAllowed) next = minAllowed;
 
   return next;
+}
+
+function entryUsesLocation(entry) {
+  const locationMode = String(entry.locationMode ?? "off").toLowerCase();
+  if (locationMode !== "whitelist" && locationMode !== "blacklist") return false;
+  if (!Array.isArray(entry.locations) || entry.locations.length === 0) return false;
+  if (entry.taskSatisfied === true) return false;
+  if (String(entry.status ?? "ON").toUpperCase() !== "ON") return false;
+  return true;
+}
+
+function registryNeedsLocation(registryEntries) {
+  if (!Array.isArray(registryEntries)) return false;
+  return registryEntries.some(entryUsesLocation);
+}
+
+function outputLocationRequestAndExit() {
+  Script.setShortcutOutput(JSON.stringify([{ locationRequest: true }]));
+  return;
 }
 
 
@@ -1052,7 +1060,7 @@ async function tryFastPath(input, registryAfter) {
 
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   if ((locationMode === "whitelist" || locationMode === "blacklist") && Array.isArray(entry.locations) && entry.locations.length > 0) {
-    const cur = await getCurrentLocationFailOpen();
+    const cur = input.currentLocation;
     if (cur) {
       const radius = Number(entry.radiusMeters ?? 50);
       let insideAny = false;
@@ -1440,6 +1448,11 @@ let registryAfter = deepClone(registryBefore);
 
 // Parse input
 const input = parseEngineInput(args.shortcutParameter);
+
+if (registryNeedsLocation(registryAfter) && !input.currentLocation) {
+  outputLocationRequestAndExit();
+  return;
+}
 
 // Phase B — Fast-path
 const fast = await tryFastPath(input, registryAfter);
