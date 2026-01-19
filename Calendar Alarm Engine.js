@@ -309,8 +309,7 @@ async function releaseLock(fm, lockPath) {
 
 // ---------- Input parsing (index-aligned) ----------
 // New input shape (still delimiter-based):
-// labels:;:hours:;:minutes:;:currentFocus[:;:lat:;:lon]
-// - If lat/lon are missing or invalid, currentLocation=null (location request may be triggered)
+// labels:;:hours:;:minutes:;:currentFocus
 function parseEngineInput(inputStr) {
   const raw = String(inputStr ?? "");
   const parts = raw.split(DELIM);
@@ -343,22 +342,10 @@ function parseEngineInput(inputStr) {
     iosAlarms.push({ name, hh, mm });
   }
 
-  // Location is passed as the final piece, but because it uses the same DELIM,
-  // it will arrive split as two extra parts: parts[4]=lat, parts[5]=lon.
-  let currentLocation = null;
-  const latRaw = parts.length >= 5 ? parts[4] : null;
-  const lonRaw = parts.length >= 6 ? parts[5] : null;
-
-  const lat = Number(latRaw);
-  const lon = Number(lonRaw);
-  if (Number.isFinite(lat) && Number.isFinite(lon)) {
-    currentLocation = { lat, lon };
-  }
-
   return {
     iosAlarms,
     currentFocus: String(focusPart ?? "").trim(),
-    currentLocation, // {lat,lon} OR null
+    currentLocation: null,
   };
 }
 
@@ -875,13 +862,13 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
     candidates.push(floorToMinute(fireEpoch + taskLoopMin * 60));
   }
 
-  // Location gating baselines (requires provided location)
+  // Location gating baselines (requires Scriptable location)
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   const locs = Array.isArray(entry.locations) ? entry.locations : [];
   const defaultRadius = Number(entry.radiusMeters ?? 50);
 
   if ((locationMode === "whitelist" || locationMode === "blacklist") && locs.length > 0) {
-    const cur = currentLocation; // <- provided by Shortcuts; null means "ignore location features"
+    const cur = currentLocation; // null means "ignore location features"
     if (cur) {
       let nearest = null;
       let insideAny = false;
@@ -939,9 +926,17 @@ function registryNeedsLocation(registryEntries) {
   return registryEntries.some(entryUsesLocation);
 }
 
-function outputLocationRequestAndExit() {
-  Script.setShortcutOutput(JSON.stringify([{ locationRequest: true }]));
-  return;
+async function getCurrentLocation() {
+  try {
+    Location.setAccuracy(100);
+    const loc = await Location.current();
+    if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+      return { lat: loc.latitude, lon: loc.longitude };
+    }
+  } catch (e) {
+    addError(`ERR: failed to fetch location (${String(e)})`);
+  }
+  return null;
 }
 
 function updateQRBackupAlarm(entry, baseEpoch, iosAlarms) {
@@ -1551,8 +1546,10 @@ let registryAfter = deepClone(registryBefore);
 const input = parseEngineInput(args.shortcutParameter);
 
 if (registryNeedsLocation(registryAfter) && !input.currentLocation) {
-  outputLocationRequestAndExit();
-  return;
+  input.currentLocation = await getCurrentLocation();
+  if (!input.currentLocation) {
+    addError("ERR: location required but unavailable.");
+  }
 }
 
 // Phase B — Fast-path
