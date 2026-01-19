@@ -984,6 +984,7 @@ async function tryFastPath(input, registryAfter) {
   const name = entry.alarmName;
   const firedHH = fired.ios.hh;
   const firedMM = fired.ios.mm;
+  const fireEpoch = Number(entry.nextFireTime ?? 0) || now;
 
   // Only proceed if the fired iOS alarm is uniquely identifiable
   if (findIOSMatches(input.iosAlarms, name, firedHH, firedMM) !== 1) {
@@ -1075,7 +1076,7 @@ async function tryFastPath(input, registryAfter) {
 
       if (entry.taskCooldownScheduled === false) {
         // Post-scan tick: schedule cooldown at now+taskLoopMin (no QR loop)
-        await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
+        const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
         entry.prevFireTime = entry.nextFireTime;
         entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
 
@@ -1106,7 +1107,7 @@ async function tryFastPath(input, registryAfter) {
     // Non-QR task loop: delete fired + reschedule at now+taskLoopMin (no decrement)
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
-    await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
+    const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
 
@@ -1156,7 +1157,7 @@ async function tryFastPath(input, registryAfter) {
       entry.maxReschedules = remaining;
 
       if (remaining > 0) {
-        await computeRescheduleTime(entry, firedEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
+        const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
         entry.prevFireTime = entry.nextFireTime;
         entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
 
