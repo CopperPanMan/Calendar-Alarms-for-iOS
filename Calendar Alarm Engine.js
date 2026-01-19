@@ -21,9 +21,10 @@
 //        * Every time it fires: if incomplete -> reschedule at now+reschedMinutes (no maxReschedules decrement).
 //        * If complete -> stop and latch taskSatisfied=true.
 //
-// IMPORTANT: This introduces two registry-only keys:
+// IMPORTANT: This introduces registry-only keys:
 // - taskSatisfied (boolean): suppresses future scheduling for that calendar alarm until TTL cleanup.
 // - taskCooldownScheduled (boolean): QR+taskRow internal state to distinguish post-scan tick vs cooldown-fire.
+// - qrBackupFireTime (number): backup QR loop fire time (failsafe alarm).
 //
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
 // Output: JSON string set via Script.setShortcutOutput()
@@ -51,6 +52,8 @@ const TTL_HARD_SEC = 24 * 60 * 60;      // calcFireTime older than 24h => purge
 const QR_TIMEOUT_SEC = 60 * 60;         // qrActive for >60m => purge
 const QR_LOOP_MINUTES = 1;              // 1/2/3 minute loop interval (dev-tunable)
 const QR_LOOP_INTERVAL_SEC = QR_LOOP_MINUTES * 60;
+const QR_BACKUP_MULTIPLIER = 3;
+const QR_BACKUP_INTERVAL_SEC = QR_LOOP_INTERVAL_SEC * QR_BACKUP_MULTIPLIER;
 const RESCHED_CLAMP_FUTURE_SEC = 4 * 60 * 60;
 
 const FILES = {
@@ -546,6 +549,8 @@ function ensureRegistryEntryShape(entry) {
   }
 
   entry.qrActive = !!entry.qrActive;
+  const qb = Number(entry.qrBackupFireTime);
+  entry.qrBackupFireTime = Number.isFinite(qb) ? floorToMinute(Math.trunc(qb)) : 0;
 
   // NEW registry-only task keys
   entry.taskSatisfied = !!entry.taskSatisfied;              // suppress scheduling when true
@@ -903,6 +908,35 @@ function outputLocationRequestAndExit() {
   return;
 }
 
+function updateQRBackupAlarm(entry, baseEpoch, iosAlarms) {
+  const base = floorToMinute(baseEpoch);
+  const backup = base + QR_BACKUP_INTERVAL_SEC;
+
+  const existing = Number(entry.qrBackupFireTime ?? 0);
+  if (Number.isFinite(existing) && existing > 0 && existing !== backup) {
+    queueDeleteIOSIfUnique(iosAlarms, entry.alarmName, existing);
+  }
+
+  entry.qrBackupFireTime = backup;
+  queueAddIOSIfMissing(iosAlarms, entry.alarmName, backup);
+}
+
+function clearQRBackupAlarm(entry, iosAlarms) {
+  const existing = Number(entry.qrBackupFireTime ?? 0);
+  if (Number.isFinite(existing) && existing > 0) {
+    queueDeleteIOSIfUnique(iosAlarms, entry.alarmName, existing);
+  }
+  entry.qrBackupFireTime = 0;
+}
+
+function scheduleQRLoop(entry, baseEpoch, iosAlarms) {
+  const base = floorToMinute(baseEpoch);
+  const next = base + QR_LOOP_INTERVAL_SEC;
+  updateQRBackupAlarm(entry, base, iosAlarms);
+  queueAddIOSIfMissing(iosAlarms, entry.alarmName, next);
+  return next;
+}
+
 
 // ---------- Fast-path ----------
 async function tryFastPath(input, registryAfter) {
@@ -940,6 +974,7 @@ async function tryFastPath(input, registryAfter) {
       entry.taskSatisfied = true;
       entry.qrActive = false;
       entry.taskCooldownScheduled = false;
+      clearQRBackupAlarm(entry, input.iosAlarms);
 
       output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
       return { handled: true };
@@ -971,12 +1006,11 @@ async function tryFastPath(input, registryAfter) {
       if (entry.qrActive === true) {
         // Continue QR ringing minute-loop
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
+        entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
         // Ensure firstQRFireTime present
         if (!firstSet) entry.firstQRFireTime = now;
 
-        queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
         output.qrLoop = true;
 
         // Only run shortcutOnTrigger when QR becomes active initially
@@ -992,9 +1026,8 @@ async function tryFastPath(input, registryAfter) {
         entry.taskCooldownScheduled = false;
 
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
+        entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
-        queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
         output.qrLoop = true;
 
         const trig = String(entry.shortcutOnTrigger ?? "").trim();
@@ -1011,6 +1044,7 @@ async function tryFastPath(input, registryAfter) {
 
         entry.qrActive = false;
         entry.taskCooldownScheduled = true;
+        clearQRBackupAlarm(entry, input.iosAlarms);
 
         queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
         return { handled: true };
@@ -1022,9 +1056,8 @@ async function tryFastPath(input, registryAfter) {
 
       // Do NOT reset firstQRFireTime; keep original for the 60-minute QR timeout safety net.
       entry.prevFireTime = entry.nextFireTime;
-      entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
+      entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
-      queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
       output.qrLoop = true;
 
       const trig = String(entry.shortcutOnTrigger ?? "").trim();
@@ -1119,6 +1152,7 @@ async function tryFastPath(input, registryAfter) {
         // Optional: clear scheduling pointers so verifier can cleanly re-establish later
         entry.prevFireTime = entry.nextFireTime;
         entry.nextFireTime = 0;
+        clearQRBackupAlarm(entry, input.iosAlarms);
         output.qrLoop = false;
         return { handled: true };
       }
@@ -1133,9 +1167,7 @@ async function tryFastPath(input, registryAfter) {
 
     // Continue ringing (minute tick)
     entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(now) + QR_LOOP_INTERVAL_SEC;
-
-    queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+    entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
     output.qrLoop = true;
     return { handled: true };
   }
@@ -1219,6 +1251,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         qrActive: false,
         taskSatisfied: false,
         taskCooldownScheduled: false,
+        qrBackupFireTime: 0,
       });
     }
   }
@@ -1272,6 +1305,14 @@ async function runVerifier(input, registryAfter) {
         keysToDelete.add(k);
         continue;
       }
+      const backupTime = Number(r.qrBackupFireTime ?? 0);
+      if (Number.isFinite(backupTime) && backupTime < nowMinute) {
+        queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, backupTime);
+        r.qrBackupFireTime = 0;
+      }
+    } else if (Number(r.qrBackupFireTime ?? 0) > 0) {
+      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+      r.qrBackupFireTime = 0;
     }
 
     // ✅ Delete any owned iOS alarms that are in the past (but NOT this minute)
@@ -1284,8 +1325,7 @@ async function runVerifier(input, registryAfter) {
     // push it forward to the next minute so the loop continues cleanly.
     if (r.qrActive === true && r.nextFireTime < nowMinute) {
       r.prevFireTime = r.nextFireTime;
-      r.nextFireTime = nowMinute + QR_LOOP_INTERVAL_SEC;
-      queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+      r.nextFireTime = scheduleQRLoop(r, nowMinute, input.iosAlarms);
     }
   }
 
@@ -1333,6 +1373,7 @@ async function runVerifier(input, registryAfter) {
     // Ensure iOS alarm exists for nextFireTime if it's within the next 24h (and not taskSatisfied)
     if (!r.taskSatisfied && r.nextFireTime >= now && r.nextFireTime <= calcMax) {
       queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+      if (r.qrActive === true) updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
     }
   }
 
@@ -1377,6 +1418,7 @@ async function runVerifier(input, registryAfter) {
     // If it's rescheduled into the future, ensure iOS alarm exists (only if within next 24h)
     if (!r.taskSatisfied && r.nextFireTime >= now && r.nextFireTime <= calcMax) {
       queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+      if (r.qrActive === true) updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
     }
   }
 
@@ -1389,6 +1431,9 @@ async function runVerifier(input, registryAfter) {
       queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
     }
     queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.nextFireTime);
+    if (Number(r.qrBackupFireTime ?? 0) > 0) {
+      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+    }
 
     regMap.delete(k);
   }
@@ -1408,9 +1453,9 @@ async function runVerifier(input, registryAfter) {
       // ensure it stays scheduled in the future
       if (r.nextFireTime < nowMinute) {
         r.prevFireTime = r.nextFireTime;
-        r.nextFireTime = nowMinute + QR_LOOP_INTERVAL_SEC;
-        queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
+        r.nextFireTime = scheduleQRLoop(r, nowMinute, input.iosAlarms);
       }
+      updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
       continue;
     }
 
@@ -1419,6 +1464,9 @@ async function runVerifier(input, registryAfter) {
       queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
     }
     queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.nextFireTime);
+    if (Number(r.qrBackupFireTime ?? 0) > 0) {
+      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+    }
 
     regMap.delete(k);
   }
