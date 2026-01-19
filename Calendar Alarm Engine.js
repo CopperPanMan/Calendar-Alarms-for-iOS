@@ -473,10 +473,14 @@ function normalizeCalendarAlarmObject(rawObj) {
   if (Array.isArray(rawObj.locations)) {
     const tmp = [];
     for (const pair of rawObj.locations) {
-      if (!Array.isArray(pair) || pair.length !== 2) continue;
+      if (!Array.isArray(pair) || pair.length < 2) continue;
       const lat = Number(pair[0]), lon = Number(pair[1]);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      tmp.push([lat, lon]);
+      let radiusMeters = Number(pair[2]);
+      if (!Number.isFinite(radiusMeters)) radiusMeters = Number(rawObj.radiusMeters);
+      if (!Number.isFinite(radiusMeters)) radiusMeters = 50;
+      const radius = Math.min(500, Math.max(1, Math.trunc(radiusMeters)));
+      tmp.push([lat, lon, radius]);
     }
     locations = tmp;
   }
@@ -843,7 +847,7 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   // Location gating baselines (requires provided location)
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   const locs = Array.isArray(entry.locations) ? entry.locations : [];
-  const radius = Number(entry.radiusMeters ?? 50);
+  const defaultRadius = Number(entry.radiusMeters ?? 50);
 
   if ((locationMode === "whitelist" || locationMode === "blacklist") && locs.length > 0) {
     const cur = currentLocation; // <- provided by Shortcuts; null means "ignore location features"
@@ -852,9 +856,10 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
       let insideAny = false;
 
       for (const pair of locs) {
-        if (!Array.isArray(pair) || pair.length !== 2) continue;
+        if (!Array.isArray(pair) || pair.length < 2) continue;
         const lat = Number(pair[0]), lon = Number(pair[1]);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
 
         const d = haversineMeters(cur.lat, cur.lon, lat, lon);
         if (nearest === null || d < nearest) nearest = d;
@@ -1097,12 +1102,13 @@ async function tryFastPath(input, registryAfter) {
   if ((locationMode === "whitelist" || locationMode === "blacklist") && Array.isArray(entry.locations) && entry.locations.length > 0) {
     const cur = input.currentLocation;
     if (cur) {
-      const radius = Number(entry.radiusMeters ?? 50);
+      const defaultRadius = Number(entry.radiusMeters ?? 50);
       let insideAny = false;
       for (const pair of entry.locations) {
-        if (!Array.isArray(pair) || pair.length !== 2) continue;
+        if (!Array.isArray(pair) || pair.length < 2) continue;
         const lat = Number(pair[0]), lon = Number(pair[1]);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
         if (haversineMeters(cur.lat, cur.lon, lat, lon) <= radius) insideAny = true;
       }
       if (locationMode === "whitelist" && !insideAny) gated = true;
