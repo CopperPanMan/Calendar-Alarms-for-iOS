@@ -9,21 +9,21 @@
 // 3) Lock staleness uses real-time "now" each retry (not a frozen timestamp).
 // 4) Verifier no longer deletes “not expected” registry entries just because they’re in-window.
 //    It only deletes per the cleanup/TTL rules (plus duplicate-registry cleanup).
-// 5) NEW taskRow behavior (your correction):
-//    - taskRow>0 causes a repeating loop until the task is complete.
-//    - For QR alarms + taskRow:
+// 5) NEW taskIDs behavior (your correction):
+//    - taskIDs length>0 causes a repeating loop until the task is complete.
+//    - For QR alarms + taskIDs:
 //        * While ringing (qrActive true): QR loop until scan sets qrActive=false (qrScanner).
-//        * After scan: a “post-scan tick” schedules a cooldown alarm at now+reschedMinutes.
+//        * After scan: a “post-scan tick” schedules a cooldown alarm at now+taskLoopMin.
 //        * When that cooldown alarm fires: QR re-arms and starts ringing again if still incomplete.
 //        * When the task becomes complete: it stops (no more reschedules), and the entry is latched as taskSatisfied=true
 //          so Verifier won’t re-schedule it even though Calendar still defines it.
-//    - For non-QR alarms + taskRow:
-//        * Every time it fires: if incomplete -> reschedule at now+reschedMinutes (no maxReschedules decrement).
+//    - For non-QR alarms + taskIDs:
+//        * Every time it fires: if incomplete -> reschedule at now+taskLoopMin (no maxReschedules decrement).
 //        * If complete -> stop and latch taskSatisfied=true.
 //
 // IMPORTANT: This introduces registry-only keys:
 // - taskSatisfied (boolean): suppresses future scheduling for that calendar alarm until TTL cleanup.
-// - taskCooldownScheduled (boolean): QR+taskRow internal state to distinguish post-scan tick vs cooldown-fire.
+// - taskCooldownScheduled (boolean): QR+task internal state to distinguish post-scan tick vs cooldown-fire.
 // - qrBackupFireTime (number): backup QR loop fire time (failsafe alarm).
 //
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
@@ -37,7 +37,10 @@ const BOOKMARK_NAME = "Shortcuts"; // MUST exist as Scriptable File Bookmark poi
 // NOTE: Your new requirement is NOT fail-open; it wants a loop until complete.
 // But if the query fails, your original spec says treat as complete. You did not retract that.
 // So: network failure => treat as COMPLETE (stops task loop) + warning logged.
-const TASK_ENDPOINT_BASE_URL = ""; // e.g. "https://script.google.com/macros/s/XXXXX/exec"
+const TASK_WEBAPP_ID = ""; // e.g. "webappid"
+const TASK_ENDPOINT_BASE_URL = TASK_WEBAPP_ID
+  ? `https://script.google.com/macros/s/${TASK_WEBAPP_ID}/exec`
+  : "";
 
 // Constants
 const CONFLICT_BUFFER_MIN = 10;
@@ -497,7 +500,10 @@ function normalizeCalendarAlarmObject(rawObj) {
     : [];
 
   const reschedMinutes = intInRange(rawObj.reschedMinutes, 0, 0, 500);
-  const taskRow = intInRange(rawObj.taskRow, 0, 0, 1e9);
+  const taskLoopMin = intInRange(rawObj.taskLoopMin, 0, 0, 500);
+  const taskIDs = Array.isArray(rawObj.taskIDs)
+    ? rawObj.taskIDs.filter((x) => typeof x === "string" && x.trim())
+    : [];
   const maxReschedules = intInRange(rawObj.maxReschedules, 1, 1, 10);
 
   return {
@@ -519,7 +525,8 @@ function normalizeCalendarAlarmObject(rawObj) {
       silenceIfDriving,
       conflictingCalendars,
       reschedMinutes,
-      taskRow,
+      taskLoopMin,
+      taskIDs,
       maxReschedules,
     },
   };
@@ -579,7 +586,16 @@ function ensureRegistryEntryShape(entry) {
   if (typeof entry.silenceIfDriving !== "string") entry.silenceIfDriving = "OFF";
   if (!Array.isArray(entry.conflictingCalendars)) entry.conflictingCalendars = [];
   if (!Number.isFinite(Number(entry.reschedMinutes))) entry.reschedMinutes = 0;
-  if (!Number.isFinite(Number(entry.taskRow))) entry.taskRow = 0;
+  if (!Number.isFinite(Number(entry.taskLoopMin))) entry.taskLoopMin = 0;
+  if (!Array.isArray(entry.taskIDs)) {
+    if (Number.isFinite(Number(entry.taskRow)) && Number(entry.taskRow) > 0) {
+      entry.taskIDs = [String(entry.taskRow)];
+    } else {
+      entry.taskIDs = [];
+    }
+  } else {
+    entry.taskIDs = entry.taskIDs.filter((x) => typeof x === "string" && x.trim());
+  }
   if (!Number.isFinite(Number(entry.maxReschedules))) entry.maxReschedules = 1;
 
   return entry;
@@ -752,42 +768,56 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function checkTaskRowCompleteFailOpen(taskRow) {
-  if (!taskRow || taskRow <= 0) return true;
+async function checkTaskIDsCompleteFailOpen(taskIDs) {
+  if (!Array.isArray(taskIDs) || taskIDs.length === 0) return true;
 
   if (!TASK_ENDPOINT_BASE_URL) {
-    addError("WARN: taskRow set but TASK_ENDPOINT_BASE_URL not configured; treating as complete.");
+    addError("WARN: taskIDs set but TASK_WEBAPP_ID not configured; treating as complete.");
     return true;
   }
 
-  try {
-    const url = `${TASK_ENDPOINT_BASE_URL}${TASK_ENDPOINT_BASE_URL.includes("?") ? "&" : "?"}row=${encodeURIComponent(
-      String(taskRow)
-    )}`;
-    const req = new Request(url);
-    req.timeoutInterval = 5;
-    const resp = await req.loadString();
-    const trimmed = String(resp ?? "").trim();
+  for (const rawID of taskIDs) {
+    const taskID = String(rawID ?? "").trim();
+    if (!taskID) continue;
 
-    const pj = safeJSONParse(trimmed);
-    if (pj.ok) {
-      const v = pj.val;
-      if (typeof v === "boolean") return v;
-      if (v && typeof v === "object") {
-        if (typeof v.complete === "boolean") return v.complete;
-        if (typeof v.done === "boolean") return v.done;
+    try {
+      const metrics = `%22${encodeURIComponent(taskID)}%22`;
+      const key = "%22isComplete%22";
+      const url = `${TASK_ENDPOINT_BASE_URL}?metrics=${metrics}&key=${key}`;
+      const req = new Request(url);
+      req.timeoutInterval = 5;
+      const resp = await req.loadString();
+      const trimmed = String(resp ?? "").trim();
+
+      const pj = safeJSONParse(trimmed);
+      if (pj.ok) {
+        const v = pj.val;
+        if (typeof v === "boolean") {
+          if (!v) return false;
+          continue;
+        }
+        if (v && typeof v === "object") {
+          if (typeof v.complete === "boolean") {
+            if (!v.complete) return false;
+            continue;
+          }
+          if (typeof v.done === "boolean") {
+            if (!v.done) return false;
+            continue;
+          }
+        }
       }
+
+      if (/^true$/i.test(trimmed)) continue;
+      if (/^false$/i.test(trimmed)) return false;
+
+      addError("WARN: taskIDs endpoint returned unrecognized response; treating as complete.");
+    } catch (e) {
+      addError(`WARN: taskIDs query failed; treating as complete. (${String(e)})`);
     }
-
-    if (/^true$/i.test(trimmed)) return true;
-    if (/^false$/i.test(trimmed)) return false;
-
-    addError("WARN: taskRow endpoint returned unrecognized response; treating as complete.");
-    return true;
-  } catch (e) {
-    addError(`WARN: taskRow query failed; treating as complete. (${String(e)})`);
-    return true;
   }
+
+  return true;
 }
 
 async function findConflictReadyAt(entry, fireEpoch) {
@@ -832,6 +862,7 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   if (conflictReady !== null) candidates.push(conflictReady);
 
   const reschedMinutes = Number(entry.reschedMinutes ?? 0);
+  const taskLoopMin = Number(entry.taskLoopMin ?? 0);
 
   // Driving baseline
   const focus = String(currentFocus ?? "").trim().toLowerCase();
@@ -840,8 +871,8 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   }
 
   // Task baseline (for task loops + task gating)
-  if (includeTaskBaseline && reschedMinutes > 0) {
-    candidates.push(floorToMinute(fireEpoch + reschedMinutes * 60));
+  if (includeTaskBaseline && taskLoopMin > 0) {
+    candidates.push(floorToMinute(fireEpoch + taskLoopMin * 60));
   }
 
   // Location gating baselines (requires provided location)
@@ -968,11 +999,12 @@ async function tryFastPath(input, registryAfter) {
   }
 
   const hasQR = String(entry.qrCodeID ?? "").trim() !== "";
-  const hasTask = Number(entry.taskRow ?? 0) > 0;
+  const taskIDs = Array.isArray(entry.taskIDs) ? entry.taskIDs : [];
+  const hasTask = taskIDs.length > 0;
 
   // --- TASK LOOP (new behavior) ---
   if (hasTask) {
-    const complete = await checkTaskRowCompleteFailOpen(Number(entry.taskRow));
+    const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
 
     if (complete) {
       // Stop behavior: delete this instance and suppress future scheduling until TTL cleanup.
@@ -986,20 +1018,20 @@ async function tryFastPath(input, registryAfter) {
     }
 
     // Incomplete => continue looping
-    const reschedMinutes = Number(entry.reschedMinutes ?? 0);
-    if (reschedMinutes <= 0) {
+    const taskLoopMin = Number(entry.taskLoopMin ?? 0);
+    if (taskLoopMin <= 0) {
       // Cannot loop without an interval
-      addError(`ERR: taskRow>0 but reschedMinutes==0 for "${name}". Task loop cannot continue.`);
+      addError(`ERR: taskIDs set but taskLoopMin==0 for "${name}". Task loop cannot continue.`);
       output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
       return { handled: true };
     }
 
     if (hasQR) {
-      // QR + taskRow combined loop:
-      // - If qrActive true => stay in QR minute-loop.
+      // QR + taskIDs combined loop:
+      // - If qrActive true => stay in QR loop.
       // - If qrActive false:
       //     * If firstQRFireTime not set => initial ring (start QR loop).
-      //     * Else if taskCooldownScheduled false => post-scan tick => schedule cooldown at now+reschedMinutes.
+      //     * Else if taskCooldownScheduled false => post-scan tick => schedule cooldown at now+taskLoopMin.
       //     * Else (taskCooldownScheduled true) => cooldown alarm fired => re-arm QR loop.
 
       const firstSet = typeof entry.firstQRFireTime === "number" && Number.isFinite(entry.firstQRFireTime);
@@ -1042,10 +1074,10 @@ async function tryFastPath(input, registryAfter) {
       }
 
       if (entry.taskCooldownScheduled === false) {
-        // Post-scan tick: schedule cooldown at now+reschedMinutes (no QR loop)
+        // Post-scan tick: schedule cooldown at now+taskLoopMin (no QR loop)
         await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
         entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
+        entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
 
         entry.qrActive = false;
         entry.taskCooldownScheduled = true;
@@ -1071,12 +1103,12 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
-    // Non-QR task loop: delete fired + reschedule at now+reschedMinutes (no decrement)
+    // Non-QR task loop: delete fired + reschedule at now+taskLoopMin (no decrement)
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
     await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
     entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
+    entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
 
     queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
     return { handled: true };
@@ -1363,7 +1395,8 @@ async function runVerifier(input, registryAfter) {
     r.silenceIfDriving = exp.silenceIfDriving;
     r.conflictingCalendars = exp.conflictingCalendars;
     r.reschedMinutes = exp.reschedMinutes;
-    r.taskRow = exp.taskRow;
+    r.taskLoopMin = exp.taskLoopMin;
+    r.taskIDs = exp.taskIDs;
 
     // Keep remaining maxReschedules conservative
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
@@ -1407,7 +1440,8 @@ async function runVerifier(input, registryAfter) {
     r.silenceIfDriving = exp.silenceIfDriving;
     r.conflictingCalendars = exp.conflictingCalendars;
     r.reschedMinutes = exp.reschedMinutes;
-    r.taskRow = exp.taskRow;
+    r.taskLoopMin = exp.taskLoopMin;
+    r.taskIDs = exp.taskIDs;
 
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
     const oldRem = Math.trunc(Number(r.maxReschedules ?? newMax));
