@@ -87,7 +87,7 @@ const output = {
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
   qrLoop: false,
-  nextLoopStart: "",
+  nextLoopStart: 0,
   debug: {},
   errorRegistry: "",
 };
@@ -1225,7 +1225,7 @@ async function tryFastPath(input, registryAfter) {
         if (!firstSet) entry.firstQRFireTime = now;
 
         output.qrLoop = true;
-        output.nextLoopStart = formatEpochISO(entry.nextFireTime);
+        output.nextLoopStart = entry.nextFireTime;
 
         // Only run shortcutOnTrigger when QR becomes active initially
         // (initial ring case handled below)
@@ -1243,7 +1243,7 @@ async function tryFastPath(input, registryAfter) {
         entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
         output.qrLoop = true;
-        output.nextLoopStart = formatEpochISO(entry.nextFireTime);
+        output.nextLoopStart = entry.nextFireTime;
 
         const trig = String(entry.shortcutOnTrigger ?? "").trim();
         if (trig) output.triggerShortcutsToRun.push(trig);
@@ -1274,7 +1274,7 @@ async function tryFastPath(input, registryAfter) {
       entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
       output.qrLoop = true;
-      output.nextLoopStart = formatEpochISO(entry.nextFireTime);
+      output.nextLoopStart = entry.nextFireTime;
 
       const trig = String(entry.shortcutOnTrigger ?? "").trim();
       if (trig) output.triggerShortcutsToRun.push(trig);
@@ -1418,7 +1418,7 @@ async function tryFastPath(input, registryAfter) {
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
     output.qrLoop = true;
-    output.nextLoopStart = formatEpochISO(entry.nextFireTime);
+    output.nextLoopStart = entry.nextFireTime;
     return { handled: true };
   }
 
