@@ -156,6 +156,12 @@ function nowEpoch() {
   return Math.floor(Date.now() / 1000);
 }
 
+function formatEpochISO(epochSec) {
+  const epoch = Number(epochSec);
+  if (!Number.isFinite(epoch) || epoch <= 0) return "";
+  return new Date(epoch * 1000).toISOString();
+}
+
 function floorToMinute(epochSec) {
   return Math.floor(epochSec / 60) * 60;
 }
