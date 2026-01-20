@@ -894,7 +894,7 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
       }
 
       if (nearest !== null) {
-        setLocationDebug({
+        output.debug.location = {
           current: { lat: cur.lat, lon: cur.lon },
           nearest: {
             lat: nearestLat,
@@ -904,7 +904,7 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
           },
           insideAny,
           mode: locationMode,
-        });
+        };
       }
 
       if (locationMode === "whitelist") {
@@ -955,11 +955,6 @@ function entryUsesLocation(entry) {
 function registryNeedsLocation(registryEntries) {
   if (!Array.isArray(registryEntries)) return false;
   return registryEntries.some(entryUsesLocation);
-}
-
-function setLocationDebug(details) {
-  if (!details) return;
-  output.debug.location = details;
 }
 
 async function getCurrentLocation() {
