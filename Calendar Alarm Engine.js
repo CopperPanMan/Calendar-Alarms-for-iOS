@@ -44,7 +44,6 @@ const TASK_ENDPOINT_BASE_URL = TASK_WEBAPP_ID
 
 // Constants
 const CONFLICT_BUFFER_MIN = 10;
-const LOCATION_TIME_MULTIPLIER_SEC_PER_KM = 150; // “middle ground”
 const LOCK_STALE_SEC = 30;
 const LOCK_RETRY_DELAY_MS = 500;
 const LOCK_HARD_TIMEOUT_MS = 30000;
@@ -812,6 +811,54 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ---- Travel-time estimate from coords only (tuned) ----
+// Haversine distance in miles
+function haversineMiles(lat1, lon1, lat2, lon2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 3958.7613; // Earth radius in miles
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Detour factor based on straight-line distance (roads vs as-the-crow-flies)
+function detourFactor(straightMiles) {
+  if (straightMiles < 3) return 1.33;     // local streets / turns / lights
+  if (straightMiles < 10) return 1.22;    // mixed arterial
+  if (straightMiles < 60) return 1.14;    // often highway-dominant in suburbs
+  return 1.15;                            // long trips: fairly direct but not perfect
+}
+
+// Average speed (mph) based on *road miles*
+function avgSpeedMph(roadMiles) {
+  if (roadMiles <= 2) return 18;
+  if (roadMiles <= 8) return 25;
+  if (roadMiles <= 20) return 45;
+  if (roadMiles <= 80) return 58;
+  return 55; // long trips include exits, towns, traffic variability
+}
+
+// Main estimator: returns integer minutes
+function estimateDriveMinutes(lat1, lon1, lat2, lon2) {
+  const OVERHEAD_MIN = 4; // lights/parking/getting onto main roads
+  const straight = haversineMiles(lat1, lon1, lat2, lon2);
+
+  const detour = detourFactor(straight);
+  const roadMiles = straight * detour;
+
+  const mph = avgSpeedMph(roadMiles);
+  const driveMin = (roadMiles / mph) * 60;
+
+  // For rescheduling checks, keep within a safe band.
+  const raw = driveMin + OVERHEAD_MIN;
+  const clamped = Math.max(2, Math.min(raw, 45)); // keep checks between 2 and 45 minutes
+
+  return Math.round(clamped);
+}
+
 async function checkTaskIDsCompleteFailOpen(taskIDs) {
   if (!Array.isArray(taskIDs) || taskIDs.length === 0) return true;
 
@@ -965,8 +1012,8 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
 
       if (locationMode === "whitelist") {
         if (!insideAny && nearest !== null) {
-          const km = nearest / 1000;
-          const sec = Math.max(60, Math.round(km * LOCATION_TIME_MULTIPLIER_SEC_PER_KM));
+          const minutes = estimateDriveMinutes(cur.lat, cur.lon, nearestLat, nearestLon);
+          const sec = Math.max(60, minutes * 60);
           candidates.push(floorToMinute(fireEpoch + sec));
         }
       } else if (locationMode === "blacklist") {
