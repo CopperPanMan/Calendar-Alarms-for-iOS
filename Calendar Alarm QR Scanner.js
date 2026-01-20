@@ -11,7 +11,7 @@
 // - This script NEVER writes scannerLastOpened.txt.
 //   Only Shortcuts should update scannerLastOpened.txt when the user presses "silence" or opens the scanner.
 
-const BOOKMARK_NAME = "Calendar Engine";
+const BOOKMARK_NAME = "Calendar Alarms";
 
 const LOCK_STALE_SEC = 30;
 const LOCK_RETRY_DELAY_MS = 500;
@@ -87,7 +87,7 @@ function resolveShortcutsDirOrThrow(fm) {
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Engine.`
+      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms.`
     );
   }
   return p;
