@@ -13,6 +13,10 @@ In addition to your normal iOS clock app functionality, iOS Alarms can now be se
 
 ## How does it work?
 
+
+
 You write small JSON “alarm definitions” inside a Calendar event’s Notes. The system converts those into iOS Clock alarms, and maintain runtime behavior for some more complex features, such as optional QR-codes to turn off, and optional rescheduling behavior for things like calendar conflicts, driving, or location settings.
 
 The important bit: this system does not effect normal usage of your calendar or clock app. It only adds functionality to what your phone can currently do. It runs entirely on your own device and using your own iCloud account - no 3rd party servers, here.
+
+### See the [Setup Guide](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Setup%20Guide.md) For more Information.
