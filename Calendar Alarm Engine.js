@@ -58,6 +58,9 @@ const QR_LOOP_INTERVAL_SEC = QR_LOOP_MINUTES * 60;
 const QR_BACKUP_MULTIPLIER = 3;
 const QR_BACKUP_INTERVAL_SEC = QR_LOOP_INTERVAL_SEC * QR_BACKUP_MULTIPLIER;
 const RESCHED_CLAMP_FUTURE_SEC = 4 * 60 * 60;
+const LOCATION_CACHE_KEY = "calendar_alarms_last_location_v1";
+const LOCATION_TIMEOUT_MS = 4500;
+const LOCATION_MAX_ATTEMPTS = 2;
 
 const FILES = {
   registry: "registry.txt",
@@ -92,6 +95,54 @@ const output = {
 function setLocationDebug(details) {
   if (!details) return;
   output.debug.location = details;
+}
+
+function readLocationCache() {
+  try {
+    if (!Keychain.contains(LOCATION_CACHE_KEY)) return null;
+    const parsed = safeJSONParse(Keychain.get(LOCATION_CACHE_KEY));
+    if (!parsed.ok || !parsed.val) return null;
+    const { lat, lon } = parsed.val;
+    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return null;
+    return { lat: Number(lat), lon: Number(lon), cached: true };
+  } catch (e) {
+    addError(`WARN: failed to read location cache (${String(e)})`);
+    return null;
+  }
+}
+
+function writeLocationCache(loc) {
+  try {
+    const payload = {
+      lat: loc.latitude,
+      lon: loc.longitude,
+      acc: loc.horizontalAccuracy,
+      ts: new Date().toISOString(),
+    };
+    Keychain.set(LOCATION_CACHE_KEY, JSON.stringify(payload));
+    return payload;
+  } catch (e) {
+    addError(`WARN: failed to write location cache (${String(e)})`);
+    return null;
+  }
+}
+
+async function withTimeout(promise, ms) {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = Timer.schedule(ms / 1000, false, () => {
+      reject(new Error(`TIMEOUT_AFTER_${ms}MS`));
+    });
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    if (timer) timer.invalidate();
+    return result;
+  } catch (e) {
+    if (timer) timer.invalidate();
+    throw e;
+  }
 }
 
 function sleep(ms) {
@@ -963,15 +1014,25 @@ function registryNeedsLocation(registryEntries) {
 }
 
 async function getCurrentLocation() {
-  try {
-    Location.setAccuracy(100);
-    const loc = await Location.current();
-    if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
-      return { lat: loc.latitude, lon: loc.longitude };
+  const cached = readLocationCache();
+  for (let attempt = 1; attempt <= LOCATION_MAX_ATTEMPTS; attempt++) {
+    try {
+      if (typeof Location.setAccuracyToHundredMeters === "function") {
+        Location.setAccuracyToHundredMeters();
+      } else {
+        Location.setAccuracy(100);
+      }
+      const loc = await withTimeout(Location.current(), LOCATION_TIMEOUT_MS);
+      if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+        writeLocationCache(loc);
+        return { lat: loc.latitude, lon: loc.longitude };
+      }
+    } catch (e) {
+      addError(`ERR: failed to fetch location (attempt ${attempt}/${LOCATION_MAX_ATTEMPTS}: ${String(e)})`);
     }
-  } catch (e) {
-    addError(`ERR: failed to fetch location (${String(e)})`);
   }
+
+  if (cached) return { lat: cached.lat, lon: cached.lon, cached: true };
   return null;
 }
 
