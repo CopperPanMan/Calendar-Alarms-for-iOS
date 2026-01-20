@@ -85,6 +85,7 @@ const output = {
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
   qrLoop: false,
+  debug: {},
   errorRegistry: "",
 };
 
@@ -309,8 +310,7 @@ async function releaseLock(fm, lockPath) {
 
 // ---------- Input parsing (index-aligned) ----------
 // New input shape (still delimiter-based):
-// labels:;:hours:;:minutes:;:currentFocus[:;:lat:;:lon]
-// - If lat/lon are missing or invalid, currentLocation=null (location request may be triggered)
+// labels:;:hours:;:minutes:;:currentFocus
 function parseEngineInput(inputStr) {
   const raw = String(inputStr ?? "");
   const parts = raw.split(DELIM);
@@ -343,22 +343,10 @@ function parseEngineInput(inputStr) {
     iosAlarms.push({ name, hh, mm });
   }
 
-  // Location is passed as the final piece, but because it uses the same DELIM,
-  // it will arrive split as two extra parts: parts[4]=lat, parts[5]=lon.
-  let currentLocation = null;
-  const latRaw = parts.length >= 5 ? parts[4] : null;
-  const lonRaw = parts.length >= 6 ? parts[5] : null;
-
-  const lat = Number(latRaw);
-  const lon = Number(lonRaw);
-  if (Number.isFinite(lat) && Number.isFinite(lon)) {
-    currentLocation = { lat, lon };
-  }
-
   return {
     iosAlarms,
     currentFocus: String(focusPart ?? "").trim(),
-    currentLocation, // {lat,lon} OR null
+    currentLocation: null,
   };
 }
 
@@ -875,15 +863,18 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
     candidates.push(floorToMinute(fireEpoch + taskLoopMin * 60));
   }
 
-  // Location gating baselines (requires provided location)
+  // Location gating baselines (requires Scriptable location)
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   const locs = Array.isArray(entry.locations) ? entry.locations : [];
   const defaultRadius = Number(entry.radiusMeters ?? 50);
 
   if ((locationMode === "whitelist" || locationMode === "blacklist") && locs.length > 0) {
-    const cur = currentLocation; // <- provided by Shortcuts; null means "ignore location features"
+    const cur = currentLocation; // null means "ignore location features"
     if (cur) {
       let nearest = null;
+      let nearestLat = null;
+      let nearestLon = null;
+      let nearestRadius = null;
       let insideAny = false;
 
       for (const pair of locs) {
@@ -893,8 +884,27 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
         const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
 
         const d = haversineMeters(cur.lat, cur.lon, lat, lon);
-        if (nearest === null || d < nearest) nearest = d;
+        if (nearest === null || d < nearest) {
+          nearest = d;
+          nearestLat = lat;
+          nearestLon = lon;
+          nearestRadius = radius;
+        }
         if (d <= radius) insideAny = true;
+      }
+
+      if (nearest !== null) {
+        setLocationDebug({
+          current: { lat: cur.lat, lon: cur.lon },
+          nearest: {
+            lat: nearestLat,
+            lon: nearestLon,
+            distanceMeters: Math.round(nearest),
+            radiusMeters: Number.isFinite(nearestRadius) ? nearestRadius : null,
+          },
+          insideAny,
+          mode: locationMode,
+        });
       }
 
       if (locationMode === "whitelist") {
@@ -908,6 +918,14 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
           candidates.push(floorToMinute(fireEpoch + reschedMinutes * 60));
         }
       }
+    } else {
+      setLocationDebug({
+        current: null,
+        nearest: null,
+        insideAny: null,
+        mode: locationMode,
+        reason: "currentLocation unavailable",
+      });
     }
   }
 
@@ -939,9 +957,22 @@ function registryNeedsLocation(registryEntries) {
   return registryEntries.some(entryUsesLocation);
 }
 
-function outputLocationRequestAndExit() {
-  Script.setShortcutOutput(JSON.stringify([{ locationRequest: true }]));
-  return;
+function setLocationDebug(details) {
+  if (!details) return;
+  output.debug.location = details;
+}
+
+async function getCurrentLocation() {
+  try {
+    Location.setAccuracy(100);
+    const loc = await Location.current();
+    if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+      return { lat: loc.latitude, lon: loc.longitude };
+    }
+  } catch (e) {
+    addError(`ERR: failed to fetch location (${String(e)})`);
+  }
+  return null;
 }
 
 function updateQRBackupAlarm(entry, baseEpoch, iosAlarms) {
@@ -1137,15 +1168,47 @@ async function tryFastPath(input, registryAfter) {
     if (cur) {
       const defaultRadius = Number(entry.radiusMeters ?? 50);
       let insideAny = false;
+      let nearest = null;
+      let nearestLat = null;
+      let nearestLon = null;
+      let nearestRadius = null;
       for (const pair of entry.locations) {
         if (!Array.isArray(pair) || pair.length < 2) continue;
         const lat = Number(pair[0]), lon = Number(pair[1]);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
         const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
-        if (haversineMeters(cur.lat, cur.lon, lat, lon) <= radius) insideAny = true;
+        const d = haversineMeters(cur.lat, cur.lon, lat, lon);
+        if (nearest === null || d < nearest) {
+          nearest = d;
+          nearestLat = lat;
+          nearestLon = lon;
+          nearestRadius = radius;
+        }
+        if (d <= radius) insideAny = true;
+      }
+      if (nearest !== null) {
+        setLocationDebug({
+          current: { lat: cur.lat, lon: cur.lon },
+          nearest: {
+            lat: nearestLat,
+            lon: nearestLon,
+            distanceMeters: Math.round(nearest),
+            radiusMeters: Number.isFinite(nearestRadius) ? nearestRadius : null,
+          },
+          insideAny,
+          mode: locationMode,
+        });
       }
       if (locationMode === "whitelist" && !insideAny) gated = true;
       if (locationMode === "blacklist" && insideAny) gated = true;
+    } else {
+      setLocationDebug({
+        current: null,
+        nearest: null,
+        insideAny: null,
+        mode: locationMode,
+        reason: "currentLocation unavailable",
+      });
     }
   }
 
@@ -1551,8 +1614,10 @@ let registryAfter = deepClone(registryBefore);
 const input = parseEngineInput(args.shortcutParameter);
 
 if (registryNeedsLocation(registryAfter) && !input.currentLocation) {
-  outputLocationRequestAndExit();
-  return;
+  input.currentLocation = await getCurrentLocation();
+  if (!input.currentLocation) {
+    addError("ERR: location required but unavailable.");
+  }
 }
 
 // Phase B — Fast-path
