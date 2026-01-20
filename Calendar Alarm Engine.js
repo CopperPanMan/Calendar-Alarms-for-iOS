@@ -195,6 +195,17 @@ function hhmmToClosestEpoch(hh, mm, nowSec) {
   return best;
 }
 
+function formatEventDateShort(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const monthNames = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  const month = monthNames[d.getMonth()] ?? "";
+  const day = d.getDate();
+  return month ? `${month} ${day}` : String(day);
+}
+
 function safeJSONParse(str) {
   try {
     return { ok: true, val: JSON.parse(str) };
@@ -1430,13 +1441,13 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
     const sub = extractFirstAlarmJSONArraySubstring(notes); // your stricter extractor
     if (!hasAlarmName) {
       if (hasOffsetMin) {
-        addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
+        addError(`WARN: event "${ev.title}" (${formatEventDateShort(ev.startDate)}) alarm JSON invalid.`);
       }
       continue;
     }
 
     if (hasBrackets && !sub) {
-      addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
+      addError(`WARN: event "${ev.title}" (${formatEventDateShort(ev.startDate)}) alarm JSON invalid.`);
       continue;
     }
 
@@ -1444,7 +1455,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
 
     const parsed = safeJSONParse(sub);
     if (!parsed.ok || !Array.isArray(parsed.val)) {
-      addError(`WARN: event "${ev.title}" alarm JSON invalid.`);
+      addError(`WARN: event "${ev.title}" (${formatEventDateShort(ev.startDate)}) alarm JSON invalid.`);
       continue;
     }
 
