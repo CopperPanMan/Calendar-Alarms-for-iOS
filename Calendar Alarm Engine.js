@@ -918,6 +918,14 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
           candidates.push(floorToMinute(fireEpoch + reschedMinutes * 60));
         }
       }
+    } else {
+      setLocationDebug({
+        current: null,
+        nearest: null,
+        insideAny: null,
+        mode: locationMode,
+        reason: "currentLocation unavailable",
+      });
     }
   }
 
@@ -1155,15 +1163,47 @@ async function tryFastPath(input, registryAfter) {
     if (cur) {
       const defaultRadius = Number(entry.radiusMeters ?? 50);
       let insideAny = false;
+      let nearest = null;
+      let nearestLat = null;
+      let nearestLon = null;
+      let nearestRadius = null;
       for (const pair of entry.locations) {
         if (!Array.isArray(pair) || pair.length < 2) continue;
         const lat = Number(pair[0]), lon = Number(pair[1]);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
         const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
-        if (haversineMeters(cur.lat, cur.lon, lat, lon) <= radius) insideAny = true;
+        const d = haversineMeters(cur.lat, cur.lon, lat, lon);
+        if (nearest === null || d < nearest) {
+          nearest = d;
+          nearestLat = lat;
+          nearestLon = lon;
+          nearestRadius = radius;
+        }
+        if (d <= radius) insideAny = true;
+      }
+      if (nearest !== null) {
+        setLocationDebug({
+          current: { lat: cur.lat, lon: cur.lon },
+          nearest: {
+            lat: nearestLat,
+            lon: nearestLon,
+            distanceMeters: Math.round(nearest),
+            radiusMeters: Number.isFinite(nearestRadius) ? nearestRadius : null,
+          },
+          insideAny,
+          mode: locationMode,
+        });
       }
       if (locationMode === "whitelist" && !insideAny) gated = true;
       if (locationMode === "blacklist" && insideAny) gated = true;
+    } else {
+      setLocationDebug({
+        current: null,
+        nearest: null,
+        insideAny: null,
+        mode: locationMode,
+        reason: "currentLocation unavailable",
+      });
     }
   }
 
