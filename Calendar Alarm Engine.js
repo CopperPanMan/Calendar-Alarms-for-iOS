@@ -1017,11 +1017,7 @@ async function getCurrentLocation() {
   const cached = readLocationCache();
   for (let attempt = 1; attempt <= LOCATION_MAX_ATTEMPTS; attempt++) {
     try {
-      if (typeof Location.setAccuracyToHundredMeters === "function") {
-        Location.setAccuracyToHundredMeters();
-      } else {
-        Location.setAccuracy(100);
-      }
+      Location.setAccuracy(100);
       const loc = await withTimeout(Location.current(), LOCATION_TIMEOUT_MS);
       if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
         writeLocationCache(loc);
