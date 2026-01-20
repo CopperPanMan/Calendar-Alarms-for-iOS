@@ -87,6 +87,7 @@ const output = {
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
   qrLoop: false,
+  nextLoopStart: "",
   debug: {},
   errorRegistry: "",
 };
@@ -153,6 +154,12 @@ function sleep(ms) {
 
 function nowEpoch() {
   return Math.floor(Date.now() / 1000);
+}
+
+function formatEpochISO(epochSec) {
+  const epoch = Number(epochSec);
+  if (!Number.isFinite(epoch) || epoch <= 0) return "";
+  return new Date(epoch * 1000).toISOString();
 }
 
 function floorToMinute(epochSec) {
@@ -1218,6 +1225,7 @@ async function tryFastPath(input, registryAfter) {
         if (!firstSet) entry.firstQRFireTime = now;
 
         output.qrLoop = true;
+        output.nextLoopStart = formatEpochISO(entry.nextFireTime);
 
         // Only run shortcutOnTrigger when QR becomes active initially
         // (initial ring case handled below)
@@ -1235,6 +1243,7 @@ async function tryFastPath(input, registryAfter) {
         entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
         output.qrLoop = true;
+        output.nextLoopStart = formatEpochISO(entry.nextFireTime);
 
         const trig = String(entry.shortcutOnTrigger ?? "").trim();
         if (trig) output.triggerShortcutsToRun.push(trig);
@@ -1265,6 +1274,7 @@ async function tryFastPath(input, registryAfter) {
       entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
       output.qrLoop = true;
+      output.nextLoopStart = formatEpochISO(entry.nextFireTime);
 
       const trig = String(entry.shortcutOnTrigger ?? "").trim();
       if (trig) output.triggerShortcutsToRun.push(trig);
@@ -1408,6 +1418,7 @@ async function tryFastPath(input, registryAfter) {
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
     output.qrLoop = true;
+    output.nextLoopStart = formatEpochISO(entry.nextFireTime);
     return { handled: true };
   }
 
@@ -1795,5 +1806,4 @@ function finalizeErrorRegistry(errLines) {
 }
 
 output.errorRegistry = finalizeErrorRegistry(errors);
-
 Script.setShortcutOutput(JSON.stringify(output));
