@@ -89,6 +89,11 @@ const output = {
   errorRegistry: "",
 };
 
+function setLocationDebug(details) {
+  if (!details) return;
+  output.debug.location = details;
+}
+
 function sleep(ms) {
   const seconds = Math.max(0, Number(ms) / 1000);
   return new Promise((resolve) => {
