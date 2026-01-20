@@ -32,8 +32,10 @@ You write small JSON “alarm definitions” inside a Calendar event’s **Notes
 1. In the **Files** app → **iCloud Drive** → make sure a folder named **Shortcuts** exists.  
    Inside it, create a new folder called **Calendar Alarms**.  
    If either do not exist, create them.
+   
+<img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/58f12814-71cb-4d39-9b42-5794b483c82b" /><img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/b81003dd-1bdd-4f57-a489-9141e58a64dc" />
 
-2. The system will create/maintain these files inside:
+3. The system will create/maintain these files inside:
 
 `iCloud Drive/Shortcuts/Calendar Alarms`
 
@@ -82,6 +84,7 @@ While a few are optional, it is recommended that you add these **5 Shortcuts** (
   - Quickly change tomorrow’s wake-up alarm by adjusting the end time of your “Sleep” calendar event.  
   - Requires a calendar event titled **“Sleep”** with an alarm set to:  
     `{"offsetMin": 0, "reference": "end"}`
+<img width="129" height="279" alt="image" src="https://github.com/user-attachments/assets/86da3868-ab83-4783-864c-ce484d2a27cc" />
 
 ## E) Automations
 
