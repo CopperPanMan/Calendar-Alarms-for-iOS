@@ -4,7 +4,7 @@
 // Calendar Alarms Engine — Scriptable (UPDATED per your notes)
 //
 // Key changes integrated:
-// 1) No fallback path: if Scriptable cannot resolve the iCloud Drive/Shortcuts/Calendar Engine bookmark, we STOP and return an error.
+// 1) No fallback path: if Scriptable cannot resolve the iCloud Drive/Shortcuts/Calendar Alarms bookmark, we STOP and return an error.
 // 2) Input parsing preserves index alignment (no per-section filtering).
 // 3) Lock staleness uses real-time "now" each retry (not a frozen timestamp).
 // 4) Verifier no longer deletes “not expected” registry entries just because they’re in-window.
@@ -30,7 +30,7 @@
 // Output: JSON string set via Script.setShortcutOutput()
 
 const DELIM = ":;:";
-const BOOKMARK_NAME = "Calendar Engine"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Engine
+const BOOKMARK_NAME = "Calendar Alarms"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms
 
 // Optional TaskRow endpoint (interface defined; you can fill later)
 // Should return boolean-like complete/incomplete; FAIL-OPEN requirement applies only for network errors.
@@ -286,7 +286,7 @@ function resolveShortcutsDirOrThrow(fm) {
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Engine.`
+      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms.`
     );
   }
   return p;
