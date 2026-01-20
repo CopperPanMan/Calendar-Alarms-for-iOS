@@ -843,7 +843,7 @@ function avgSpeedMph(roadMiles) {
 
 // Main estimator: returns integer minutes
 function estimateDriveMinutes(lat1, lon1, lat2, lon2) {
-  const OVERHEAD_MIN = 4; // lights/parking/getting onto main roads
+  const OVERHEAD_MIN = 14; // lights/parking/getting onto main roads
   const straight = haversineMiles(lat1, lon1, lat2, lon2);
 
   const detour = detourFactor(straight);
