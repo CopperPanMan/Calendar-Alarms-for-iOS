@@ -54,6 +54,16 @@ function nowEpoch() {
   return Math.floor(Date.now() / 1000);
 }
 
+function pad2(n) {
+  const s = String(Math.trunc(n));
+  return s.length === 1 ? "0" + s : s;
+}
+
+function epochToHHMM(epochSec) {
+  const d = new Date(epochSec * 1000);
+  return { hh: pad2(d.getHours()), mm: pad2(d.getMinutes()) };
+}
+
 function safeJSONParse(str) {
   try {
     return { ok: true, val: JSON.parse(str) };
@@ -269,6 +279,7 @@ async function runModeB(fm, paths, qrCodeID) {
     shortcutToRun: "",
     notification: "",
     vibrate: false,
+    alarmsToDelete: [],
   };
 
   const lock = await acquireLock(fm, paths.lock);
@@ -303,12 +314,36 @@ async function runModeB(fm, paths, qrCodeID) {
 
         const s = String(a.qrShortcutOnScan ?? "").trim();
         if (!out.shortcutToRun && s) out.shortcutToRun = s;
+
+        if (name) {
+          const next = Number(a.nextFireTime ?? 0);
+          if (Number.isFinite(next) && next > 0) {
+            const { hh, mm } = epochToHHMM(next);
+            out.alarmsToDelete.push({ name, hh, mm });
+          }
+
+          const backup = Number(a.qrBackupFireTime ?? 0);
+          if (Number.isFinite(backup) && backup > 0) {
+            const { hh, mm } = epochToHHMM(backup);
+            out.alarmsToDelete.push({ name, hh, mm });
+          }
+        }
       } else {
         if (name) remainingActiveNames.push(name);
       }
     }
 
     out.vibrate = out.identifiedAlarms > 0;
+
+    if (out.alarmsToDelete.length > 1) {
+      const seen = new Set();
+      out.alarmsToDelete = out.alarmsToDelete.filter((a) => {
+        const key = `${a.name}|||${a.hh}|||${a.mm}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
 
     // ✅ UX: Always return an explicit success signal when correct code was scanned
     if (out.identifiedAlarms > 0) {
