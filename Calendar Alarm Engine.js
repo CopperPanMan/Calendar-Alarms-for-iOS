@@ -490,6 +490,28 @@ function normalizeCalendarAlarmObject(rawObj) {
     if (i < min || i > max) return def;
     return i;
   };
+  const offsetMinInRange = (v, def, min, max) => {
+    let minutes;
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      const unitMatch = trimmed.match(/^([+-]?)(\d+)([hdm])$/i);
+      if (unitMatch) {
+        const sign = unitMatch[1] === "-" ? -1 : 1;
+        const amount = Number(unitMatch[2]);
+        const unit = unitMatch[3].toLowerCase();
+        const multiplier = unit === "h" ? 60 : unit === "d" ? 1440 : 1;
+        minutes = sign * amount * multiplier;
+      } else if (trimmed !== "") {
+        const numeric = Number(trimmed);
+        if (Number.isFinite(numeric)) minutes = Math.trunc(numeric);
+      }
+    } else if (Number.isFinite(Number(v))) {
+      minutes = Math.trunc(Number(v));
+    }
+    if (!Number.isFinite(minutes)) return def;
+    if (minutes < min || minutes > max) return def;
+    return minutes;
+  };
   const num = (v, def) => (Number.isFinite(Number(v)) ? Number(v) : def);
 
   const status = upper(rawObj.status, "ON");
@@ -498,7 +520,7 @@ function normalizeCalendarAlarmObject(rawObj) {
   const reference = lower(rawObj.reference, "start");
   if (reference !== "start" && reference !== "end") return { ok: false, err: `${errPrefix}reference must be start/end` };
 
-  const offsetMin = intInRange(rawObj.offsetMin, 0, -10080, 10080);
+  const offsetMin = offsetMinInRange(rawObj.offsetMin, 0, -10080, 10080);
 
   const qrCodeID = typeof rawObj.qrCodeID === "string" ? rawObj.qrCodeID.trim() : "";
   if (qrCodeID.includes(" ")) return { ok: false, err: `${errPrefix}qrCodeID must not contain spaces` };
