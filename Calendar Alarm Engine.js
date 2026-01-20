@@ -87,7 +87,7 @@ const output = {
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
   qrLoop: false,
-  nextLoopStart: 0,
+  nextLoopStart: "",
   debug: {},
   errorRegistry: "",
 };
@@ -168,6 +168,11 @@ function pad2(n) {
 function epochToHHMM(epochSec) {
   const d = new Date(epochSec * 1000);
   return { hh: pad2(d.getHours()), mm: pad2(d.getMinutes()) };
+}
+
+function epochToShortcutTimestamp(epochSec) {
+  if (!Number.isFinite(epochSec) || epochSec <= 0) return "";
+  return new Date(epochSec * 1000).toISOString();
 }
 
 function hhmmToClosestEpoch(hh, mm, nowSec) {
@@ -1219,7 +1224,7 @@ async function tryFastPath(input, registryAfter) {
         if (!firstSet) entry.firstQRFireTime = now;
 
         output.qrLoop = true;
-        output.nextLoopStart = entry.nextFireTime;
+        output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
         // Only run shortcutOnTrigger when QR becomes active initially
         // (initial ring case handled below)
@@ -1237,7 +1242,7 @@ async function tryFastPath(input, registryAfter) {
         entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
         output.qrLoop = true;
-        output.nextLoopStart = entry.nextFireTime;
+        output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
         const trig = String(entry.shortcutOnTrigger ?? "").trim();
         if (trig) output.triggerShortcutsToRun.push(trig);
@@ -1268,7 +1273,7 @@ async function tryFastPath(input, registryAfter) {
       entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
 
       output.qrLoop = true;
-      output.nextLoopStart = entry.nextFireTime;
+      output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
       const trig = String(entry.shortcutOnTrigger ?? "").trim();
       if (trig) output.triggerShortcutsToRun.push(trig);
@@ -1412,7 +1417,7 @@ async function tryFastPath(input, registryAfter) {
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
     output.qrLoop = true;
-    output.nextLoopStart = entry.nextFireTime;
+    output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
     return { handled: true };
   }
 
