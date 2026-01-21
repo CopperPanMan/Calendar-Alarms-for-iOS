@@ -46,7 +46,7 @@ You write small JSON “alarm definitions” inside a Calendar event’s **Notes
 - `menuOpenStatus.txt`
 
 3. If you intend on using QR functionality, you will need to put at least one alarm tone `.mp3` file in this folder.  
-   *(Here are some to get started with.)*
+   [*(Here are some to get started with.)*](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/tree/main/qr%20alarm%20ringtones)
 
 ## C) Scriptable setup
 
