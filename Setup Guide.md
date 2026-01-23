@@ -80,7 +80,7 @@ While a few are optional, it is recommended that you add these **5 Shortcuts** (
 - [**CA qrCodeMaker**](https://www.icloud.com/shortcuts/3161ca079dff4f069cff0aa117ca6ddf) *(optional)*  
   - Generates QR codes from links for easy printing.  
   - Watch out: some QR code generators create “dynamic” codes that encode their redirect link instead of your actual URL. That won’t work here.
-- [**CA Wake Times**](https://www.icloud.com/shortcuts/bbbf2ca5c78a453aba9d07c5210faf63) *(optional)*  
+- [**CA Wake Times**](https://www.icloud.com/shortcuts/3a03d2452e784f7189a57fb1ba508919) *(optional)*  
   - Quickly change tomorrow’s wake-up alarm by adjusting the end time of your “Sleep” calendar event.  
   - Requires a calendar event titled **“Sleep”** with an alarm set to:  
     `{"offsetMin": 0, "reference": "end"}`
