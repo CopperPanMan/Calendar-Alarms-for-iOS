@@ -7,9 +7,9 @@
 In addition to your normal iOS Clock app functionality, iOS alarms can now be set using the **Notes** section of your **Calendar events**. For instance:
 
 - **Never oversleep with the QR code scanning feature!** By setting QR code alarms, you can force yourself to go to any place, at any time.
-- **Never miss a deadline** — set 3 staggered alarms for your flight in 3 months right from its calendar event so you never check in or leave late again!
-- **Run custom shortcuts from alarms** — run your own shortcuts upon a specific alarm going off or a QR alarm-code being scanned (like turning your lights on, or sending a text).
-- **Keep your Clock app clutter-free** — no more irrelevant old alarms. Class was cancelled? If the calendar alarm is outdated or the event no longer exists, the system deletes it from the Clock app for you.
+- **Never miss a deadline** — set 3 staggered alarms for the day of your flight in 3 months, right from its calendar event, so you never check in or leave late again!
+- **Run custom shortcuts from alarms** — run your own shortcuts upon a specific alarm going off or a QR alarm-code being scanned (like turning your lights on, setting your thermostat, or sending a text).
+- **Keep your Clock app clutter-free** — no more irrelevant old alarms. Class was cancelled? If the event is deleted or the alarm is in the past, the system automatically deletes it from the Clock app for you.
 - **Get notified only when it counts** — this system can automatically reschedule alarms to a better time (driving, conflicting meetings, not at work/home yet, and more).
 
 ## How does it work?
