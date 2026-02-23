@@ -987,45 +987,43 @@ async function checkTaskIDsCompleteFailOpen(taskIDs) {
     return true;
   }
 
-  for (const rawID of taskIDs) {
-    const taskID = String(rawID ?? "").trim();
-    if (!taskID) continue;
+  const cleanedTaskIDs = taskIDs
+    .map((x) => String(x ?? "").trim())
+    .filter((x) => x !== "");
+  if (!cleanedTaskIDs.length) return true;
 
-    try {
-      const metrics = `%22${encodeURIComponent(taskID)}%22`;
-      const key = "%22isComplete%22";
-      const url = `${TASK_ENDPOINT_BASE_URL}?metrics=${metrics}&key=${key}`;
-      const req = new Request(url);
-      req.timeoutInterval = 5;
-      const resp = await req.loadString();
-      const trimmed = String(resp ?? "").trim();
+  try {
+    const key = encodeURIComponent(JSON.stringify("current_metric_status"));
+    const data = encodeURIComponent(JSON.stringify(cleanedTaskIDs));
+    const url = `${TASK_ENDPOINT_BASE_URL}?key=${key}&data=${data}`;
+    const req = new Request(url);
+    req.timeoutInterval = 5;
+    const resp = await req.loadString();
+    const trimmed = String(resp ?? "").trim();
 
-      const pj = safeJSONParse(trimmed);
-      if (pj.ok) {
-        const v = pj.val;
-        if (typeof v === "boolean") {
-          if (!v) return false;
-          continue;
-        }
-        if (v && typeof v === "object") {
-          if (typeof v.complete === "boolean") {
-            if (!v.complete) return false;
-            continue;
-          }
-          if (typeof v.done === "boolean") {
-            if (!v.done) return false;
-            continue;
-          }
-        }
-      }
-
-      if (/^true$/i.test(trimmed)) continue;
-      if (/^false$/i.test(trimmed)) return false;
-
-      addError("WARN: taskIDs endpoint returned unrecognized response; treating as complete.");
-    } catch (e) {
-      addError(`WARN: taskIDs query failed; treating as complete. (${String(e)})`);
+    const pj = safeJSONParse(trimmed);
+    if (!pj.ok) {
+      addError("WARN: taskIDs endpoint returned non-JSON response; treating as complete.");
+      return true;
     }
+
+    const v = pj.val;
+    if (Array.isArray(v)) {
+      for (let i = 0; i < cleanedTaskIDs.length; i++) {
+        if (v[i] !== true) return false;
+      }
+      return true;
+    }
+
+    if (v && typeof v === "object" && v.ok === false) {
+      const details = Array.isArray(v.errors) ? ` (${v.errors.join(" | ")})` : "";
+      addError(`WARN: taskIDs endpoint returned error payload${details}; treating as complete.`);
+      return true;
+    }
+
+    addError("WARN: taskIDs endpoint returned unrecognized payload; treating as complete.");
+  } catch (e) {
+    addError(`WARN: taskIDs query failed; treating as complete. (${String(e)})`);
   }
 
   return true;
