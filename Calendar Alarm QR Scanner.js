@@ -45,6 +45,28 @@ function finalizeErrorRegistry(errLines) {
   return s;
 }
 
+function normalizeShortcutInputArray(raw) {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => String(x ?? "").trim())
+      .filter((x) => x !== "");
+  }
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    return t ? [t] : [];
+  }
+  return [];
+}
+
+function normalizeShortcutAction(raw) {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    const input = normalizeShortcutInputArray(raw.input);
+    return { name, input };
+  }
+  return { name: "", input: [] };
+}
+
 function sleep(ms) {
   const seconds = Math.max(0, Number(ms) / 1000);
   return new Promise((resolve) => Timer.schedule(seconds, false, () => resolve()));
@@ -277,6 +299,7 @@ async function runModeB(fm, paths, qrCodeID) {
     mode: "scan",
     identifiedAlarms: 0,
     shortcutToRun: "",
+    shortcutToRunInput: [],
     notification: "",
     vibrate: false,
     alarmsToDelete: [],
@@ -312,8 +335,11 @@ async function runModeB(fm, paths, qrCodeID) {
         out.identifiedAlarms += 1;
         if (name) matchedNames.push(name);
 
-        const s = String(a.qrShortcutOnScan ?? "").trim();
-        if (!out.shortcutToRun && s) out.shortcutToRun = s;
+        const action = normalizeShortcutAction(a.qrShortcutOnScan);
+        if (!out.shortcutToRun && action.name) {
+          out.shortcutToRun = action.name;
+          out.shortcutToRunInput = action.input;
+        }
 
         if (name) {
           const next = Number(a.nextFireTime ?? 0);
@@ -406,6 +432,7 @@ try {
   } else {
     result.identifiedAlarms = 0;
     result.shortcutToRun = "";
+    result.shortcutToRunInput = [];
     result.notification = "";
     result.vibrate = false;
   }
