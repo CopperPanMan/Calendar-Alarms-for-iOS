@@ -1,25 +1,3 @@
-# Calendar Alarms for iOS – 30 min Setup + Usage Guide
-
-## What is this?
-
-**Calendar Alarms for iOS** is the most powerful alarm “app” available today—and it’s not even an app. Instead, it’s a handful of Shortcuts and Automations entirely owned by you, for free, forever.
-
-In addition to your normal iOS Clock app functionality, iOS alarms can now be set using the **Notes** section of your **Calendar events**. For instance:
-
-- **Never oversleep with the QR code scanning feature!** By setting QR code alarms, you can force yourself to go to any place, at any time.
-- **Never miss a deadline** — set 3 staggered alarms for the day of your flight in 3 months, right from its calendar event, so you never check in or leave late again!
-- **Run custom shortcuts from alarms** — run your own shortcuts upon a specific alarm going off or a QR alarm-code being scanned (like turning your lights on, setting your thermostat, or sending a text).
-- **Keep your Clock app clutter-free** — no more irrelevant old alarms. Class was cancelled? If the event is deleted or the alarm is in the past, the system automatically deletes it from the Clock app for you.
-- **Get notified only when it counts** — this system can automatically reschedule alarms to a better time (driving, conflicting meetings, not at work/home yet, and more).
-
-## How does it work?
-
-You write small JSON “alarm definitions” inside a Calendar event’s **Notes**. The system converts those into iOS Clock alarms, and maintains runtime behavior for more complex features such as optional QR-code shutoff and optional rescheduling behavior for calendar conflicts, driving, or location settings.
-
-**The important bit:** this system does not affect normal usage of your Calendar or Clock app. It only adds functionality to what your phone can currently do. It runs entirely on your own device and using your own iCloud account—no 3rd party servers here.
-
----
-
 # 1) One-time setup (15–30 minutes)
 
 ## A) Install apps
@@ -35,15 +13,9 @@ You write small JSON “alarm definitions” inside a Calendar event’s **Notes
    
 <img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/58f12814-71cb-4d39-9b42-5794b483c82b" /><img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/b81003dd-1bdd-4f57-a489-9141e58a64dc" />
 
-3. The system will create/maintain these files inside:
+3. The system will create/maintain these several files that store runntime data inside:
 
 `iCloud Drive/Shortcuts/Calendar Alarms`
-
-- `registry.txt`
-- `registryLock.txt`
-- `scannerLastOpened.txt`
-- `menuLastOpened.txt`
-- `menuOpenStatus.txt`
 
 3. If you intend on using QR functionality, you will need to put at least one alarm tone `.mp3` file in this folder.  
    [*(Here are some to get started with.)*](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/tree/main/qr%20alarm%20ringtones)
@@ -65,6 +37,8 @@ Go to **Scriptable → Settings → File Bookmarks → Add (+)** and select the 
 - [`Calendar Alarm QR Scanner.js`](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Calendar)
 
 **Instructions:** For each of these scripts, copy/paste the code from its link into a new blank Scriptable script, then rename the script to the correct name.
+- near the top of the script, you can optionally fill in DISABLED_CALENDAR_NAMES = ["name1","name2"...] with a list of calendars that you want the code to ignore completely.
+- near the same place, the optional "TASK_WEBAPP_ID" should be configured if task looping functionality is desired. More on that below.
 
 ## D) Shortcuts setup
 
