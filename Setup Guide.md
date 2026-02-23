@@ -113,7 +113,8 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
     "silenceIfDriving": "ON",
     "conflictingCalendars": ["work meetings", "vacation"],
     "reschedMinutes": "reschedule_interval_in_minutes",
-    "taskProperties": [["task_ID", "reschedule_minutes"], ["task_ID", "reschedule_minutes"]],
+    "taskIDs": ["task_ID", "task_ID"],
+    "taskLoopMin": "minutes_between_repeat_checks",
     "maxReschedules": "max_number_of_reschedules"
   },
   {
@@ -204,7 +205,7 @@ Copy code
 
 - Task looping logic
 
-  - If the user has not completed the task with ID "plan_workday" (from a separate Google Sheets habits system), this entire loop will restart again in 30 minutes.
+  - If the user has not completed all configured taskIDs (from a separate Google Sheets habits system), this loop checks again every taskLoopMin minutes (5 minutes in this example).
 
 ## Example Double Alarm Sleep Event
 ```json
@@ -272,6 +273,6 @@ To do so: run Calendar Alarms Engine once manually after adding or editing your 
 - Repeat-until-complete can work for both QR and non-QR alarms.
 
 - Logic Flow:
-  - alarm rings → you scan QR → after reschedMinutes it checks again → if still incomplete it re-arms QR and rings again → stops once complete.
+  - alarm rings → you scan QR → after taskLoopMin minutes it checks again → if still incomplete it re-arms QR and rings again → stops once complete.
 
   - Example usage: make your wakeup alarm continue triggering every 5 minutes until you have logged that you brushed your teeth.
