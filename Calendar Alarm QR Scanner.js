@@ -5,7 +5,7 @@
 //
 // Mode A (no input): choose active QR alarm name (earliest firstQRFireTime) + decide if menu should show.
 // Mode B (input=qrCodeID): acquire lock, set matching active QR alarms qrActive=false,
-//                          return shortcutToRun + notifications.
+//                          return shortcutsToRun + notifications.
 //
 // IMPORTANT:
 // - This script NEVER writes scannerLastOpened.txt.
@@ -65,6 +65,14 @@ function normalizeShortcutAction(raw) {
     return { name, input };
   }
   return { name: "", input: [] };
+}
+
+function normalizeShortcutActionList(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((x) => normalizeShortcutAction(x)).filter((x) => x.name);
+  }
+  const single = normalizeShortcutAction(raw);
+  return single.name ? [single] : [];
 }
 
 function sleep(ms) {
@@ -298,6 +306,8 @@ async function runModeB(fm, paths, qrCodeID) {
   const out = {
     mode: "scan",
     identifiedAlarms: 0,
+    shortcutsToRun: [],
+    shortcutsToRunDetailed: [],
     shortcutToRun: "",
     shortcutToRunInput: [],
     notification: "",
@@ -335,10 +345,10 @@ async function runModeB(fm, paths, qrCodeID) {
         out.identifiedAlarms += 1;
         if (name) matchedNames.push(name);
 
-        const action = normalizeShortcutAction(a.qrShortcutOnScan);
-        if (!out.shortcutToRun && action.name) {
-          out.shortcutToRun = action.name;
-          out.shortcutToRunInput = action.input;
+        const actions = normalizeShortcutActionList(a.qrShortcutsOnScan ?? a.qrShortcutOnScan);
+        for (const action of actions) {
+          out.shortcutsToRun.push(action.name);
+          out.shortcutsToRunDetailed.push({ name: action.name, input: action.input });
         }
 
         if (name) {
@@ -370,6 +380,16 @@ async function runModeB(fm, paths, qrCodeID) {
         return true;
       });
     }
+    if (out.shortcutsToRunDetailed.length > 1) {
+      const seen = new Set();
+      out.shortcutsToRunDetailed = out.shortcutsToRunDetailed.filter((a) => {
+        const key = `${a.name}|||${JSON.stringify(a.input)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      out.shortcutsToRun = out.shortcutsToRunDetailed.map((a) => a.name);
+    }
 
     // ✅ UX: Always return an explicit success signal when correct code was scanned
     if (out.identifiedAlarms > 0) {
@@ -386,6 +406,11 @@ async function runModeB(fm, paths, qrCodeID) {
         // No active QR alarms at all
         out.notification = "";
       }
+    }
+
+    if (!out.shortcutToRun) {
+      out.shortcutToRun = out.shortcutsToRun[0] || "";
+      out.shortcutToRunInput = out.shortcutsToRunDetailed[0]?.input || [];
     }
 
     await safeWriteString(fm, paths.registry, JSON.stringify(reg));
@@ -431,6 +456,8 @@ try {
     result.shouldShowMenu = false;
   } else {
     result.identifiedAlarms = 0;
+    result.shortcutsToRun = [];
+    result.shortcutsToRunDetailed = [];
     result.shortcutToRun = "";
     result.shortcutToRunInput = [];
     result.notification = "";
