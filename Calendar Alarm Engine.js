@@ -578,6 +578,15 @@ function normalizeCalendarAlarmObject(rawObj) {
     return minutes;
   };
   const num = (v, def) => (Number.isFinite(Number(v)) ? Number(v) : def);
+  const bool = (v, def = false) => {
+    if (typeof v === "boolean") return v;
+    if (typeof v === "string") {
+      const s = v.trim().toLowerCase();
+      if (s === "true") return true;
+      if (s === "false") return false;
+    }
+    return def;
+  };
 
   const status = upper(rawObj.status, "ON");
   if (status !== "ON" && status !== "OFF") return { ok: false, err: `${errPrefix}status must be ON/OFF` };
@@ -596,6 +605,7 @@ function normalizeCalendarAlarmObject(rawObj) {
 
   const qrShortcutOnScan = typeof rawObj.qrShortcutOnScan === "string" ? rawObj.qrShortcutOnScan : "";
   const shortcutOnTrigger = typeof rawObj.shortcutOnTrigger === "string" ? rawObj.shortcutOnTrigger : "";
+  const deleteOnTrigger = bool(rawObj.deleteOnTrigger, false);
 
   const locationMode = lower(rawObj.locationMode, "off");
   if (!["off", "whitelist", "blacklist"].includes(locationMode)) {
@@ -649,6 +659,7 @@ function normalizeCalendarAlarmObject(rawObj) {
       qrVol,
       qrShortcutOnScan,
       shortcutOnTrigger,
+      deleteOnTrigger,
       locationMode,
       locations,
       radiusMeters,
@@ -708,6 +719,12 @@ function ensureRegistryEntryShape(entry) {
   if (!Number.isFinite(Number(entry.qrVol))) entry.qrVol = 40;
   if (typeof entry.qrShortcutOnScan !== "string") entry.qrShortcutOnScan = "";
   if (typeof entry.shortcutOnTrigger !== "string") entry.shortcutOnTrigger = "";
+  if (typeof entry.deleteOnTrigger === "string") {
+    const v = entry.deleteOnTrigger.trim().toLowerCase();
+    entry.deleteOnTrigger = v === "true" ? true : v === "false" ? false : false;
+  } else {
+    entry.deleteOnTrigger = entry.deleteOnTrigger === true;
+  }
 
   if (typeof entry.locationMode !== "string") entry.locationMode = "off";
   if (!Array.isArray(entry.locations)) entry.locations = [];
@@ -1221,6 +1238,21 @@ async function tryFastPath(input, registryAfter) {
     return { handled: true };
   }
 
+  // One-shot silent trigger mode: remove the fired iOS alarm and only run shortcutOnTrigger.
+  if (entry.deleteOnTrigger === true) {
+    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+
+    const trig = String(entry.shortcutOnTrigger ?? "").trim();
+    if (trig) output.triggerShortcutsToRun.push(trig);
+
+    entry.prevFireTime = entry.nextFireTime;
+    entry.nextFireTime = 0;
+    entry.qrActive = false;
+    entry.taskCooldownScheduled = false;
+    clearQRBackupAlarm(entry, input.iosAlarms);
+    return { handled: true };
+  }
+
   const hasQR = String(entry.qrCodeID ?? "").trim() !== "";
   const taskIDs = Array.isArray(entry.taskIDs) ? entry.taskIDs : [];
   const hasTask = taskIDs.length > 0;
@@ -1648,6 +1680,7 @@ async function runVerifier(input, registryAfter) {
     r.qrVol = exp.qrVol;
     r.qrShortcutOnScan = exp.qrShortcutOnScan;
     r.shortcutOnTrigger = exp.shortcutOnTrigger;
+    r.deleteOnTrigger = exp.deleteOnTrigger;
     r.locationMode = exp.locationMode;
     r.locations = exp.locations;
     r.radiusMeters = exp.radiusMeters;
@@ -1693,6 +1726,7 @@ async function runVerifier(input, registryAfter) {
     r.qrVol = exp.qrVol;
     r.qrShortcutOnScan = exp.qrShortcutOnScan;
     r.shortcutOnTrigger = exp.shortcutOnTrigger;
+    r.deleteOnTrigger = exp.deleteOnTrigger;
     r.locationMode = exp.locationMode;
     r.locations = exp.locations;
     r.radiusMeters = exp.radiusMeters;
