@@ -31,6 +31,12 @@
 
 const DELIM = ":;:";
 const BOOKMARK_NAME = "Calendar Alarms"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms
+const DISABLED_CALENDAR_NAMES = [
+  // Optional denylist for calendars that Calendar Alarm Engine should IGNORE.
+  // Leave empty to include all calendars, or add exact calendar titles to skip, e.g.:
+  // "Partner Shared",
+  // "Family",
+];
 
 // Optional TaskRow endpoint (interface defined; you can fill later)
 // Should return boolean-like complete/incomplete; FAIL-OPEN requirement applies only for network errors.
@@ -218,6 +224,48 @@ function safeJSONParse(str) {
   } catch (e) {
     return { ok: false, err: String(e) };
   }
+}
+
+async function getEnabledAlarmSourceCalendars() {
+  const disabled = Array.isArray(DISABLED_CALENDAR_NAMES)
+    ? DISABLED_CALENDAR_NAMES
+      .map((name) => String(name ?? "").trim())
+      .filter((name) => name.length > 0)
+    : [];
+
+  if (!disabled.length) return null; // null => include all calendars
+
+  try {
+    const allCals = await Calendar.forEvents();
+    const disabledSet = new Set(disabled);
+    const allTitles = new Set(allCals.map((cal) => String(cal.title ?? "")));
+
+    for (const title of disabled) {
+      if (!allTitles.has(title)) {
+        addError(`WARN: DISABLED_CALENDAR_NAMES calendar not found: "${title}"`);
+      }
+    }
+
+    const selected = allCals.filter((cal) => !disabledSet.has(String(cal.title ?? "")));
+
+    if (!selected.length) {
+      addError("WARN: DISABLED_CALENDAR_NAMES excludes all calendars; no calendar alarms will be scheduled.");
+    }
+
+    return selected;
+  } catch (e) {
+    addError(`WARN: failed to load calendar list; falling back to all calendars. (${String(e)})`);
+    return null;
+  }
+}
+
+async function fetchEventsForAlarmSource(start, end) {
+  const selectedCalendars = await getEnabledAlarmSourceCalendars();
+  if (selectedCalendars === null) {
+    return CalendarEvent.between(start, end);
+  }
+  if (!selectedCalendars.length) return [];
+  return CalendarEvent.between(start, end, selectedCalendars);
 }
 
 function deepClone(obj) {
@@ -1433,7 +1481,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
 
   let events = [];
   try {
-    events = await CalendarEvent.between(start, end);
+    events = await fetchEventsForAlarmSource(start, end);
   } catch (e) {
     addError(`ERR: Calendar fetch failed; verifier incomplete. (${String(e)})`);
     return new Map();
