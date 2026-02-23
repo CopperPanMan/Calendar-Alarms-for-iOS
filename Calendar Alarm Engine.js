@@ -1175,9 +1175,10 @@ function entryUsesLocation(entry) {
   return true;
 }
 
-function registryNeedsLocation(registryEntries) {
-  if (!Array.isArray(registryEntries)) return false;
-  return registryEntries.some(entryUsesLocation);
+async function ensureInputLocationForEntry(input, entry) {
+  if (!input || !entryUsesLocation(entry)) return;
+  if (input.currentLocation) return;
+  input.currentLocation = await getCurrentLocation();
 }
 
 async function getCurrentLocation() {
@@ -1236,6 +1237,8 @@ async function tryFastPath(input, registryAfter) {
   if (!fired) return { handled: false };
 
   const entry = registryAfter[fired.registryIndex];
+  await ensureInputLocationForEntry(input, entry);
+
   const name = entry.alarmName;
   const firedHH = fired.ios.hh;
   const firedMM = fired.ios.mm;
@@ -1851,13 +1854,6 @@ let registryAfter = deepClone(registryBefore);
 
 // Parse input
 const input = parseEngineInput(args.shortcutParameter);
-
-if (registryNeedsLocation(registryAfter) && !input.currentLocation) {
-  input.currentLocation = await getCurrentLocation();
-  if (!input.currentLocation) {
-    addError("ERR: location required but unavailable.");
-  }
-}
 
 // Phase B — Fast-path
 const fast = await tryFastPath(input, registryAfter);
