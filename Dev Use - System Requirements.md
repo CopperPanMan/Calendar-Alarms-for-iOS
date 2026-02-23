@@ -85,8 +85,8 @@ QR alarm keys:
 - `qrSoundPath` (default `"/shortcuts/ringtone.mp3"`, valid path)
 - `qrSoundLen` (default `2.13`, number > 0)
 - `qrVol` (default `40`, integer `1..100`)
-- `qrShortcutOnScan` (default `""`, valid shortcut name string)
-- `shortcutOnTrigger` (default `""`, valid shortcut name string)
+- `qrShortcutOnScan` (default `{"name":"", "input":[]}`, object: `name` string + `input` string array)
+- `shortcutOnTrigger` (default `{"name":"", "input":[], "silenceAlarm":false}`, object: `name` string + `input` string array + `silenceAlarm` boolean)
 
 Location gating:
 
@@ -287,6 +287,7 @@ Notes:
 "alarmsToAdd":[
 {"name":"testAlarm3","hh":"16","mm":"25"}
 ],
+"triggerShortcutsToRunDetailed":[{"name":"CAtester1","input":["item1","item2"]}],
 "triggerShortcutsToRun":["CAtester1"],
 "qrLoop":false,
 "errorRegistry":"line1\nline2"
@@ -466,8 +467,10 @@ Given output JSON:
     - delete the matching iOS alarm (by name + HH:MM)
 3. For each entry in `alarmsToAdd`:
     - create the iOS alarm (name + HH:MM)
-4. For each name in `triggerShortcutsToRun`:
-    - run shortcut by name (ignore empty strings)
+4. For each action in `triggerShortcutsToRunDetailed`:
+    - run shortcut by `action.name`
+    - pass `action.input` as the shortcut input array (supports one or many items)
+    - ignore actions with empty names
 
 ### Engine QR sound loop (post-processing)
 

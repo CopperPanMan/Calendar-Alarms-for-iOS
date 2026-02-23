@@ -92,11 +92,42 @@ const output = {
   alarmsToDelete: [],
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
+  triggerShortcutsToRunDetailed: [],
   qrLoop: false,
   nextLoopStart: "",
   debug: {},
   errorRegistry: "",
 };
+
+function normalizeShortcutInputArray(raw) {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => String(x ?? "").trim())
+      .filter((x) => x !== "");
+  }
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    return s ? [s] : [];
+  }
+  return [];
+}
+
+function normalizeShortcutAction(raw) {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    const input = normalizeShortcutInputArray(raw.input);
+    const silenceAlarm = raw.silenceAlarm === true;
+    return { name, input, silenceAlarm };
+  }
+  return { name: "", input: [], silenceAlarm: false };
+}
+
+function queueTriggerShortcut(raw) {
+  const action = normalizeShortcutAction(raw);
+  if (!action.name) return;
+  output.triggerShortcutsToRun.push(action.name);
+  output.triggerShortcutsToRunDetailed.push(action);
+}
 
 function setLocationDebug(details) {
   if (!details) return;
@@ -524,16 +555,18 @@ function dedupeOutputOps() {
     return true;
   });
 
-  const seenT = new Set();
-  const t = [];
-  for (const s of output.triggerShortcutsToRun) {
-    const name = String(s ?? "").trim();
-    if (!name) continue;
-    if (seenT.has(name)) continue;
-    seenT.add(name);
-    t.push(name);
+  const seenTD = new Set();
+  const td = [];
+  for (const a of output.triggerShortcutsToRunDetailed) {
+    const spec = normalizeShortcutAction(a);
+    if (!spec.name) continue;
+    const k = `${spec.name}|||${JSON.stringify(spec.input)}|||${spec.silenceAlarm ? 1 : 0}`;
+    if (seenTD.has(k)) continue;
+    seenTD.add(k);
+    td.push(spec);
   }
-  output.triggerShortcutsToRun = t;
+  output.triggerShortcutsToRun = td.map((a) => a.name);
+  output.triggerShortcutsToRunDetailed = td.map((a) => ({ name: a.name, input: a.input }));
 }
 
 // ---------- Calendar alarm normalization ----------
@@ -578,15 +611,6 @@ function normalizeCalendarAlarmObject(rawObj) {
     return minutes;
   };
   const num = (v, def) => (Number.isFinite(Number(v)) ? Number(v) : def);
-  const bool = (v, def = false) => {
-    if (typeof v === "boolean") return v;
-    if (typeof v === "string") {
-      const s = v.trim().toLowerCase();
-      if (s === "true") return true;
-      if (s === "false") return false;
-    }
-    return def;
-  };
 
   const status = upper(rawObj.status, "ON");
   if (status !== "ON" && status !== "OFF") return { ok: false, err: `${errPrefix}status must be ON/OFF` };
@@ -603,9 +627,8 @@ function normalizeCalendarAlarmObject(rawObj) {
   const qrSoundLen = num(rawObj.qrSoundLen, 2.13);
   const qrVol = intInRange(rawObj.qrVol, 40, 1, 100);
 
-  const qrShortcutOnScan = typeof rawObj.qrShortcutOnScan === "string" ? rawObj.qrShortcutOnScan : "";
-  const shortcutOnTrigger = typeof rawObj.shortcutOnTrigger === "string" ? rawObj.shortcutOnTrigger : "";
-  const deleteOnTrigger = bool(rawObj.deleteOnTrigger, false);
+  const qrShortcutOnScan = normalizeShortcutAction(rawObj.qrShortcutOnScan);
+  const shortcutOnTrigger = normalizeShortcutAction(rawObj.shortcutOnTrigger);
 
   const locationMode = lower(rawObj.locationMode, "off");
   if (!["off", "whitelist", "blacklist"].includes(locationMode)) {
@@ -659,7 +682,6 @@ function normalizeCalendarAlarmObject(rawObj) {
       qrVol,
       qrShortcutOnScan,
       shortcutOnTrigger,
-      deleteOnTrigger,
       locationMode,
       locations,
       radiusMeters,
@@ -717,14 +739,8 @@ function ensureRegistryEntryShape(entry) {
   if (typeof entry.qrSoundPath !== "string") entry.qrSoundPath = "/shortcuts/ringtone.mp3";
   if (!Number.isFinite(Number(entry.qrSoundLen))) entry.qrSoundLen = 2.13;
   if (!Number.isFinite(Number(entry.qrVol))) entry.qrVol = 40;
-  if (typeof entry.qrShortcutOnScan !== "string") entry.qrShortcutOnScan = "";
-  if (typeof entry.shortcutOnTrigger !== "string") entry.shortcutOnTrigger = "";
-  if (typeof entry.deleteOnTrigger === "string") {
-    const v = entry.deleteOnTrigger.trim().toLowerCase();
-    entry.deleteOnTrigger = v === "true" ? true : v === "false" ? false : false;
-  } else {
-    entry.deleteOnTrigger = entry.deleteOnTrigger === true;
-  }
+  entry.qrShortcutOnScan = normalizeShortcutAction(entry.qrShortcutOnScan);
+  entry.shortcutOnTrigger = normalizeShortcutAction(entry.shortcutOnTrigger);
 
   if (typeof entry.locationMode !== "string") entry.locationMode = "off";
   if (!Array.isArray(entry.locations)) entry.locations = [];
@@ -1239,11 +1255,10 @@ async function tryFastPath(input, registryAfter) {
   }
 
   // One-shot silent trigger mode: remove the fired iOS alarm and only run shortcutOnTrigger.
-  if (entry.deleteOnTrigger === true) {
+  if (entry.shortcutOnTrigger?.silenceAlarm === true) {
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
-    const trig = String(entry.shortcutOnTrigger ?? "").trim();
-    if (trig) output.triggerShortcutsToRun.push(trig);
+    queueTriggerShortcut(entry.shortcutOnTrigger);
 
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = 0;
@@ -1324,8 +1339,7 @@ async function tryFastPath(input, registryAfter) {
         output.qrLoop = true;
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
-        const trig = String(entry.shortcutOnTrigger ?? "").trim();
-        if (trig) output.triggerShortcutsToRun.push(trig);
+        queueTriggerShortcut(entry.shortcutOnTrigger);
 
         return { handled: true };
       }
@@ -1355,8 +1369,7 @@ async function tryFastPath(input, registryAfter) {
       output.qrLoop = true;
       output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
-      const trig = String(entry.shortcutOnTrigger ?? "").trim();
-      if (trig) output.triggerShortcutsToRun.push(trig);
+      queueTriggerShortcut(entry.shortcutOnTrigger);
 
       return { handled: true };
     }
@@ -1489,8 +1502,7 @@ async function tryFastPath(input, registryAfter) {
       entry.firstQRFireTime = now;
       entry.qrActive = true;
 
-      const trig = String(entry.shortcutOnTrigger ?? "").trim();
-      if (trig) output.triggerShortcutsToRun.push(trig);
+      queueTriggerShortcut(entry.shortcutOnTrigger);
     }
 
     // Continue ringing (minute tick)
@@ -1680,7 +1692,6 @@ async function runVerifier(input, registryAfter) {
     r.qrVol = exp.qrVol;
     r.qrShortcutOnScan = exp.qrShortcutOnScan;
     r.shortcutOnTrigger = exp.shortcutOnTrigger;
-    r.deleteOnTrigger = exp.deleteOnTrigger;
     r.locationMode = exp.locationMode;
     r.locations = exp.locations;
     r.radiusMeters = exp.radiusMeters;
@@ -1726,7 +1737,6 @@ async function runVerifier(input, registryAfter) {
     r.qrVol = exp.qrVol;
     r.qrShortcutOnScan = exp.qrShortcutOnScan;
     r.shortcutOnTrigger = exp.shortcutOnTrigger;
-    r.deleteOnTrigger = exp.deleteOnTrigger;
     r.locationMode = exp.locationMode;
     r.locations = exp.locations;
     r.radiusMeters = exp.radiusMeters;
