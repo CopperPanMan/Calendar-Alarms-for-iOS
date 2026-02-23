@@ -131,6 +131,7 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
     "qrShortcutOnScan": "optional shortcut name here",
 
     "shortcutOnTrigger": "optional shortcut name here ",
+    "deleteOnTrigger": "optional true/false. when true, delete alarm immediately at trigger and only run shortcutOnTrigger",
 
     "locationMode": "whitelist, blacklist, or off -> whitelist = reschedule if not here, blacklist = reschedule if here",
     "locations": [[0, 0, 0], [0, 0, 0]],
@@ -184,6 +185,7 @@ Copy code
     "qrShortcutOnScan": "Show Tasks",
 
     "shortcutOnTrigger": "Open Notion",
+    "deleteOnTrigger": false,
 
     "locationMode": "whitelist",
     "locations": [[40.0907, -82.8767, 200]],
@@ -205,6 +207,8 @@ Copy code
   - It will play the alarm tone "wakeup_alarm_ringtone.mp3" on loop until a QR code is scanned that contains the qrCodeID "plan_workday".
 
   - It will run the shortcut “Open Notion” when it triggers.
+
+  - Optional: set `"deleteOnTrigger": true` for silent one-shot behavior (the alarm is deleted at trigger and only `shortcutOnTrigger` runs).
 
   - It will run the shortcut “Show Tasks” when the correct QR code is scanned.
 
