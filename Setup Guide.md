@@ -102,9 +102,10 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
     "qrCodeID": "your_ID_here",
     "qrSoundPath": "filename.mp3",
     "qrVol": "volume, 1 to 100",
-    "qrShortcutOnScan": {"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]},
+    "qrShortcutsOnScan": [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
 
-    "shortcutOnTrigger": {"name": "optional shortcut name here", "input": ["optional input 1"], "silenceAlarm": false},
+    "shortcutsOnTrigger": [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
+    "silenceAlarm": false,
 
     "locationMode": "whitelist, blacklist, or off -> whitelist = reschedule if not here, blacklist = reschedule if here",
     "locations": [[0, 0, 0], [0, 0, 0]],
@@ -142,9 +143,9 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
   - The shortcut will notify you of an error if any of these are wrong. When in doubt, your problem is commas or quotes (missing, misplaced, or extra).
 
 - Shortcut action format
-  - Preferred format: use objects like `{"name": "Shortcut Name", "input": ["item1", "item2"]}` for `qrShortcutOnScan`, and `{"name": "Shortcut Name", "input": ["item1"], "silenceAlarm": false}` for `shortcutOnTrigger`.
+  - Preferred format: use objects like `{"name": "Shortcut Name", "input": ["item1", "item2"]}` for `qrShortcutsOnScan`, and objects like `{"name": "Shortcut Name", "input": ["item1"]}` inside `shortcutsOnTrigger`.
   - `input` should be a real JSON array (not a string that contains brackets).
-  - Required format: `qrShortcutOnScan` must include `name` and `input`; `shortcutOnTrigger` must include `name`, `input`, and optional `silenceAlarm` (default `false`).
+  - Required format: `qrShortcutsOnScan` and `shortcutsOnTrigger` should be arrays of objects with `name` and `input`. Use top-level `silenceAlarm` (default `false`) once per alarm.
 
 ## Example Single Alarm for Completing a task called “Plan Workday” on an event called “Work” (includes all possible keys)
 json
@@ -160,9 +161,10 @@ Copy code
     "qrCodeID": "plan_workday",
     "qrSoundPath": "wakeup_alarm_ringtone.mp3",
     "qrVol": 40,
-    "qrShortcutOnScan": {"name": "Show Tasks", "input": ["plan_workday", "computer"]},
+    "qrShortcutsOnScan": [{"name": "Show Tasks", "input": ["plan_workday", "computer"]}],
 
-    "shortcutOnTrigger": {"name": "Open Notion", "input": ["work"], "silenceAlarm": false},
+    "shortcutsOnTrigger": [{"name": "Open Notion", "input": ["work"]}],
+    "silenceAlarm": false,
 
     "locationMode": "whitelist",
     "locations": [[40.0907, -82.8767, 200]],
@@ -185,7 +187,7 @@ Copy code
 
   - It will run the shortcut “Open Notion” when it triggers and pass the input array `["work"]`.
 
-  - Optional: set `"shortcutOnTrigger": {"name": "...", "input": [...], "silenceAlarm": true}` for silent one-shot behavior (the alarm is deleted at trigger and only `shortcutOnTrigger` runs).
+  - Optional: set `"silenceAlarm": true` for silent one-shot behavior (the alarm is deleted at trigger and only `shortcutsOnTrigger` runs).
 
   - It will run the shortcut “Show Tasks” when the correct QR code is scanned and pass `["plan_workday", "computer"]` as input.
 
@@ -223,9 +225,10 @@ Copy code
     "qrSoundPath": "wakeup_alarm_ringtone.mp3",
     "qrSoundLen": 2.13,
     "qrVol": 40,
-    "qrShortcutOnScan": {"name": "Show Morning Tasks", "input": ["wake"]},
+    "qrShortcutsOnScan": [{"name": "Show Morning Tasks", "input": ["wake"]}],
 
-    "shortcutOnTrigger": {"name": "Turn Lights On", "input": ["bedroom", "50%"], "silenceAlarm": false},
+    "shortcutsOnTrigger": [{"name": "Turn Lights On", "input": ["bedroom", "50%"]}],
+    "silenceAlarm": false,
 
     "silenceIfDriving": "ON",
     "conflictingCalendars": ["work meetings", "vacation"],

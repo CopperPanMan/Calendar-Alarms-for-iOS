@@ -85,8 +85,9 @@ QR alarm keys:
 - `qrSoundPath` (default `"/shortcuts/ringtone.mp3"`, valid path)
 - `qrSoundLen` (default `2.13`, number > 0)
 - `qrVol` (default `40`, integer `1..100`)
-- `qrShortcutOnScan` (default `{"name":"", "input":[]}`, object: `name` string + `input` string array)
-- `shortcutOnTrigger` (default `{"name":"", "input":[], "silenceAlarm":false}`, object: `name` string + `input` string array + `silenceAlarm` boolean)
+- `qrShortcutsOnScan` (default `[]`, array of objects: `name` string + `input` string array)
+- `shortcutsOnTrigger` (default `[]`, array of objects: `name` string + `input` string array)
+- `silenceAlarm` (default `false`, boolean; applies once per alarm)
 
 Location gating:
 
@@ -535,13 +536,13 @@ Steps:
     - If `alarm.qrCodeID == qrCodeID`:
         - set `alarm.qrActive = false`
         - vibrate device
-        - capture `shortcutToRun = alarm.qrShortcutOnScan`
+        - append `alarm.qrShortcutsOnScan` actions to `shortcutsToRun`
         - increment `identifiedAlarms`
     - Else:
         - append error message “wrong code. Please scan [alarmName]”
 5. Write registry back
 6. Release lock
-7. If `shortcutToRun` non-empty: run it
+7. If `shortcutsToRun` non-empty: run each action
 8. If errorMessage non-empty: show notification
 9. If `identifiedAlarms == 0`: show “no matching alarms” notification
 

@@ -122,11 +122,27 @@ function normalizeShortcutAction(raw) {
   return { name: "", input: [], silenceAlarm: false };
 }
 
+function normalizeShortcutActionList(raw) {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => normalizeShortcutAction(x))
+      .filter((x) => x.name);
+  }
+
+  const single = normalizeShortcutAction(raw);
+  return single.name ? [single] : [];
+}
+
 function queueTriggerShortcut(raw) {
   const action = normalizeShortcutAction(raw);
   if (!action.name) return;
   output.triggerShortcutsToRun.push(action.name);
   output.triggerShortcutsToRunDetailed.push(action);
+}
+
+function queueTriggerShortcuts(rawList) {
+  const actions = normalizeShortcutActionList(rawList);
+  for (const action of actions) queueTriggerShortcut(action);
 }
 
 function setLocationDebug(details) {
@@ -627,8 +643,9 @@ function normalizeCalendarAlarmObject(rawObj) {
   const qrSoundLen = num(rawObj.qrSoundLen, 2.13);
   const qrVol = intInRange(rawObj.qrVol, 40, 1, 100);
 
-  const qrShortcutOnScan = normalizeShortcutAction(rawObj.qrShortcutOnScan);
-  const shortcutOnTrigger = normalizeShortcutAction(rawObj.shortcutOnTrigger);
+  const qrShortcutsOnScan = normalizeShortcutActionList(rawObj.qrShortcutsOnScan ?? rawObj.qrShortcutOnScan);
+  const shortcutsOnTrigger = normalizeShortcutActionList(rawObj.shortcutsOnTrigger ?? rawObj.shortcutOnTrigger);
+  const silenceAlarm = rawObj.silenceAlarm === true || shortcutsOnTrigger.some((x) => x.silenceAlarm === true);
 
   const locationMode = lower(rawObj.locationMode, "off");
   if (!["off", "whitelist", "blacklist"].includes(locationMode)) {
@@ -680,8 +697,9 @@ function normalizeCalendarAlarmObject(rawObj) {
       qrSoundPath,
       qrSoundLen,
       qrVol,
-      qrShortcutOnScan,
-      shortcutOnTrigger,
+      qrShortcutsOnScan,
+      shortcutsOnTrigger,
+      silenceAlarm,
       locationMode,
       locations,
       radiusMeters,
@@ -739,8 +757,11 @@ function ensureRegistryEntryShape(entry) {
   if (typeof entry.qrSoundPath !== "string") entry.qrSoundPath = "/shortcuts/ringtone.mp3";
   if (!Number.isFinite(Number(entry.qrSoundLen))) entry.qrSoundLen = 2.13;
   if (!Number.isFinite(Number(entry.qrVol))) entry.qrVol = 40;
-  entry.qrShortcutOnScan = normalizeShortcutAction(entry.qrShortcutOnScan);
-  entry.shortcutOnTrigger = normalizeShortcutAction(entry.shortcutOnTrigger);
+  entry.qrShortcutsOnScan = normalizeShortcutActionList(entry.qrShortcutsOnScan ?? entry.qrShortcutOnScan);
+  entry.shortcutsOnTrigger = normalizeShortcutActionList(entry.shortcutsOnTrigger ?? entry.shortcutOnTrigger);
+  entry.silenceAlarm = entry.silenceAlarm === true || entry.shortcutsOnTrigger.some((x) => x.silenceAlarm === true);
+  delete entry.qrShortcutOnScan;
+  delete entry.shortcutOnTrigger;
 
   if (typeof entry.locationMode !== "string") entry.locationMode = "off";
   if (!Array.isArray(entry.locations)) entry.locations = [];
@@ -1256,10 +1277,10 @@ async function tryFastPath(input, registryAfter) {
   }
 
   // One-shot silent trigger mode: remove the fired iOS alarm and only run shortcutOnTrigger.
-  if (entry.shortcutOnTrigger?.silenceAlarm === true) {
+  if (entry.silenceAlarm === true) {
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
-    queueTriggerShortcut(entry.shortcutOnTrigger);
+    queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = 0;
@@ -1340,7 +1361,7 @@ async function tryFastPath(input, registryAfter) {
         output.qrLoop = true;
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
-        queueTriggerShortcut(entry.shortcutOnTrigger);
+        queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
         return { handled: true };
       }
@@ -1370,7 +1391,7 @@ async function tryFastPath(input, registryAfter) {
       output.qrLoop = true;
       output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
-      queueTriggerShortcut(entry.shortcutOnTrigger);
+      queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
       return { handled: true };
     }
@@ -1503,7 +1524,7 @@ async function tryFastPath(input, registryAfter) {
       entry.firstQRFireTime = now;
       entry.qrActive = true;
 
-      queueTriggerShortcut(entry.shortcutOnTrigger);
+      queueTriggerShortcuts(entry.shortcutsOnTrigger);
     }
 
     // Continue ringing (minute tick)
@@ -1691,8 +1712,9 @@ async function runVerifier(input, registryAfter) {
     r.qrSoundPath = exp.qrSoundPath;
     r.qrSoundLen = exp.qrSoundLen;
     r.qrVol = exp.qrVol;
-    r.qrShortcutOnScan = exp.qrShortcutOnScan;
-    r.shortcutOnTrigger = exp.shortcutOnTrigger;
+    r.qrShortcutsOnScan = exp.qrShortcutsOnScan;
+    r.shortcutsOnTrigger = exp.shortcutsOnTrigger;
+    r.silenceAlarm = exp.silenceAlarm;
     r.locationMode = exp.locationMode;
     r.locations = exp.locations;
     r.radiusMeters = exp.radiusMeters;
@@ -1736,8 +1758,9 @@ async function runVerifier(input, registryAfter) {
     r.qrSoundPath = exp.qrSoundPath;
     r.qrSoundLen = exp.qrSoundLen;
     r.qrVol = exp.qrVol;
-    r.qrShortcutOnScan = exp.qrShortcutOnScan;
-    r.shortcutOnTrigger = exp.shortcutOnTrigger;
+    r.qrShortcutsOnScan = exp.qrShortcutsOnScan;
+    r.shortcutsOnTrigger = exp.shortcutsOnTrigger;
+    r.silenceAlarm = exp.silenceAlarm;
     r.locationMode = exp.locationMode;
     r.locations = exp.locations;
     r.radiusMeters = exp.radiusMeters;
