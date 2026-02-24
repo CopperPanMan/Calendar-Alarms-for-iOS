@@ -105,7 +105,7 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
     "qrShortcutsOnScan": [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
 
     "shortcutsOnTrigger": [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
-    "silenceAlarm": false,
+    "silenceAlarm": "set to true or false, useful for silently running a shortcut"
 
     "locationMode": "whitelist, blacklist, or off -> whitelist = reschedule if not here, blacklist = reschedule if here",
     "locations": [[0, 0, 0], [0, 0, 0]],
@@ -125,6 +125,9 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
   }
 ]
 ```
+
+`Tip: add a calendar name to DISABLED_CALENDAR_NAMES (see scriptable step above), and keep a daily recurring event in that calendar with this template for easy copy/pasting. This is useful as most alarms will not use all properties.`
+
 ## What are the Formatting Rules?
 - General Rules
   - You can delete unwanted settings: alarmName is required, but you can delete any other "key": "value" pair (setting) you don’t want. Missing keys are filled with safe defaults (usually equivalent to “off” for optional features). Just don’t change the names of any keys.
