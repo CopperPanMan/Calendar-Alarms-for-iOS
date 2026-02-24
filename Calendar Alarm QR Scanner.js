@@ -331,7 +331,7 @@ async function runModeB(fm, paths, qrCodeID) {
     }
 
     const matchedNames = [];
-    const remainingActiveNames = [];
+    const remainingActive = [];
 
     for (const a of reg) {
       if (!a || typeof a !== "object") continue;
@@ -365,7 +365,9 @@ async function runModeB(fm, paths, qrCodeID) {
           }
         }
       } else {
-        if (name) remainingActiveNames.push(name);
+        if (name) {
+          remainingActive.push({ name, code });
+        }
       }
     }
 
@@ -394,14 +396,14 @@ async function runModeB(fm, paths, qrCodeID) {
     // ✅ UX: Always return an explicit success signal when correct code was scanned
     if (out.identifiedAlarms > 0) {
       let msg = `✅ cleared: ${matchedNames.length ? matchedNames.join(", ") : "alarm"}`
-      if (remainingActiveNames.length) {
-        msg += `\n\nStill active:\n` + remainingActiveNames.map(n => `please scan ${n}`).join("\n");
+      if (remainingActive.length) {
+        msg += `\n\nStill active:\n` + remainingActive.map(({ name, code }) => `please scan ${name} (ID = ${code})`).join("\n");
       }
       out.notification = msg;
     } else {
       // No matches: keep original "wrong code" guidance for any active alarms
-      if (remainingActiveNames.length) {
-        out.notification = remainingActiveNames.map(n => `wrong code. Please scan ${n}`).join("\n");
+      if (remainingActive.length) {
+        out.notification = remainingActive.map(({ name, code }) => `wrong code. Please scan ${name} (ID = ${code})`).join("\n");
       } else {
         // No active QR alarms at all
         out.notification = "";
