@@ -13,7 +13,7 @@
    
 <img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/58f12814-71cb-4d39-9b42-5794b483c82b" /><img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/b81003dd-1bdd-4f57-a489-9141e58a64dc" />
 
-3. The system will create/maintain these several files that store runntime data inside:
+2. The system will create/maintain these several files that store runntime data inside:
 
 `iCloud Drive/Shortcuts/Calendar Alarms`
 
