@@ -223,6 +223,15 @@ function epochToHHMM(epochSec) {
   return { hh: pad2(d.getHours()), mm: pad2(d.getMinutes()) };
 }
 
+function epochTo12HourTime(epochSec) {
+  const d = new Date(epochSec * 1000);
+  const hours24 = d.getHours();
+  const minutes = d.getMinutes();
+  const suffix = hours24 >= 12 ? "PM" : "AM";
+  const hours12 = hours24 % 12 || 12;
+  return `${hours12}:${pad2(minutes)} ${suffix}`;
+}
+
 function epochToShortcutTimestamp(epochSec) {
   if (!Number.isFinite(epochSec) || epochSec <= 0) return "";
   return new Date(epochSec * 1000).toISOString();
@@ -531,13 +540,7 @@ function queueDeleteIOSIfUnique(iosAlarms, name, epochSec) {
   const c = findIOSMatches(iosAlarms, name, hh, mm);
   if (c === 1) {
     output.alarmsToDelete.push({ name, hh, mm });
-    return true;function sleep(ms) {
-  const seconds = Math.max(0, Number(ms) / 1000);
-  return new Promise((resolve) => {
-    Timer.schedule(seconds, false, () => resolve());
-  });
-}
-
+    return true;
   }
   if (c > 1) addError(`ERR: duplicate iOS alarms found (won't delete): "${name}" @ ${hh}:${mm}`);
   return false;
@@ -547,7 +550,7 @@ function queueAddIOSIfMissing(iosAlarms, name, epochSec) {
   const { hh, mm } = epochToHHMM(epochSec);
   const c = findIOSMatches(iosAlarms, name, hh, mm);
   if (c === 0) {
-    output.alarmsToAdd.push({ name, hh, mm });
+    output.alarmsToAdd.push({ name, time: epochTo12HourTime(epochSec) });
     return true;
   }
   if (c > 1) addError(`ERR: duplicate iOS alarms exist (won't add): "${name}" @ ${hh}:${mm}`);
@@ -565,7 +568,7 @@ function dedupeOutputOps() {
 
   const seenAdd = new Set();
   output.alarmsToAdd = output.alarmsToAdd.filter((a) => {
-    const k = `${a.name}|||${a.hh}|||${a.mm}`;
+    const k = `${a.name}|||${a.time}`;
     if (seenAdd.has(k)) return false;
     seenAdd.add(k);
     return true;
