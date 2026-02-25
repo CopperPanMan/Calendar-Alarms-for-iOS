@@ -1583,7 +1583,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
     for (const rawObj of parsed.val) {
       const norm = normalizeCalendarAlarmObject(rawObj);
       if (!norm.ok) {
-        addError(`WARN: ${norm.err} (event: "${ev.title}")`);
+        addError(`WARN: ${norm.err} (event: "${ev.title}", ${formatEventDateShort(ev.startDate)})`);
         continue;
       }
 
