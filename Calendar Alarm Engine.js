@@ -1269,6 +1269,9 @@ async function tryFastPath(input, registryAfter) {
     return { handled: false };
   }
 
+  // Always run shortcutOnTrigger when this alarm fires.
+  queueTriggerShortcuts(entry.shortcutsOnTrigger);
+
   // Always honor "taskSatisfied" latch: if it's satisfied, the next time it fires we should delete and stop
   // (should be rare, but safe).
   if (entry.taskSatisfied === true) {
@@ -1276,11 +1279,9 @@ async function tryFastPath(input, registryAfter) {
     return { handled: true };
   }
 
-  // One-shot silent trigger mode: remove the fired iOS alarm and only run shortcutOnTrigger.
+  // One-shot silent trigger mode: remove the fired iOS alarm.
   if (entry.silenceAlarm === true) {
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
-    queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = 0;
@@ -1343,8 +1344,6 @@ async function tryFastPath(input, registryAfter) {
         output.qrLoop = true;
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
 
-        // Only run shortcutOnTrigger when QR becomes active initially
-        // (initial ring case handled below)
         return { handled: true };
       }
 
@@ -1360,8 +1359,6 @@ async function tryFastPath(input, registryAfter) {
 
         output.qrLoop = true;
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
-
-        queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
         return { handled: true };
       }
@@ -1390,8 +1387,6 @@ async function tryFastPath(input, registryAfter) {
 
       output.qrLoop = true;
       output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
-
-      queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
       return { handled: true };
     }
@@ -1524,7 +1519,6 @@ async function tryFastPath(input, registryAfter) {
       entry.firstQRFireTime = now;
       entry.qrActive = true;
 
-      queueTriggerShortcuts(entry.shortcutsOnTrigger);
     }
 
     // Continue ringing (minute tick)
