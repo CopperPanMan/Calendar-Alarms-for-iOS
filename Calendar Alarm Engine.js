@@ -1272,25 +1272,10 @@ async function tryFastPath(input, registryAfter) {
     return { handled: false };
   }
 
-  // Always run shortcutOnTrigger when this alarm fires.
-  queueTriggerShortcuts(entry.shortcutsOnTrigger);
-
   // Always honor "taskSatisfied" latch: if it's satisfied, the next time it fires we should delete and stop
   // (should be rare, but safe).
   if (entry.taskSatisfied === true) {
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-    return { handled: true };
-  }
-
-  // One-shot silent trigger mode: remove the fired iOS alarm.
-  if (entry.silenceAlarm === true) {
-    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
-    entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = 0;
-    entry.qrActive = false;
-    entry.taskCooldownScheduled = false;
-    clearQRBackupAlarm(entry, input.iosAlarms);
     return { handled: true };
   }
 
@@ -1300,6 +1285,9 @@ async function tryFastPath(input, registryAfter) {
 
   // --- TASK LOOP (new behavior) ---
   if (hasTask) {
+    // Task alarms are considered successful once they reach task-loop handling.
+    queueTriggerShortcuts(entry.shortcutsOnTrigger);
+
     const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
 
     if (complete) {
@@ -1491,6 +1479,23 @@ async function tryFastPath(input, registryAfter) {
 
     return { handled: true };
   }
+
+  // One-shot silent trigger mode for non-QR alarms: if this alarm passed gating,
+  // run shortcuts and clear it silently.
+  if (entry.silenceAlarm === true && !hasQR) {
+    queueTriggerShortcuts(entry.shortcutsOnTrigger);
+    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+
+    entry.prevFireTime = entry.nextFireTime;
+    entry.nextFireTime = 0;
+    entry.qrActive = false;
+    entry.taskCooldownScheduled = false;
+    clearQRBackupAlarm(entry, input.iosAlarms);
+    return { handled: true };
+  }
+
+  // Only run trigger shortcuts when the alarm was not blocked by gating checks.
+  queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
   // QR minute-loop (non-task)
   if (hasQR) {
