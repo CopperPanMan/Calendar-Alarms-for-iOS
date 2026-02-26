@@ -1279,18 +1279,6 @@ async function tryFastPath(input, registryAfter) {
     return { handled: true };
   }
 
-  // One-shot silent trigger mode: remove the fired iOS alarm.
-  if (entry.silenceAlarm === true) {
-    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
-    entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = 0;
-    entry.qrActive = false;
-    entry.taskCooldownScheduled = false;
-    clearQRBackupAlarm(entry, input.iosAlarms);
-    return { handled: true };
-  }
-
   const hasQR = String(entry.qrCodeID ?? "").trim() !== "";
   const taskIDs = Array.isArray(entry.taskIDs) ? entry.taskIDs : [];
   const hasTask = taskIDs.length > 0;
