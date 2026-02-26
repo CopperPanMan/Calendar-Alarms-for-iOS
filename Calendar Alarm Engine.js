@@ -1480,20 +1480,6 @@ async function tryFastPath(input, registryAfter) {
     return { handled: true };
   }
 
-  // One-shot silent trigger mode for non-QR alarms: if this alarm passed gating,
-  // run shortcuts and clear it silently.
-  if (entry.silenceAlarm === true && !hasQR) {
-    queueTriggerShortcuts(entry.shortcutsOnTrigger);
-    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
-    entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = 0;
-    entry.qrActive = false;
-    entry.taskCooldownScheduled = false;
-    clearQRBackupAlarm(entry, input.iosAlarms);
-    return { handled: true };
-  }
-
   // Only run trigger shortcuts when the alarm was not blocked by gating checks.
   queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
