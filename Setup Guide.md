@@ -37,9 +37,8 @@ Go to **Scriptable → Settings → File Bookmarks → Add (+)** and select the 
 - [`Calendar Alarm QR Scanner.js`](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Calendar)
 
 **Instructions:** For each of these scripts, copy/paste the code from its link into a new blank Scriptable script, then rename the script to the correct name.
-- near the top of the script, you can optionally fill in DISABLED_CALENDAR_NAMES = ["name1","name2"...] with a list of calendars that you want the code to ignore completely.
-- near the same place, the optional "TASK_WEBAPP_ID" should be configured if task looping functionality is desired. More on that below.
-
+- near the top of the script, you can optionally fill in DISABLED_CALENDAR_NAMES = ["name1","name2"...] with a list of calendars that you want the code to ignore completely. This is useful if somebody with alarms (like a spouse) shares a calendar event with you, so their alarms are not scheduled on your phone.
+  
 ## D) Shortcuts setup
 
 While a few are optional, it is recommended that you add these **5 Shortcuts** (each one linked) in the Shortcuts app, in the order in which they appear. You can put these in a new folder for better organization:
@@ -89,7 +88,7 @@ Alarms are created via JSON code in the Notes section of a Calendar event. Think
 
 ## Example Alarm Template
 
-For our purposes, a JSON alarm looks like the template below. This JSON block includes **two alarms**—but any number is possible. The one with “all keys” includes all available settings (called “keys”), and the second shows a pared-down alarm that omits settings the user doesn’t care about.
+For our purposes, a JSON alarm looks like the example below. This JSON block includes **two alarms**—but any number is possible. The one with “all keys” includes all available settings (called “keys”), and the second shows a pared-down alarm that omits settings the user doesn’t care about.
 
 ```json
 [
@@ -113,8 +112,6 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
     "silenceIfDriving": "ON",
     "conflictingCalendars": ["work meetings", "vacation"],
     "reschedMinutes": "reschedule_interval_in_minutes",
-    "taskIDs": ["task_ID", "task_ID"],
-    "taskLoopMin": "minutes_between_repeat_checks",
     "maxReschedules": "max_number_of_reschedules"
   },
   {
@@ -126,7 +123,7 @@ For our purposes, a JSON alarm looks like the template below. This JSON block in
 ]
 ```
 
-`Tip: add a calendar name to DISABLED_CALENDAR_NAMES (see scriptable step above), and keep a daily recurring event in that calendar with this template for easy copy/pasting. This is useful as most alarms will not use all properties.`
+`Tip: There's a blank template at the end of this guide that you can place on a recurring event in order to always be able to easily copy/paste a blank alarm. If you would prefer to use the example above for a template, you'll need to add the calendar the event is on to DISABLED_CALENDAR_NAMES (see scriptable step above), since otherwise these values will be flagged as invalid.`
 
 ## What are the Formatting Rules?
 - General Rules
@@ -176,8 +173,6 @@ Copy code
     "silenceIfDriving": "ON",
     "conflictingCalendars": ["work meetings", "vacation", "travel"],
     "reschedMinutes": 30,
-    "taskIDs": ["plan_workday", "check_tasks"],
-    "taskLoopMin": 5,
     "maxReschedules": 3
   }
 ]
@@ -206,10 +201,6 @@ Copy code
 
   - If the user is in the driving focus mode, it will reschedule based on an approximation of travel time to the whitelisted location.
 
-- Task looping logic
-
-  - If the user has not completed all configured taskIDs (from a separate Google Sheets habits system), this loop checks again every taskLoopMin minutes (5 minutes in this example).
-
 ## Example Double Alarm Sleep Event
 ```json
 [
@@ -237,7 +228,6 @@ Copy code
     "silenceIfDriving": "ON",
     "conflictingCalendars": ["work meetings", "vacation"],
     "reschedMinutes": 30,
-    "taskRow": 15,
     "maxReschedules": 3
   }
 ]
@@ -268,14 +258,43 @@ To do so: run Calendar Alarms Engine once manually after adding or editing your 
 
   - Stale alarms: unattended QR loops expire after 1 hour, after which the system will automatically delete them.
 
-## Advanced: Using “TaskIDs” to make repeat-until-complete alarms
-- This feature requires the use of the “Google Sheets Habits” shortcut system.
+## Example Alarm Template (copy/paste)
+```json
+[
+  {
+    "alarmName": "Template",
+    "status": "OFF",
+    "offsetMin": 0,
+    "reference": "start",
 
-- If taskIDs is not empty, the alarm becomes a repeat-until-complete loop (it keeps coming back until the task is complete).
+    "qrCodeID": "",
+    "qrSoundPath": "",
+    "qrVol": 50,
+    "qrShortcutsOnScan": [
+      {
+        "name": "",
+        "input": []
+      }
+    ],
 
-- Repeat-until-complete can work for both QR and non-QR alarms.
+    "shortcutsOnTrigger": [
+      {
+        "name": "",
+        "input": []
+      }
+    ],
+    "silenceAlarm": false,
 
-- Logic Flow:
-  - alarm rings → you scan QR → after taskLoopMin minutes it checks again → if still incomplete it re-arms QR and rings again → stops once complete.
+    "locationMode": "off",
+    "locations": [
+      [0, 0, 50]
+    ],
 
-  - Example usage: make your wakeup alarm continue triggering every 5 minutes until you have logged that you brushed your teeth.
+    "silenceIfDriving": "OFF",
+    "conflictingCalendars": [],
+    "reschedMinutes": 0,
+    "maxReschedules": 2
+  }
+]
+
+```
