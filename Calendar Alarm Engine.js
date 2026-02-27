@@ -1272,9 +1272,6 @@ async function tryFastPath(input, registryAfter) {
     return { handled: false };
   }
 
-  // Always run shortcutOnTrigger when this alarm fires.
-  queueTriggerShortcuts(entry.shortcutsOnTrigger);
-
   // Always honor "taskSatisfied" latch: if it's satisfied, the next time it fires we should delete and stop
   // (should be rare, but safe).
   if (entry.taskSatisfied === true) {
@@ -1393,13 +1390,11 @@ async function tryFastPath(input, registryAfter) {
     return { handled: true };
   }
 
-  // --- ORIGINAL silence/reschedule logic (non-task alarms) ---
   // Determine if any gating applies (driving/conflict/location) and whether to reschedule.
   // If gated: delete fired alarm, maybe reschedule, decrement maxReschedules.
-  // If not gated and is QR: handle QR minute-loop.
-  // If not gated and not QR: do nothing fast-path; verifier/daily will manage.
+  // If not gated: this fire is allowed to proceed.
 
-  // Gating check (excluding task)
+  // Gating check
   const reschedMinutes = Number(entry.reschedMinutes ?? 0);
   let gated = false;
 
@@ -1479,6 +1474,9 @@ async function tryFastPath(input, registryAfter) {
 
     return { handled: true };
   }
+
+  // Only run shortcutOnTrigger/silence behavior after this alarm has passed all gates.
+  queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
   // QR minute-loop (non-task)
   if (hasQR) {
