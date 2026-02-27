@@ -1272,6 +1272,9 @@ async function tryFastPath(input, registryAfter) {
     return { handled: false };
   }
 
+  // Always run shortcutOnTrigger when this alarm fires.
+  queueTriggerShortcuts(entry.shortcutsOnTrigger);
+
   // Always honor "taskSatisfied" latch: if it's satisfied, the next time it fires we should delete and stop
   // (should be rare, but safe).
   if (entry.taskSatisfied === true) {
@@ -1285,9 +1288,6 @@ async function tryFastPath(input, registryAfter) {
 
   // --- TASK LOOP (new behavior) ---
   if (hasTask) {
-    // Task alarms are considered successful once they reach task-loop handling.
-    queueTriggerShortcuts(entry.shortcutsOnTrigger);
-
     const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
 
     if (complete) {
@@ -1479,9 +1479,6 @@ async function tryFastPath(input, registryAfter) {
 
     return { handled: true };
   }
-
-  // Only run trigger shortcuts when the alarm was not blocked by gating checks.
-  queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
   // QR minute-loop (non-task)
   if (hasQR) {
