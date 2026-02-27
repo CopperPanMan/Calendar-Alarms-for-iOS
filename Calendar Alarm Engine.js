@@ -1253,6 +1253,37 @@ function scheduleQRLoop(entry, baseEpoch, iosAlarms) {
 
 
 // ---------- Fast-path ----------
+
+async function isRescheduledForContextGates(entry, fireEpoch, input) {
+  const focus = String(input.currentFocus ?? "").trim().toLowerCase();
+  if (String(entry.silenceIfDriving ?? "OFF").toUpperCase() === "ON" && focus === "driving") return true;
+
+  const conflictReady = await findConflictReadyAt(entry, fireEpoch);
+  if (conflictReady !== null) return true;
+
+  const locationMode = String(entry.locationMode ?? "off").toLowerCase();
+  if ((locationMode === "whitelist" || locationMode === "blacklist") && Array.isArray(entry.locations) && entry.locations.length > 0) {
+    const cur = input.currentLocation;
+    if (!cur) return false;
+
+    const defaultRadius = Number(entry.radiusMeters ?? 50);
+    let insideAny = false;
+    for (const pair of entry.locations) {
+      if (!Array.isArray(pair) || pair.length < 2) continue;
+      const lat = Number(pair[0]), lon = Number(pair[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
+      const d = haversineMeters(cur.lat, cur.lon, lat, lon);
+      if (d <= radius) insideAny = true;
+    }
+
+    if (locationMode === "whitelist" && !insideAny) return true;
+    if (locationMode === "blacklist" && insideAny) return true;
+  }
+
+  return false;
+}
+
 async function tryFastPath(input, registryAfter) {
   const now = nowEpoch();
   const fired = inferFiredOwnedAlarm(input.iosAlarms, registryAfter, now);
@@ -1285,6 +1316,9 @@ async function tryFastPath(input, registryAfter) {
 
   // --- TASK LOOP (new behavior) ---
   if (hasTask) {
+    const contextGated = await isRescheduledForContextGates(entry, now, input);
+    if (!contextGated) queueTriggerShortcuts(entry.shortcutsOnTrigger);
+
     const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
 
     if (complete) {
@@ -1476,7 +1510,14 @@ async function tryFastPath(input, registryAfter) {
   }
 
   // Only run shortcutOnTrigger/silence behavior after this alarm has passed all gates.
+  // If this fire was gated (driving/conflict/location), we returned earlier and did not queue shortcuts.
   queueTriggerShortcuts(entry.shortcutsOnTrigger);
+
+  // silenceAlarm always deletes the just-fired alarm once it has reached trigger handling.
+  // (Gated/rescheduled alarms are already deleted in the gated block above.)
+  if (entry.silenceAlarm === true) {
+    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+  }
 
   // QR minute-loop (non-task)
   if (hasQR) {
