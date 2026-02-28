@@ -31,10 +31,10 @@ Scriptable must be able to resolve a File Bookmark named **“Shortcuts”** poi
 To do this:  
 Go to **Scriptable → Settings → File Bookmarks → Add (+)** and select the **Calendar Alarms** folder.
 
-### 2. Add 2 scripts to Scriptable
+### 2. Add 2 scripts to Scriptable (from this repo):
 
-- [`Calendar Alarm Engine.js`](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Calendar)
-- [`Calendar Alarm QR Scanner.js`](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Calendar)
+- `Calendar Alarm Engine.js`
+- `Calendar Alarm QR Scanner.js`
 
 **Instructions:** For each of these scripts, copy/paste the code from its link into a new blank Scriptable script, then rename the script to the correct name.
 - near the top of the script, you can optionally fill in DISABLED_CALENDAR_NAMES = ["name1","name2"...] with a list of calendars that you want the code to ignore completely. This is useful if somebody with alarms (like a spouse) shares a calendar event with you, so their alarms are not scheduled on your phone.
@@ -43,17 +43,17 @@ Go to **Scriptable → Settings → File Bookmarks → Add (+)** and select the 
 
 While a few are optional, it is recommended that you add these **5 Shortcuts** (each one linked) in the Shortcuts app, in the order in which they appear. You can put these in a new folder for better organization:
 
-- [**Calendar Alarms Engine**](https://www.icloud.com/shortcuts/3ec04ab520464aa9bcd615039cef53bd) (the “main” shortcut)  
+- [**Calendar Alarms Engine**](https://www.icloud.com/shortcuts/cd7eb196c39a4945959614102e5d651a) (the “main” shortcut)  
   - *Special Instructions:* Make sure that the Scriptable action block inside this shortcut is set to run **“Calendar Alarm Engine”**
-- [**Calendar Alarms qrScanner**](https://www.icloud.com/shortcuts/88e08ee731cf49c48ec0013eeefb100d) (required for any QR functionality)  
+- [**Calendar Alarms qrScanner**](https://www.icloud.com/shortcuts/382213f3814f432789a57615ca355e9d) (required for any QR functionality)  
   - *Special Instructions:* Make sure that the Scriptable action block inside this shortcut is set to run **“Calendar Alarm QR Scanner”**
-- [**CA qrClockCloser**](https://www.icloud.com/shortcuts/739b3b24b40b4226ae1e11bf3c27ce90) *(optional)*  
+- [**CA qrClockCloser**](https://www.icloud.com/shortcuts/b9f7a10faaa34f1c88068b444d804ccd) *(optional)*  
   - Returns you to the Home Screen if you open the Clock app while a QR alarm is active, to prevent turning it off by “cheating”.  
   - QR alarms work by rescheduling another alarm for one minute into the future, which re-triggers the shortcut to run again at that time, which reschedules again, all in a loop. Due to that, you can illegitimately get around scanning a QR code by opening the Clock app and turning off the “next” scheduled alarm. This shortcut prevents that.
-- [**CA qrCodeMaker**](https://www.icloud.com/shortcuts/3161ca079dff4f069cff0aa117ca6ddf) *(optional)*  
+- [**CA qrCodeMaker**](https://www.icloud.com/shortcuts/855504b427ab4188922da64c3d9827e1) *(optional)*  
   - Generates QR codes from links for easy printing.  
   - Watch out: some QR code generators create “dynamic” codes that encode their redirect link instead of your actual URL. That won’t work here.
-- [**CA Wake Times**](https://www.icloud.com/shortcuts/3a03d2452e784f7189a57fb1ba508919) *(optional)*  
+- [**CA Wake Times**](https://www.icloud.com/shortcuts/64f042cca3564d5f8980de743ae5cc4b) *(optional)*  
   - Quickly change tomorrow’s wake-up alarm by adjusting the end time of your “Sleep” calendar event.  
   - Requires a calendar event titled **“Sleep”** with an alarm set to:  
     `{"offsetMin": 0, "reference": "end"}`
