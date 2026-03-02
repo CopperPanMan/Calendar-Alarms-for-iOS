@@ -1,3 +1,6 @@
+const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you want ignored by this system like ["name1","name2"]
+
+
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: magic;
@@ -29,20 +32,14 @@
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
 // Output: JSON string set via Script.setShortcutOutput()
 
-const DELIM = ":;:";
-const BOOKMARK_NAME = "Calendar Alarms"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms
-const DISABLED_CALENDAR_NAMES = [
-  // Optional denylist for calendars that Calendar Alarm Engine should IGNORE.
-  // Leave empty to include all calendars, or add exact calendar titles to skip, e.g.:
-  // "Partner Shared",
-  // "Family",
-];
-
 // Optional TaskRow endpoint (interface defined; you can fill later)
 // Should return boolean-like complete/incomplete; FAIL-OPEN requirement applies only for network errors.
 // NOTE: Your new requirement is NOT fail-open; it wants a loop until complete.
 // But if the query fails, your original spec says treat as complete. You did not retract that.
 // So: network failure => treat as COMPLETE (stops task loop) + warning logged.
+
+const DELIM = ":;:";
+const BOOKMARK_NAME = "Calendar Alarms"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms
 const TASK_WEBAPP_ID = ""; // e.g. "webappid"
 const TASK_ENDPOINT_BASE_URL = TASK_WEBAPP_ID
   ? `https://script.google.com/macros/s/${TASK_WEBAPP_ID}/exec`
