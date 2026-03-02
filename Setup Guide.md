@@ -17,8 +17,8 @@
 
 `iCloud Drive/Shortcuts/Calendar Alarms`
 
-3. If you intend on using QR functionality, you will need to put at least one alarm tone `.mp3` file in this folder.  
-   [*(Here are some to get started with.)*](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/tree/main/qr%20alarm%20ringtones)
+3. If you intend on using QR functionality, you will need to put at least one alarm tone `.mp3` file in this folder.
+   [*(Here are some to get started with. I like marimba.mp3 and ocean.mp3)*](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/tree/main/qr%20alarm%20ringtones)
 
 ## C) Scriptable setup
 
@@ -78,75 +78,96 @@ While a few are optional, it is recommended that you create these **5 automation
 5. *(Optional)* **When “Clock” is closed** → run shortcut **Calendar Alarms qrClockCloser**  
    - *What it does:* Prevents users from opening the Clock app when a QR alarm is active, stopping them from “breaking the rules” by disabling active QR alarms without scanning.
 
+*NOTE: iOS will ask you to grant permissions the first time these shortcuts run. You will need to grant them all (ie always allow. always delete, allow access, etc) in order for the system to work as expected.*
+
 ---
 
 # 2) How to Use: Creating an alarm
 
-Alarms are created via JSON code in the Notes section of a Calendar event. Think of JSON as a specific way of writing out a list of settings. It’s picky about punctuation, but the rules are simple. For more detailed information, you can check out [this article](https://stackoverflow.blog/2022/06/02/a-beginners-guide-to-json-the-data-format-for-the-internet/) from StackOverflow.
+Alarms are created via JSON code in the notes section of a Calendar event. Think of JSON as a specific way of writing out a list of settings in "key":"value" pairs, where a "key" represents the name of a setting, and the "value" represents the value you want that setting to be set to. JSON is picky about punctuation, but the rules are simple. For more detailed information, you can check out [this article](https://stackoverflow.blog/2022/06/02/a-beginners-guide-to-json-the-data-format-for-the-internet/) from StackOverflow. 
+
+For our purposes, an alarm looks like the empty template below. This JSON block includes **one alarm**—but any number is possible. More on that later.
 
 ---
 
-## Example Alarm Template
-
-For our purposes, a JSON alarm looks like the example below. This JSON block includes **two alarms**—but any number is possible. The one with “all keys” includes all available settings (called “keys”), and the second shows a pared-down alarm that omits settings the user doesn’t care about.
-
+## Example Alarm Template (copy/paste)
 ```json
 [
   {
-    "alarmName": "your alarm name here",
-    "status": "ON or OFF",
-    "offsetMin": "number of minutes from the start or end of the event. Neg=before, Pos=after. Also accepts a string like “2h”, “-6d”, “+15m” (no decimals)",
-    "reference": "START or END",
+    "alarmName": "Template",
+    "status": "OFF",
+    "offsetMin": 0,
+    "reference": "start",
 
-    "qrCodeID": "your_ID_here",
-    "qrSoundPath": "filename.mp3",
-    "qrVol": "volume, 1 to 100",
-    "qrShortcutsOnScan": [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
+    "qrCodeID": "",
+    "qrSoundPath": "",
+    "qrVol": 50,
+    "qrShortcutsOnScan": [
+      {
+        "name": "",
+        "input": [""]
+      }
+    ],
 
-    "shortcutsOnTrigger": [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
-    "silenceAlarm": "set to true or false, useful for silently running a shortcut"
+    "shortcutsOnTrigger": [
+      {
+        "name": "",
+        "input": [""]
+      }
+    ],
+    "silenceAlarm": false,
 
-    "locationMode": "whitelist, blacklist, or off -> whitelist = reschedule if not here, blacklist = reschedule if here",
-    "locations": [[0, 0, 0], [0, 0, 0]],
+    "locationMode": "off",
+    "locations": [
+      [0, 0, 50]
+    ],
 
-    "silenceIfDriving": "ON",
-    "conflictingCalendars": ["work meetings", "vacation"],
-    "reschedMinutes": "reschedule_interval_in_minutes",
-    "maxReschedules": "max_number_of_reschedules"
-  },
-  {
-    "alarmName": "your second alarm name here",
-    "status": "ON or OFF",
-    "offsetMin": "number of minutes from the start or end of the event",
-    "reference": "START or END"
+    "silenceIfDriving": "OFF",
+    "conflictingCalendars": [],
+    "reschedMinutes": 0,
+    "maxReschedules": 2
   }
 ]
 ```
 
-`Tip: There's a blank template at the end of this guide that you can place on a recurring event in order to always be able to easily copy/paste a blank alarm. If you would prefer to use the example above for a template, you'll need to add the calendar the event is on to DISABLED_CALENDAR_NAMES (see scriptable step above), since otherwise these values will be flagged as invalid.`
+### Key explanations (JSON formatting rule: text goes in quotes, numbers and true/false do not)
+- alarmName: the name of your alarm
+- status: ON or OFF
+- offsetMin: number of minutes from the start or end of the event. Neg=before, Pos=after. Also accepts a string like “2h”, “-6d”, “+15m” (no decimals)
+- reference: START or END
+- qrCodeID: for qr alarms, this is the unique ID you place in CA qrCodeMaker. eg: your_ID_here (no spaces. Allowed characters: A–Z a–z 0–9 - . _ ~)
+- qrSoundPath: for qr alarms, filename.mp3
+- qrVol: for qr alarms, volume, 1 to 100,
+- qrShortcutsOnScan: for qr alarms, run shortcuts when you scan the QR code. eg: [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
+- shortcutsOnTrigger: run shortcuts when the alarm first goes off. eg: [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
+- silenceAlarm: true or false, useful for silently running a shortcut on trigger.
+- locationMode: whitelist, blacklist, or off -> whitelist = reschedule if not here, blacklist = reschedule if here,
+- locations: [[lat1, long1, radiusMeters1], [lat2, long2, radiusMeters2], ...],
+- silenceIfDriving: "ON",
+- conflictingCalendars: if event from calendar here conflicts, reschedule alarm. eg: ["calendar name 1", "calendar name 2"],
+- reschedMinutes: "reschedule_interval_in_minutes",
+- maxReschedules: "max_number_of_reschedules"
+
+`Tip: Copy/Paste the blank template above and the key explanations into the notes section of a daily recurring event in order to always be able to easily copy/paste a blank alarm.`
 
 ## What are the Formatting Rules?
 - General Rules
   - You can delete unwanted settings: alarmName is required, but you can delete any other "key": "value" pair (setting) you don’t want. Missing keys are filled with safe defaults (usually equivalent to “off” for optional features). Just don’t change the names of any keys.
 
-  - Unlimited lists: If a value is shown in brackets (like locations), you can include as many values as you want, separated by commas.
-  - You can also have as many alarms as you want on one event by copying/pasting the {} alarm objects, with commas between each, as shown above.
+  - Unlimited lists: If a value is shown in brackets[] (like locations) or braces{} (like alarms, shortcutsOnTrigger, etc), you can include as many of those objects as you want, separated by commas. Useful for multiple locations, multiple shortcuts, multiple alarms, etc.
+  - You can also have as many alarms as you want on one event by copying/pasting the outer {} alarm object, with commas between each, as shown in an example below.
 
-  - Avoid duplicates: Don’t create a Calendar Alarm with the exact same name + time as a normal (non-calendar) alarm. Failure to do so can lead to old alarms not being properly deleted due to ambiguity over what is “owned” by Calendar Alarms.
+  - Avoid duplicates: Where possible, avoid creating a Calendar Alarm with the exact same name + time as any other alarm, calendar alarm or regular. Failure to do so can lead to old alarms not being properly deleted due to ambiguity over what is “owned” by Calendar Alarms, and can cause QR alarms to not loop correctly.
 
 - JSON Punctuation Rules
   - Keys and text values are in quotes, but number values are not. Use regular quotes (" ") NOT smart quotes (“ ”).
 
   - Commas separate all key/value pairs, all items in arrays [], and all objects {}. Watch out for missing or trailing commas. Extra spaces don’t matter.
 
-  - Do not write comments inside the outer brackets [] of the JSON block. Write other notes above or below.
+  - You can write notes above and below the JSON block, but do not write comments or notes inside of the JSON block itself (ie inside the outer brackets []).
 
-  - The shortcut will notify you of an error if any of these are wrong. When in doubt, your problem is commas or quotes (missing, misplaced, or extra).
-
-- Shortcut action format
-  - Preferred format: use objects like `{"name": "Shortcut Name", "input": ["item1", "item2"]}` for `qrShortcutsOnScan`, and objects like `{"name": "Shortcut Name", "input": ["item1"]}` inside `shortcutsOnTrigger`.
-  - `input` should be a real JSON array (not a string that contains brackets).
-  - Required format: `qrShortcutsOnScan` and `shortcutsOnTrigger` should be arrays of objects with `name` and `input`. Use top-level `silenceAlarm` (default `false`) once per alarm.
+  - The shortcut will notify you of an error if any of these are wrong. When in doubt, no matter what the error says, your problem is commas or quotes (missing, misplaced, or extra).
+    
 
 ## Example Single Alarm for Completing a task called “Plan Workday” on an event called “Work” (includes all possible keys)
 json
@@ -257,44 +278,3 @@ To do so: run Calendar Alarms Engine once manually after adding or editing your 
   - Mitigation: the system uses a backup alarm to increase reliability, but it’s not foolproof.
 
   - Stale alarms: unattended QR loops expire after 1 hour, after which the system will automatically delete them.
-
-## Example Alarm Template (copy/paste)
-```json
-[
-  {
-    "alarmName": "Template",
-    "status": "OFF",
-    "offsetMin": 0,
-    "reference": "start",
-
-    "qrCodeID": "",
-    "qrSoundPath": "",
-    "qrVol": 50,
-    "qrShortcutsOnScan": [
-      {
-        "name": "",
-        "input": []
-      }
-    ],
-
-    "shortcutsOnTrigger": [
-      {
-        "name": "",
-        "input": []
-      }
-    ],
-    "silenceAlarm": false,
-
-    "locationMode": "off",
-    "locations": [
-      [0, 0, 50]
-    ],
-
-    "silenceIfDriving": "OFF",
-    "conflictingCalendars": [],
-    "reschedMinutes": 0,
-    "maxReschedules": 2
-  }
-]
-
-```
