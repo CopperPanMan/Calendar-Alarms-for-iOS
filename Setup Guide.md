@@ -80,7 +80,7 @@ While a few are optional, it is recommended that you create these **5 automation
 
 *NOTE: iOS will ask you to grant permissions the first time these shortcuts run. You will need to grant them all (ie always allow. always delete, allow access, etc) in order for the system to work as expected.*
 
-## F) Make a Demo Event with Alarms
+## F) Let's Test it Out
 
 To get you accustomed to how this system works, let’s implement a demo event with 4 alarms. These alarms will go off one after another every minute for 4 minutes. You’ll want to run through this at least twice, because the first run-through will require you to grant various permissions, which may cause things to not work correctly. You’ll also need the accessory shortcuts from above installed.
 
@@ -99,21 +99,82 @@ To get you accustomed to how this system works, let’s implement a demo event w
 
 ### Demo Instructions
 
-1. make a new event called “demo” (name doesn’t matter), and Copy/Paste the below JSON code into its notes section. Change the start time of this event to 2 minutes from now.
+1. Make a new event called “demo” (name doesn’t matter), and Copy/Paste the below JSON code into its notes section. Change the start time of this event to 2 minutes from now.
 2. If you did this on a mac, make sure that this demo event has synced onto your phone’s calendar app. Once it has, close your calendar app to schedule these alarms (approve permissions if needed), and open the clock app. You should have 4 new alarms, all separated by a minute, with the first starting at event_start + 2 minutes.
-3. Let these alarms run through over the next 4-6 minutes, and grant permissions when asked. Once finished, repeat these instructions to verify that every demo alarm now does what it is supposed to do, based on the explanations above.
+3. Let these alarms run through over the next 4-6 minutes, and grant permissions when asked. Once finished, repeat steps 1-3 to verify that every demo alarm now does what it is supposed to do, based on the explanations above.
+4. Optional: play around with the values inside the code to get a feel for what things do
+
+```json
+[
+  {
+    "alarmName": "Demo: This is a basic alarm.",
+    "status": "ON",
+    "offsetMin": 0,
+    "reference": "start"
+  },
+  {
+    "alarmName": "Demo: This alarm starts a 1.1 minute timer and opens the messages app",
+    "status": "ON",
+    "offsetMin": 1,
+    "reference": "start",
+
+    "shortcutsOnTrigger": [
+      {
+        "name": "Start Timer for Input",
+        "input": [1.1]
+      },
+      {
+        "name": "Open App",
+        "input": ["Chrome"]
+      }
+    ],
+  },
+  {
+    "alarmName": "Demo: This alarm silences itself in order to silently stop the current timer, speak text, and send a notification",
+    "status": "ON",
+    "offsetMin": 2,
+    "reference": "start",
+
+    "shortcutsOnTrigger": [
+      {
+        "name": "Cancel Timer",
+        "input": []
+      },
+      {
+        "name": "Speak Text",
+        "input": ["Remember to do that task"]
+      },
+      {
+        "name": "Show Input Notification",
+        "input": ["Do That task"]
+      }
+    ],
+    "silenceAlarm": true
+  },
+  {
+    "alarmName": "Demo: QR Alarm - scan code: wakeup to turn off.",
+    "status": "ON",
+    "offsetMin": 3,
+    "reference": "start",
+
+    "qrCodeID": "wakeup",
+    "qrSoundPath": "marimba.mp3",
+    "qrVol": 50
+  }
+]
+```
 
 ---
 
-# 2) How to Use: Creating an alarm
+# 2) Digging Deeper
 
-Alarms are created via JSON code in the notes section of a Calendar event. Think of JSON as a specific way of writing out a list of settings in "key":"value" pairs, where a "key" represents the name of a setting, and the "value" represents the value you want that setting to be set to. JSON is picky about punctuation, but the rules are simple. For more detailed information, you can check out [this article](https://stackoverflow.blog/2022/06/02/a-beginners-guide-to-json-the-data-format-for-the-internet/) from StackOverflow. 
+Alarms are created via JSON code in the notes section of a Calendar event. Think of JSON as a specific way of writing out a list of settings in "key":"value" pairs, where a "key" represents the name of a setting, and the "value" represents the value you want that setting to be set to. JSON is picky about punctuation, but the rules are simple. More info can be found in [this article](https://stackoverflow.blog/2022/06/02/a-beginners-guide-to-json-the-data-format-for-the-internet/) from StackOverflow. 
 
-For our purposes, an alarm looks like the empty template below. This JSON block includes **one alarm**—but any number is possible. More on that later.
+For our purposes, an alarm looks like the blank template below. This JSON block includes **one alarm**—but any number is possible by copy/pasting the inner alarm object {} - ie everything inside of the outer brackets[].
 
 ---
 
-## Example Alarm Template (copy/paste)
+## Blank Alarm Template (copy/paste)
 ```json
 [
   {
@@ -153,7 +214,7 @@ For our purposes, an alarm looks like the empty template below. This JSON block 
 ]
 ```
 
-### Key explanations (JSON formatting rule: text goes in quotes, numbers and true/false do not)
+### Key explanations (JSON cheat-sheet: text goes in quotes, numbers and true/false do not, and the outermost '{}' are one alarm)
 - alarmName: the name of your alarm
 - status: ON or OFF
 - offsetMin: number of minutes from the start or end of the event. Neg=before, Pos=after. Also accepts a string like “2h”, “-6d”, “+15m” (no decimals)
