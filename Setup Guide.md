@@ -37,7 +37,7 @@ Go to **Scriptable → Settings → File Bookmarks → Add (+)** and select the 
 - `Calendar Alarm QR Scanner.js`
 
 **Instructions:** Copy/paste the code from this repository for Calendar Alarm Engine.js into a new blank Scriptable script, and then name that script "Calendar Alarm Engine.js". Do the same for Calendar Alarm QR Scanner.js.
-- near the top of the script, you can optionally fill in DISABLED_CALENDAR_NAMES = ["name1","name2"...] with a list of calendars that you want the code to ignore completely. This is useful if somebody with alarms (like a spouse) shares a calendar event with you, so their alarms are not scheduled on your phone.
+- at the top of the script, you can optionally fill in DISABLED_CALENDAR_NAMES = ["name1","name2"...] with a list of calendars that you want the code to ignore completely. This is useful if somebody with alarms (like a spouse) shares a calendar event with you, so their alarms are not scheduled on your phone.
   
 ## D) Shortcuts setup
 
