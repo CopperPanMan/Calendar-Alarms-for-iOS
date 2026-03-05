@@ -88,9 +88,9 @@ While a few are optional, it is recommended that you create these **5 automation
 
 ## F) Let's Test it Out
 
-To get you accustomed to how this system works, let’s implement a demo event with 4 alarms. These alarms will go off one after another every minute for 4 minutes. You’ll want to run through this at least twice, because the first run-through will require you to grant various permissions, which may cause things to not work correctly. You’ll also need the accessory shortcuts from above installed. 
+To get you accustomed to how this system works, let’s implement a demo event with 4 alarms that will go off one after another every minute for 4 minutes. The first run through may be buggy since it will require you to grant various permissions, so you’ll want to run through this at least twice. You’ll also need the accessory shortcuts from above installed. 
 
-If you would like to skip the QR alarm demo because you are not with another device to display the code, you can delete that alarm. To do so, delete everything shown below from the demo JSON (everything from the comma to the curly brace). Otherwise, skip this step:
+If you would like to skip the QR alarm demo because you don't have another device with you to display the below QR code on, you can delete that alarm. To do so, delete everything shown below from the demo JSON (everything from the comma to the curly brace). Otherwise, skip this step:
 
 ```json
    ,
@@ -108,12 +108,12 @@ If you would like to skip the QR alarm demo because you are not with another dev
 
 ### Demo Event Alarm Explanations
 
-- Alarm 1: Regular alarm, like you would find in the clock app.
+- Alarm 1: regular alarm, like you would find in the clock app.
 - Alarm 2: alarm that starts a timer, and opens the app “Chrome”
 - Alarm 3: silent alarm that cancels the prior timer, speaks text, and displays a notification
 - Alarm 4: QR alarm that loops a marimba sound (if the file exists in the folder, if not it is a generic notification sound) until the QR code below is scanned. (qrCodeID = “wakeup”, made using the CA qrCodeMaker shortcut)
     1. When this alarm goes off, a menu should pop up to scan the code. If it doesn't, you can *always* scan the QR code with your regular camera app.
-    2. Watch what happens if you don’t interact with your phone for a minute or two while the alarm runs. Another alarm will trigger, which will extend the loop until you scan the code. This cycle will automatically stop after an hour.
+    2. Watch what happens if you don’t interact with your phone for a minute or two while the alarm runs. Another alarm will trigger, which will extend the loop until you scan the code. With no user involvement, this cycle will automatically stop after an hour.
 
 <img width="100" height="100" alt="image" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
 
@@ -121,10 +121,10 @@ If you would like to skip the QR alarm demo because you are not with another dev
 
 ### Demo Instructions
 
-1. Make a new event called “demo” (name doesn’t matter), and Copy/Paste the below JSON code into its notes section. Change the start time of this event to 2 minutes from now.
+1. Make a new event called “demo” (pick any start time for now - the event name and end time do not matter. Copy/Paste the DEMO JSON code below into its notes section. Then, set the event start time to 2 minutes from now.
 2. If you did this on a mac, make sure that this demo event has synced onto your phone’s calendar app. Once it has, close your calendar app to schedule these alarms (approve permissions if needed), and open the clock app. You should have 4 new alarms, all separated by a minute, with the first starting at event_start + 2 minutes.
-3. Let these alarms run through over the next 4-6 minutes, and grant permissions when asked. Once finished, repeat steps 1-3 to verify that every demo alarm now does what it is supposed to do, based on the explanations above.
-4. Optional: play around with the values inside the code to get a feel for what things do
+3. Let these alarms run through over the next 4-6 minutes, and grant permissions when asked. The first run-through may be buggy due to these permission requests. Once finished, run the alarms again by editing the demo event's start time (again) to 2 minutes from now, and repeat steps 2 and 3.
+4. Optional: feel free to play around with the values inside the code to get a feel for what things do!
 
 ## Demo Event JSON
 
@@ -195,7 +195,8 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 
 ## Setup a Blank Alarm Template
 - To make new alarm setup easier, create an event that recurs daily. Copy and paste the blank template below into the notes section of that event. Then, under the JSON you just pasted, copy and paste the key explanations as well.
-- You now have everything you need to get started with this system.
+- Now, just copy/paste the JSON block from that event any time you want to create a new alarm. If an alarm already exists, just copy/paste everything but the outer brackets.
+- You now have everything you need to get started with this system!
 
 ---
 
@@ -250,7 +251,7 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 - qrShortcutsOnScan: for qr alarms, run shortcuts when you scan the QR code. eg: [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
 - shortcutsOnTrigger: run shortcuts when the alarm first goes off. eg: [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
 - silenceAlarm: true or false, useful for silently running a shortcut on trigger.
-- locationMode: whitelist, blacklist, or off -> whitelist = reschedule if not here, blacklist = reschedule if here,
+- locationMode: whitelist, blacklist, or off -> whitelist = ONLY run if at one of these locations (ie reschedule if not), blacklist = NEVER run if at one of these locations
 - locations: [[lat1, long1, radiusMeters1], [lat2, long2, radiusMeters2], ...],
 - silenceIfDriving: "ON",
 - conflictingCalendars: if event from calendar here conflicts, reschedule alarm. eg: ["calendar name 1", "calendar name 2"],
