@@ -137,7 +137,7 @@ If you would like to skip the QR alarm demo because you don't have another devic
     "reference": "start"
   },
   {
-    "alarmName": "Demo: This alarm starts a 1.1 minute timer and opens the messages app",
+    "alarmName": "Demo: This alarm starts a 1.1 minute timer and sends a notification.",
     "status": "ON",
     "offsetMin": 1,
     "reference": "start",
@@ -151,10 +151,10 @@ If you would like to skip the QR alarm demo because you don't have another devic
         "name": "Show Input Notification",
         "input": ["Demo: Leave for Work in 1 minute"]
       }
-    ],
+    ]
   },
   {
-    "alarmName": "Demo: This alarm silences itself in order to silently stop the current timer, speak text, and send a notification",
+    "alarmName": "Demo: This alarm silences itself in order to silently stop the current timer and speak text.",
     "status": "ON",
     "offsetMin": 2,
     "reference": "start",
