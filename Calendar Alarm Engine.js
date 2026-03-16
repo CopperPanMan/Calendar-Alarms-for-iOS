@@ -33,9 +33,7 @@ const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you wan
 // Output: JSON string set via Script.setShortcutOutput()
 
 const DELIM = ":;:";
-const BOOKMARK_NAME = "Calendar Alarms"; // Scriptable File Bookmark name (must point to iCloud Drive/Shortcuts)
-const SHORTCUTS_DIRNAME = "Shortcuts";
-const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
+const BOOKMARK_NAME = "Calendar Alarms"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms
 const LOCKOUT_CACHE_FILENAME = "lockoutCache.json";
 const APP_LOCKER_DIRNAME = "App Locker";
 
@@ -403,12 +401,29 @@ function resolveShortcutsDirOrThrow(fm) {
   return p;
 }
 
-function resolveCalendarAlarmsDir(fm, shortcutsDir) {
-  return fm.joinPath(shortcutsDir, CALENDAR_ALARMS_DIRNAME);
-}
 
-function resolveLockoutCachePath(fm, shortcutsDir) {
-  return fm.joinPath(shortcutsDir, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`);
+function resolveLockoutCachePath(fm, baseDir) {
+  const base = String(baseDir ?? "").trim();
+  if (!base) return "";
+
+  const maybeShortcutsDir = String(fm.fileName(base, false) ?? "").trim().toLowerCase() === "shortcuts";
+  const shortcutsDir = maybeShortcutsDir ? base : (typeof fm.parentDirectory === "function" ? fm.parentDirectory(base) : "");
+
+  const candidates = [];
+  if (maybeShortcutsDir) {
+    candidates.push(fm.joinPath(base, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`));
+  }
+  if (shortcutsDir) {
+    candidates.push(fm.joinPath(shortcutsDir, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`));
+  }
+  candidates.push(fm.joinPath(base, LOCKOUT_CACHE_FILENAME));
+
+  for (const c of candidates) {
+    if (c && fm.fileExists(c)) return c;
+  }
+
+  if (shortcutsDir) return fm.joinPath(shortcutsDir, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`);
+  return fm.joinPath(base, LOCKOUT_CACHE_FILENAME);
 }
 
 async function ensureFile(fm, path, defaultContent) {
@@ -1927,13 +1942,12 @@ try {
   return;
 }
 
-const calendarAlarmsDir = resolveCalendarAlarmsDir(fm, shortcutsDir);
-const registryPath = fm.joinPath(calendarAlarmsDir, FILES.registry);
-const lockPath = fm.joinPath(calendarAlarmsDir, FILES.lock);
-const scannerLastOpenedPath = fm.joinPath(calendarAlarmsDir, FILES.scannerLastOpened);
-const menuLastOpenedPath = fm.joinPath(calendarAlarmsDir, FILES.menuLastOpened);
-const menuOpenStatusPath = fm.joinPath(calendarAlarmsDir, FILES.menuOpenStatus);
-lockoutCachePath = resolveLockoutCachePath(fm, shortcutsDir);
+const registryPath = fm.joinPath(baseDir, FILES.registry);
+const lockPath = fm.joinPath(baseDir, FILES.lock);
+const scannerLastOpenedPath = fm.joinPath(baseDir, FILES.scannerLastOpened);
+const menuLastOpenedPath = fm.joinPath(baseDir, FILES.menuLastOpened);
+const menuOpenStatusPath = fm.joinPath(baseDir, FILES.menuOpenStatus);
+lockoutCachePath = resolveLockoutCachePath(fm, baseDir);
 
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
