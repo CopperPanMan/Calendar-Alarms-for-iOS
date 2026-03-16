@@ -33,7 +33,14 @@ const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you wan
 // Output: JSON string set via Script.setShortcutOutput()
 
 const DELIM = ":;:";
-const BOOKMARK_NAME = "Calendar Alarms"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms
+
+// Path config
+// This expects a Scriptable bookmark named "Shortcuts"
+// that points to: iCloud Drive/Shortcuts
+const BOOKMARK_NAME = "Shortcuts";
+const SHORTCUTS_DIRNAME = "Shortcuts";
+const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
+
 const LOCKOUT_CACHE_FILENAME = "lockoutCache.json";
 const APP_LOCKER_DIRNAME = "App Locker";
 
@@ -401,6 +408,9 @@ function resolveShortcutsDirOrThrow(fm) {
   return p;
 }
 
+function resolveCalendarAlarmsDir(fm, shortcutsDir) {
+  return fm.joinPath(shortcutsDir, CALENDAR_ALARMS_DIRNAME);
+}
 
 function resolveLockoutCachePath(fm, baseDir) {
   const base = String(baseDir ?? "").trim();
@@ -1933,8 +1943,10 @@ async function runVerifier(input, registryAfter) {
 const fm = getFileManager();
 
 let shortcutsDir;
+let baseDir;
 try {
   shortcutsDir = resolveShortcutsDirOrThrow(fm);
+  baseDir = resolveCalendarAlarmsDir(fm, shortcutsDir);
 } catch (e) {
   addError(`ERR: ${String(e)}`);
   output.errorRegistry = errors.join("\n");
@@ -1947,7 +1959,7 @@ const lockPath = fm.joinPath(baseDir, FILES.lock);
 const scannerLastOpenedPath = fm.joinPath(baseDir, FILES.scannerLastOpened);
 const menuLastOpenedPath = fm.joinPath(baseDir, FILES.menuLastOpened);
 const menuOpenStatusPath = fm.joinPath(baseDir, FILES.menuOpenStatus);
-lockoutCachePath = resolveLockoutCachePath(fm, baseDir);
+lockoutCachePath = resolveLockoutCachePath(fm, shortcutsDir);
 
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
