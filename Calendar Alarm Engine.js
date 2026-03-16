@@ -387,9 +387,17 @@ function resolveShortcutsDirOrThrow(fm) {
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms.`
+      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark named "${BOOKMARK_NAME}" pointing to iCloud Drive/${SHORTCUTS_DIRNAME}.`
     );
   }
+
+  const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
+  if (dirName !== SHORTCUTS_DIRNAME.toLowerCase()) {
+    throw new Error(
+      `Bookmark "${BOOKMARK_NAME}" must point to iCloud Drive/${SHORTCUTS_DIRNAME}, not "${fm.fileName(p, false)}".`
+    );
+  }
+
   return p;
 }
 
@@ -1924,9 +1932,9 @@ async function runVerifier(input, registryAfter) {
 // ---------- MAIN ----------
 const fm = getFileManager();
 
-let baseDir;
+let shortcutsDir;
 try {
-  baseDir = resolveShortcutsDirOrThrow(fm);
+  shortcutsDir = resolveShortcutsDirOrThrow(fm);
 } catch (e) {
   addError(`ERR: ${String(e)}`);
   output.errorRegistry = errors.join("\n");
