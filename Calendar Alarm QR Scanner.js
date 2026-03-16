@@ -11,9 +11,7 @@
 // - This script NEVER writes scannerLastOpened.txt.
 //   Only Shortcuts should update scannerLastOpened.txt when the user presses "silence" or opens the scanner.
 
-const BOOKMARK_NAME = "Shortcuts";
-const SHORTCUTS_DIRNAME = "Shortcuts";
-const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
+const BOOKMARK_NAME = "Calendar Alarms";
 
 const LOCK_STALE_SEC = 30;
 const LOCK_RETRY_DELAY_MS = 500;
@@ -119,22 +117,10 @@ function resolveShortcutsDirOrThrow(fm) {
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark named "${BOOKMARK_NAME}" pointing to iCloud Drive/${SHORTCUTS_DIRNAME}.`
+      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms.`
     );
   }
-
-  const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
-  if (dirName !== SHORTCUTS_DIRNAME.toLowerCase()) {
-    throw new Error(
-      `Bookmark "${BOOKMARK_NAME}" must point to iCloud Drive/${SHORTCUTS_DIRNAME}, not "${fm.fileName(p, false)}".`
-    );
-  }
-
   return p;
-}
-
-function resolveCalendarAlarmsDir(fm, shortcutsDir) {
-  return fm.joinPath(shortcutsDir, CALENDAR_ALARMS_DIRNAME);
 }
 
 async function ensureFile(fm, path, defaultContent) {
@@ -442,15 +428,14 @@ const result = {};
 const fm = getFileManager();
 
 try {
-  const shortcutsDir = resolveShortcutsDirOrThrow(fm);
-  const calendarAlarmsDir = resolveCalendarAlarmsDir(fm, shortcutsDir);
+  const baseDir = resolveShortcutsDirOrThrow(fm);
 
   const paths = {
-    registry: fm.joinPath(calendarAlarmsDir, FILES.registry),
-    lock: fm.joinPath(calendarAlarmsDir, FILES.lock),
-    scannerLastOpened: fm.joinPath(calendarAlarmsDir, FILES.scannerLastOpened),
-    menuLastOpened: fm.joinPath(calendarAlarmsDir, FILES.menuLastOpened),
-    menuOpenStatus: fm.joinPath(calendarAlarmsDir, FILES.menuOpenStatus),
+    registry: fm.joinPath(baseDir, FILES.registry),
+    lock: fm.joinPath(baseDir, FILES.lock),
+    scannerLastOpened: fm.joinPath(baseDir, FILES.scannerLastOpened),
+    menuLastOpened: fm.joinPath(baseDir, FILES.menuLastOpened),
+    menuOpenStatus: fm.joinPath(baseDir, FILES.menuOpenStatus),
   };
 
   await ensureFile(fm, paths.registry, "[]");
