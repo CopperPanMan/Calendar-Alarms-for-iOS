@@ -12,21 +12,17 @@ const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you wan
 // 3) Lock staleness uses real-time "now" each retry (not a frozen timestamp).
 // 4) Verifier no longer deletes “not expected” registry entries just because they’re in-window.
 //    It only deletes per the cleanup/TTL rules (plus duplicate-registry cleanup).
-// 5) NEW taskIDs behavior (your correction):
-//    - taskIDs length>0 causes a repeating loop until the task is complete.
-//    - For QR alarms + taskIDs:
-//        * While ringing (qrActive true): QR loop until scan sets qrActive=false (qrScanner).
-//        * After scan: a “post-scan tick” schedules a cooldown alarm at now+taskLoopMin.
-//        * When that cooldown alarm fires: QR re-arms and starts ringing again if still incomplete.
-//        * When the task becomes complete: it stops (no more reschedules), and the entry is latched as taskSatisfied=true
-//          so Verifier won’t re-schedule it even though Calendar still defines it.
-//    - For non-QR alarms + taskIDs:
-//        * Every time it fires: if incomplete -> reschedule at now+taskLoopMin (no maxReschedules decrement).
-//        * If complete -> stop and latch taskSatisfied=true.
+// 5) taskIDs behavior:
+//    - taskIDs length>0 enables a unified task loop for both QR and non-QR alarms.
+//    - On each task-loop fire: check task completion.
+//        * Complete -> delete fired alarm, stop, latch taskSatisfied=true.
+//        * Incomplete -> if taskLoopMin>0 and maxReschedules>0, schedule exactly one follow-up at now+taskLoopMin,
+//          then decrement maxReschedules.
+//        * Incomplete with maxReschedules<=0 -> stop (no further follow-up).
+//    - QR scanning only silences the currently active ring; it is not responsible for creating the next nag.
 //
 // IMPORTANT: This introduces registry-only keys:
 // - taskSatisfied (boolean): suppresses future scheduling for that calendar alarm until TTL cleanup.
-// - taskCooldownScheduled (boolean): QR+task internal state to distinguish post-scan tick vs cooldown-fire.
 // - qrBackupFireTime (number): backup QR loop fire time (failsafe alarm).
 //
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
@@ -698,7 +694,7 @@ function normalizeCalendarAlarmObject(rawObj) {
   const taskIDs = Array.isArray(rawObj.taskIDs)
     ? rawObj.taskIDs.filter((x) => typeof x === "string" && x.trim())
     : [];
-  const maxReschedules = intInRange(rawObj.maxReschedules, 1, 1, 10);
+  const maxReschedules = intInRange(rawObj.maxReschedules, 1, 0, 10);
 
   return {
     ok: true,
@@ -758,9 +754,9 @@ function ensureRegistryEntryShape(entry) {
   const qb = Number(entry.qrBackupFireTime);
   entry.qrBackupFireTime = Number.isFinite(qb) ? floorToMinute(Math.trunc(qb)) : 0;
 
-  // NEW registry-only task keys
-  entry.taskSatisfied = !!entry.taskSatisfied;              // suppress scheduling when true
-  entry.taskCooldownScheduled = !!entry.taskCooldownScheduled; // QR+task internal state
+  // Registry-only task key: suppress scheduling once this task-loop alarm is satisfied.
+  entry.taskSatisfied = !!entry.taskSatisfied;
+  delete entry.taskCooldownScheduled;
 
   // Fill calendar-derived fields best-effort
   if (typeof entry.status !== "string") entry.status = "ON";
@@ -1360,7 +1356,7 @@ async function tryFastPath(input, registryAfter) {
   const taskIDs = Array.isArray(entry.taskIDs) ? entry.taskIDs : [];
   const hasTask = taskIDs.length > 0;
 
-  // --- TASK LOOP (new behavior) ---
+  // --- TASK LOOP (unified for QR and non-QR) ---
   if (hasTask) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
     if (!contextGated) {
@@ -1369,108 +1365,53 @@ async function tryFastPath(input, registryAfter) {
       queueTriggerShortcuts(triggerActions);
     }
 
-    const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
-
-    if (complete) {
-      // Stop behavior: delete this instance and suppress future scheduling until TTL cleanup.
-      entry.taskSatisfied = true;
-      entry.qrActive = false;
-      entry.taskCooldownScheduled = false;
-      clearQRBackupAlarm(entry, input.iosAlarms);
-
-      output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-      return { handled: true };
-    }
-
-    // Incomplete => continue looping
-    const taskLoopMin = Number(entry.taskLoopMin ?? 0);
-    if (taskLoopMin <= 0) {
-      // Cannot loop without an interval
-      addError(`ERR: taskIDs set but taskLoopMin==0 for "${name}". Task loop cannot continue.`);
-      output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-      return { handled: true };
-    }
-
-    if (hasQR) {
-      // QR + taskIDs combined loop:
-      // - If qrActive true => stay in QR loop.
-      // - If qrActive false:
-      //     * If firstQRFireTime not set => initial ring (start QR loop).
-      //     * Else if taskCooldownScheduled false => post-scan tick => schedule cooldown at now+taskLoopMin.
-      //     * Else (taskCooldownScheduled true) => cooldown alarm fired => re-arm QR loop.
-
-      const firstSet = typeof entry.firstQRFireTime === "number" && Number.isFinite(entry.firstQRFireTime);
-      const initialRing = !firstSet;
-
-      // delete the just-fired alarm always for QR-managed alarms
-      output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
-      if (entry.qrActive === true) {
-        // Continue QR ringing minute-loop
-        entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
-
-        // Ensure firstQRFireTime present
-        if (!firstSet) entry.firstQRFireTime = now;
-
-        output.qrLoop = true;
-        output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
-
-        return { handled: true };
-      }
-
-      // qrActive is false
-      if (initialRing) {
-        // Initial ring: start QR loop
-        entry.firstQRFireTime = now;
-        entry.qrActive = true;
-        entry.taskCooldownScheduled = false;
-
-        entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
-
-        output.qrLoop = true;
-        output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
-
-        return { handled: true };
-      }
-
-      if (entry.taskCooldownScheduled === false) {
-        // Post-scan tick: schedule cooldown at now+taskLoopMin (no QR loop)
-        const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
-        entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
-
-        entry.qrActive = false;
-        entry.taskCooldownScheduled = true;
-        clearQRBackupAlarm(entry, input.iosAlarms);
-
-        queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
-        return { handled: true };
-      }
-
-      // Cooldown alarm fired: re-arm QR loop now
-      entry.taskCooldownScheduled = false;
-      entry.qrActive = true;
-
-      // Do NOT reset firstQRFireTime; keep original for the 60-minute QR timeout safety net.
-      entry.prevFireTime = entry.nextFireTime;
-      entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
-
-      output.qrLoop = true;
-      output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
-
-      return { handled: true };
-    }
-
-    // Non-QR task loop: delete fired + reschedule at now+taskLoopMin (no decrement)
+    // Always delete the fired instance; if needed we create exactly one follow-up below.
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
+    const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
+    if (complete) {
+      entry.taskSatisfied = true;
+      entry.qrActive = false;
+      clearQRBackupAlarm(entry, input.iosAlarms);
+      return { handled: true };
+    }
+
+    const taskLoopMin = Number(entry.taskLoopMin ?? 0);
+    if (taskLoopMin <= 0) {
+      addError(`ERR: taskIDs set but taskLoopMin<=0 for "${name}". Task loop cannot continue.`);
+      entry.qrActive = false;
+      clearQRBackupAlarm(entry, input.iosAlarms);
+      return { handled: true };
+    }
+
+    // For QR task loops, this fire still rings in QR mode; scanning only silences this active instance.
+    if (hasQR) {
+      if (!(typeof entry.firstQRFireTime === "number" && Number.isFinite(entry.firstQRFireTime))) {
+        entry.firstQRFireTime = now;
+      }
+      entry.qrActive = true;
+      output.qrLoop = true;
+    }
+
+    const loopsRemaining = Math.max(0, Math.trunc(Number(entry.maxReschedules ?? 0)));
+    if (loopsRemaining <= 0) {
+      if (!hasQR) entry.qrActive = false;
+      clearQRBackupAlarm(entry, input.iosAlarms);
+      return { handled: true };
+    }
+
     const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
+    entry.maxReschedules = loopsRemaining - 1;
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
 
     queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+
+    if (hasQR) {
+      output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
+      updateQRBackupAlarm(entry, now, input.iosAlarms);
+    }
+
     return { handled: true };
   }
 
@@ -1687,7 +1628,6 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         firstQRFireTime: "",
         qrActive: false,
         taskSatisfied: false,
-        taskCooldownScheduled: false,
         qrBackupFireTime: 0,
       });
     }
