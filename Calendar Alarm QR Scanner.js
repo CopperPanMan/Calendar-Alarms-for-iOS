@@ -11,7 +11,7 @@
 // - This script NEVER writes scannerLastOpened.txt.
 //   Only Shortcuts should update scannerLastOpened.txt when the user presses "silence" or opens the scanner.
 
-const BOOKMARK_NAME = "Shortcuts";
+const BOOKMARK_NAME = "Calendar Alarms";
 const SHORTCUTS_DIRNAME = "Shortcuts";
 const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
 
