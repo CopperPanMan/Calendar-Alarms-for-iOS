@@ -352,11 +352,8 @@ async function runModeB(fm, paths, qrCodeID) {
         }
 
         if (name) {
-          const next = Number(a.nextFireTime ?? 0);
-          if (Number.isFinite(next) && next > 0) {
-            const { hh, mm } = epochToHHMM(next);
-            out.alarmsToDelete.push({ name, hh, mm });
-          }
+          // Do NOT delete nextFireTime on scan: engine pre-schedules task-loop follow-ups there,
+          // and scanning should only silence the active QR ring, not cancel the future nag.
 
           const backup = Number(a.qrBackupFireTime ?? 0);
           if (Number.isFinite(backup) && backup > 0) {
