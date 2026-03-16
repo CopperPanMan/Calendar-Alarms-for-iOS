@@ -35,14 +35,13 @@ const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you wan
 const DELIM = ":;:";
 
 // Path config
-// This expects a Scriptable bookmark named "Shortcuts"
-// that points to: iCloud Drive/Shortcuts
-const BOOKMARK_NAME = "Shortcuts";
-const SHORTCUTS_DIRNAME = "Shortcuts";
+// This expects Scriptable file bookmarks named exactly:
+// - "Calendar Alarms" -> iCloud Drive/Shortcuts/Calendar Alarms
+// - "App Locker"      -> iCloud Drive/Shortcuts/App Locker
 const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
+const APP_LOCKER_DIRNAME = "App Locker";
 
 const LOCKOUT_CACHE_FILENAME = "lockoutCache.json";
-const APP_LOCKER_DIRNAME = "App Locker";
 
 // Constants
 const CONFLICT_BUFFER_MIN = 10;
@@ -379,60 +378,38 @@ function getFileManager() {
   return FileManager.iCloud();
 }
 
-function resolveShortcutsDirOrThrow(fm) {
+function resolveBookmarkedDirOrThrow(fm, bookmarkName, expectedDirName) {
   let p = null;
   try {
     if (typeof fm.bookmarkedPath === "function") {
-      p = fm.bookmarkedPath(BOOKMARK_NAME);
+      p = fm.bookmarkedPath(bookmarkName);
     }
   } catch (_) {}
   try {
     if (!p && typeof FileManager.bookmarkedPath === "function") {
-      p = FileManager.bookmarkedPath(BOOKMARK_NAME);
+      p = FileManager.bookmarkedPath(bookmarkName);
     }
   } catch (_) {}
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark named "${BOOKMARK_NAME}" pointing to iCloud Drive/${SHORTCUTS_DIRNAME}.`
+      `Missing Scriptable File Bookmark "${bookmarkName}". Create a bookmark named "${bookmarkName}" pointing to iCloud Drive/Shortcuts/${expectedDirName}.`
     );
   }
 
   const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
-  if (dirName !== SHORTCUTS_DIRNAME.toLowerCase()) {
+  if (dirName !== String(expectedDirName).trim().toLowerCase()) {
     throw new Error(
-      `Bookmark "${BOOKMARK_NAME}" must point to iCloud Drive/${SHORTCUTS_DIRNAME}, not "${fm.fileName(p, false)}".`
+      `Bookmark "${bookmarkName}" must point to iCloud Drive/Shortcuts/${expectedDirName}, not "${fm.fileName(p, false)}".`
     );
   }
 
   return p;
 }
 
-function resolveCalendarAlarmsDir(fm, shortcutsDir) {
-  return fm.joinPath(shortcutsDir, CALENDAR_ALARMS_DIRNAME);
-}
-
-function resolveLockoutCachePath(fm, baseDir) {
-  const base = String(baseDir ?? "").trim();
+function resolveLockoutCachePath(fm, appLockerDir) {
+  const base = String(appLockerDir ?? "").trim();
   if (!base) return "";
-
-  const maybeShortcutsDir = String(fm.fileName(base, false) ?? "").trim().toLowerCase() === "shortcuts";
-  const shortcutsDir = maybeShortcutsDir ? base : (typeof fm.parentDirectory === "function" ? fm.parentDirectory(base) : "");
-
-  const candidates = [];
-  if (maybeShortcutsDir) {
-    candidates.push(fm.joinPath(base, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`));
-  }
-  if (shortcutsDir) {
-    candidates.push(fm.joinPath(shortcutsDir, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`));
-  }
-  candidates.push(fm.joinPath(base, LOCKOUT_CACHE_FILENAME));
-
-  for (const c of candidates) {
-    if (c && fm.fileExists(c)) return c;
-  }
-
-  if (shortcutsDir) return fm.joinPath(shortcutsDir, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`);
   return fm.joinPath(base, LOCKOUT_CACHE_FILENAME);
 }
 
@@ -1942,11 +1919,11 @@ async function runVerifier(input, registryAfter) {
 // ---------- MAIN ----------
 const fm = getFileManager();
 
-let shortcutsDir;
 let baseDir;
+let appLockerDir;
 try {
-  shortcutsDir = resolveShortcutsDirOrThrow(fm);
-  baseDir = resolveCalendarAlarmsDir(fm, shortcutsDir);
+  baseDir = resolveBookmarkedDirOrThrow(fm, CALENDAR_ALARMS_DIRNAME, CALENDAR_ALARMS_DIRNAME);
+  appLockerDir = resolveBookmarkedDirOrThrow(fm, APP_LOCKER_DIRNAME, APP_LOCKER_DIRNAME);
 } catch (e) {
   addError(`ERR: ${String(e)}`);
   output.errorRegistry = errors.join("\n");
@@ -1959,7 +1936,7 @@ const lockPath = fm.joinPath(baseDir, FILES.lock);
 const scannerLastOpenedPath = fm.joinPath(baseDir, FILES.scannerLastOpened);
 const menuLastOpenedPath = fm.joinPath(baseDir, FILES.menuLastOpened);
 const menuOpenStatusPath = fm.joinPath(baseDir, FILES.menuOpenStatus);
-lockoutCachePath = resolveLockoutCachePath(fm, shortcutsDir);
+lockoutCachePath = resolveLockoutCachePath(fm, appLockerDir);
 
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
