@@ -32,18 +32,12 @@ const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you wan
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
 // Output: JSON string set via Script.setShortcutOutput()
 
-// Optional TaskRow endpoint (interface defined; you can fill later)
-// Should return boolean-like complete/incomplete; FAIL-OPEN requirement applies only for network errors.
-// NOTE: Your new requirement is NOT fail-open; it wants a loop until complete.
-// But if the query fails, your original spec says treat as complete. You did not retract that.
-// So: network failure => treat as COMPLETE (stops task loop) + warning logged.
-
 const DELIM = ":;:";
-const BOOKMARK_NAME = "Calendar Alarms"; // MUST exist as Scriptable File Bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms
-const TASK_WEBAPP_ID = ""; // e.g. "webappid"
-const TASK_ENDPOINT_BASE_URL = TASK_WEBAPP_ID
-  ? `https://script.google.com/macros/s/${TASK_WEBAPP_ID}/exec`
-  : "";
+const BOOKMARK_NAME = "Shortcuts"; // Scriptable File Bookmark name (must point to iCloud Drive/Shortcuts)
+const SHORTCUTS_DIRNAME = "Shortcuts";
+const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
+const LOCKOUT_CACHE_FILENAME = "lockoutCache.json";
+const APP_LOCKER_DIRNAME = "App Locker";
 
 // Constants
 const CONFLICT_BUFFER_MIN = 10;
@@ -95,6 +89,8 @@ const output = {
   debug: {},
   errorRegistry: "",
 };
+
+let lockoutCachePath = "";
 
 function normalizeShortcutInputArray(raw) {
   if (Array.isArray(raw)) {
@@ -393,10 +389,26 @@ function resolveShortcutsDirOrThrow(fm) {
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms.`
+      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark named "${BOOKMARK_NAME}" pointing to iCloud Drive/${SHORTCUTS_DIRNAME}.`
     );
   }
+
+  const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
+  if (dirName !== SHORTCUTS_DIRNAME.toLowerCase()) {
+    throw new Error(
+      `Bookmark "${BOOKMARK_NAME}" must point to iCloud Drive/${SHORTCUTS_DIRNAME}, not "${fm.fileName(p, false)}".`
+    );
+  }
+
   return p;
+}
+
+function resolveCalendarAlarmsDir(fm, shortcutsDir) {
+  return fm.joinPath(shortcutsDir, CALENDAR_ALARMS_DIRNAME);
+}
+
+function resolveLockoutCachePath(fm, shortcutsDir) {
+  return fm.joinPath(shortcutsDir, `${APP_LOCKER_DIRNAME}/${LOCKOUT_CACHE_FILENAME}`);
 }
 
 async function ensureFile(fm, path, defaultContent) {
@@ -1003,51 +1015,86 @@ function estimateDriveMinutes(lat1, lon1, lat2, lon2) {
 async function checkTaskIDsCompleteFailOpen(taskIDs) {
   if (!Array.isArray(taskIDs) || taskIDs.length === 0) return true;
 
-  if (!TASK_ENDPOINT_BASE_URL) {
-    addError("WARN: taskIDs set but TASK_WEBAPP_ID not configured; treating as complete.");
-    return true;
-  }
-
   const cleanedTaskIDs = taskIDs
     .map((x) => String(x ?? "").trim())
     .filter((x) => x !== "");
   if (!cleanedTaskIDs.length) return true;
 
-  try {
-    const key = encodeURIComponent(JSON.stringify("current_metric_status"));
-    const data = encodeURIComponent(JSON.stringify(cleanedTaskIDs));
-    const url = `${TASK_ENDPOINT_BASE_URL}?key=${key}&data=${data}`;
-    const req = new Request(url);
-    req.timeoutInterval = 5;
-    const resp = await req.loadString();
-    const trimmed = String(resp ?? "").trim();
-
-    const pj = safeJSONParse(trimmed);
-    if (!pj.ok) {
-      addError("WARN: taskIDs endpoint returned non-JSON response; treating as complete.");
-      return true;
-    }
-
-    const v = pj.val;
-    if (Array.isArray(v)) {
-      for (let i = 0; i < cleanedTaskIDs.length; i++) {
-        if (v[i] !== true) return false;
-      }
-      return true;
-    }
-
-    if (v && typeof v === "object" && v.ok === false) {
-      const details = Array.isArray(v.errors) ? ` (${v.errors.join(" | ")})` : "";
-      addError(`WARN: taskIDs endpoint returned error payload${details}; treating as complete.`);
-      return true;
-    }
-
-    addError("WARN: taskIDs endpoint returned unrecognized payload; treating as complete.");
-  } catch (e) {
-    addError(`WARN: taskIDs query failed; treating as complete. (${String(e)})`);
+  if (!lockoutCachePath) {
+    addError("ERR: lockout cache path not initialized; treating task as incomplete.");
+    return false;
   }
 
-  return true;
+  try {
+    const raw = await safeReadString(fm, lockoutCachePath, "");
+    const trimmed = String(raw ?? "").trim();
+    if (!trimmed) {
+      addError("WARN: lockout cache is empty; treating task as incomplete.");
+      return false;
+    }
+
+    const parsed = safeJSONParse(trimmed);
+    if (!parsed.ok || !parsed.val || typeof parsed.val !== "object") {
+      addError("WARN: lockout cache JSON invalid; treating task as incomplete.");
+      return false;
+    }
+
+    const allByID = parsed.val?.metricState?.allByID;
+    if (!allByID || typeof allByID !== "object") {
+      addError("WARN: lockout cache missing metricState.allByID; treating task as incomplete.");
+      return false;
+    }
+
+    for (const metricID of cleanedTaskIDs) {
+      const metric = allByID[metricID];
+      if (!metric || typeof metric !== "object") return false;
+
+      const value = metric.value;
+      const blankString = typeof value === "string" && value.trim() === "";
+      const missing = value === null || typeof value === "undefined";
+      if (missing || blankString) return false;
+    }
+
+    return true;
+  } catch (e) {
+    addError(`WARN: lockout cache read failed; treating task as incomplete. (${String(e)})`);
+  }
+
+  return false;
+}
+
+function makeTaskResetterAction(entry, deleteAlarmPayload) {
+  const taskIDs = Array.isArray(entry?.taskIDs)
+    ? entry.taskIDs.map((x) => String(x ?? "").trim()).filter((x) => x)
+    : [];
+
+  const payload = {
+    taskLoopMetricIDs: taskIDs,
+    qrCodeID: String(entry?.qrCodeID ?? ""),
+    alarmToDelete: {
+      name: String(deleteAlarmPayload?.name ?? ""),
+      hh: String(deleteAlarmPayload?.hh ?? ""),
+      mm: String(deleteAlarmPayload?.mm ?? ""),
+    },
+  };
+
+  return {
+    name: "Task Alarm Resetter",
+    input: [JSON.stringify(payload)],
+    silenceAlarm: false,
+  };
+}
+
+function shouldAppendTaskResetter(entry) {
+  const prev = Number(entry?.prevFireTime ?? 0);
+  return Number.isFinite(prev) && prev > 0;
+}
+
+function buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload) {
+  const actions = normalizeShortcutActionList(entry?.shortcutsOnTrigger);
+  if (!shouldAppendTaskResetter(entry)) return actions;
+  actions.push(makeTaskResetterAction(entry, deleteAlarmPayload));
+  return actions;
 }
 
 async function findConflictReadyAt(entry, fireEpoch) {
@@ -1314,7 +1361,11 @@ async function tryFastPath(input, registryAfter) {
   // --- TASK LOOP (new behavior) ---
   if (hasTask) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
-    if (!contextGated) queueTriggerShortcuts(entry.shortcutsOnTrigger);
+    if (!contextGated) {
+      const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
+      const triggerActions = buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
+      queueTriggerShortcuts(triggerActions);
+    }
 
     const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
 
@@ -1866,9 +1917,9 @@ async function runVerifier(input, registryAfter) {
 // ---------- MAIN ----------
 const fm = getFileManager();
 
-let baseDir;
+let shortcutsDir;
 try {
-  baseDir = resolveShortcutsDirOrThrow(fm);
+  shortcutsDir = resolveShortcutsDirOrThrow(fm);
 } catch (e) {
   addError(`ERR: ${String(e)}`);
   output.errorRegistry = errors.join("\n");
@@ -1876,11 +1927,13 @@ try {
   return;
 }
 
-const registryPath = fm.joinPath(baseDir, FILES.registry);
-const lockPath = fm.joinPath(baseDir, FILES.lock);
-const scannerLastOpenedPath = fm.joinPath(baseDir, FILES.scannerLastOpened);
-const menuLastOpenedPath = fm.joinPath(baseDir, FILES.menuLastOpened);
-const menuOpenStatusPath = fm.joinPath(baseDir, FILES.menuOpenStatus);
+const calendarAlarmsDir = resolveCalendarAlarmsDir(fm, shortcutsDir);
+const registryPath = fm.joinPath(calendarAlarmsDir, FILES.registry);
+const lockPath = fm.joinPath(calendarAlarmsDir, FILES.lock);
+const scannerLastOpenedPath = fm.joinPath(calendarAlarmsDir, FILES.scannerLastOpened);
+const menuLastOpenedPath = fm.joinPath(calendarAlarmsDir, FILES.menuLastOpened);
+const menuOpenStatusPath = fm.joinPath(calendarAlarmsDir, FILES.menuOpenStatus);
+lockoutCachePath = resolveLockoutCachePath(fm, shortcutsDir);
 
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
