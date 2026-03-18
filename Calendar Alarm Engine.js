@@ -756,8 +756,11 @@ function ensureRegistryEntryShape(entry) {
   const qb = Number(entry.qrBackupFireTime);
   entry.qrBackupFireTime = Number.isFinite(qb) ? floorToMinute(Math.trunc(qb)) : 0;
 
-  // Registry-only task key: suppress scheduling once this task-loop alarm is satisfied.
+  // Registry-only task keys:
+  // - taskSatisfied: suppress scheduling once this task-loop alarm is satisfied.
+  // - taskLoopFirstFireHandled: tracks whether alwaysRunAlarmOnce has already consumed its initial override.
   entry.taskSatisfied = !!entry.taskSatisfied;
+  entry.taskLoopFirstFireHandled = entry.taskLoopFirstFireHandled === true;
   delete entry.taskCooldownScheduled;
 
   // Fill calendar-derived fields best-effort
@@ -1086,14 +1089,16 @@ function makeTaskResetterAction(entry, deleteAlarmPayload) {
   };
 }
 
+function isAlwaysRunAlarmOnceInitialFire(entry) {
+  return entry?.alwaysRunAlarmOnce === true && entry?.taskLoopFirstFireHandled !== true;
+}
+
 function shouldAppendTaskResetter(entry) {
-  if (entry?.alwaysRunAlarmOnce !== true) return true;
-  const prev = Number(entry?.prevFireTime ?? 0);
-  return Number.isFinite(prev) && prev > 0;
+  return !isAlwaysRunAlarmOnceInitialFire(entry);
 }
 
 function shouldTreatTaskAsIncompleteOnThisFire(entry) {
-  return entry?.alwaysRunAlarmOnce === true && !shouldAppendTaskResetter(entry);
+  return isAlwaysRunAlarmOnceInitialFire(entry);
 }
 
 function buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload) {
@@ -1367,7 +1372,9 @@ async function tryFastPath(input, registryAfter) {
   // --- TASK LOOP (unified for QR and non-QR) ---
   if (hasTask) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
-    const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
+    const complete = shouldTreatTaskAsIncompleteOnThisFire(entry)
+      ? false
+      : await checkTaskIDsCompleteFailOpen(taskIDs);
     if (!contextGated) {
       const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
       const triggerActions = complete
@@ -1378,6 +1385,8 @@ async function tryFastPath(input, registryAfter) {
 
     // Always delete the fired instance; if needed we create exactly one follow-up below.
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+
+    entry.taskLoopFirstFireHandled = true;
 
     if (complete) {
       entry.taskSatisfied = true;
@@ -1638,6 +1647,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         firstQRFireTime: "",
         qrActive: false,
         taskSatisfied: false,
+        taskLoopFirstFireHandled: false,
         qrBackupFireTime: 0,
       });
     }
