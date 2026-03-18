@@ -694,6 +694,7 @@ function normalizeCalendarAlarmObject(rawObj) {
   const taskIDs = Array.isArray(rawObj.taskIDs)
     ? rawObj.taskIDs.filter((x) => typeof x === "string" && x.trim())
     : [];
+  const alwaysRunAlarmOnce = rawObj.alwaysRunAlarmOnce === true;
   const maxReschedules = intInRange(rawObj.maxReschedules, 1, 0, 10);
 
   return {
@@ -718,6 +719,7 @@ function normalizeCalendarAlarmObject(rawObj) {
       reschedMinutes,
       taskLoopMin,
       taskIDs,
+      alwaysRunAlarmOnce,
       maxReschedules,
     },
   };
@@ -790,6 +792,7 @@ function ensureRegistryEntryShape(entry) {
   } else {
     entry.taskIDs = entry.taskIDs.filter((x) => typeof x === "string" && x.trim());
   }
+  entry.alwaysRunAlarmOnce = entry.alwaysRunAlarmOnce === true;
   if (!Number.isFinite(Number(entry.maxReschedules))) entry.maxReschedules = 1;
 
   return entry;
@@ -1084,8 +1087,13 @@ function makeTaskResetterAction(entry, deleteAlarmPayload) {
 }
 
 function shouldAppendTaskResetter(entry) {
+  if (entry?.alwaysRunAlarmOnce !== true) return true;
   const prev = Number(entry?.prevFireTime ?? 0);
   return Number.isFinite(prev) && prev > 0;
+}
+
+function shouldTreatTaskAsIncompleteOnThisFire(entry) {
+  return entry?.alwaysRunAlarmOnce === true && !shouldAppendTaskResetter(entry);
 }
 
 function buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload) {
@@ -1359,16 +1367,20 @@ async function tryFastPath(input, registryAfter) {
   // --- TASK LOOP (unified for QR and non-QR) ---
   if (hasTask) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
+    const complete = shouldTreatTaskAsIncompleteOnThisFire(entry)
+      ? false
+      : await checkTaskIDsCompleteFailOpen(taskIDs);
     if (!contextGated) {
       const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
-      const triggerActions = buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
+      const triggerActions = complete
+        ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
+        : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
       queueTriggerShortcuts(triggerActions);
     }
 
     // Always delete the fired instance; if needed we create exactly one follow-up below.
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
-    const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
     if (complete) {
       entry.taskSatisfied = true;
       entry.qrActive = false;
@@ -1737,6 +1749,7 @@ async function runVerifier(input, registryAfter) {
     r.reschedMinutes = exp.reschedMinutes;
     r.taskLoopMin = exp.taskLoopMin;
     r.taskIDs = exp.taskIDs;
+    r.alwaysRunAlarmOnce = exp.alwaysRunAlarmOnce;
 
     // Keep remaining maxReschedules conservative
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
@@ -1783,6 +1796,7 @@ async function runVerifier(input, registryAfter) {
     r.reschedMinutes = exp.reschedMinutes;
     r.taskLoopMin = exp.taskLoopMin;
     r.taskIDs = exp.taskIDs;
+    r.alwaysRunAlarmOnce = exp.alwaysRunAlarmOnce;
 
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
     const oldRem = Math.trunc(Number(r.maxReschedules ?? newMax));
