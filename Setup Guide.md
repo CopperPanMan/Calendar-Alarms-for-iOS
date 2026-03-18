@@ -115,7 +115,7 @@ If you would like to skip the QR alarm demo because you don't have another devic
     1. When this alarm goes off, a menu should pop up to scan the code. If it doesn't, you can *always* scan the QR code with your regular camera app.
     2. Watch what happens if you don’t interact with your phone for a minute or two while the alarm runs. Another alarm will trigger, which will extend the loop until you scan the code. With no user involvement, this cycle will automatically stop after an hour.
 
-<img width="100" height="100" alt="image" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
+<img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
 
 `Note: iOS sometimes quietly decides to not run automations based on low battery percentage and/or high cpu load, and that can cause shortcuts to occasionally run late or not at all, or cause a QR alarm to not start immediately. These are unfortunately not issues with this system, but rather apple not giving priority to user automations.`
 
@@ -376,17 +376,20 @@ The automations above will automatically schedule any alarm(s) you make on your 
 To do so: run Calendar Alarms Engine once manually after adding or editing your alarm(s). This forces a sync. After it runs, any alarm scheduled to go off today (even from events ±7 days with offsetMin values that put them in range of today) should now exist in the Clock app.
 
 ## FAQ
-- How do I manually schedule an alarm?
-- Why launch shortcuts from alarms? Here’s some real-world use cases:
+- What are some use cases for launching shortcuts from alarms?
     - set a cascade of create timer/delete timer shortcuts and/or Show Input Notification shortcuts to silently “pace” your morning or night routine, while never having to touch your phone.
     - get travel time to work before your commute in the morning
     - send a text to the numbers you list to remind them to check in for their flight. This flight can be in 6 months, and when the alarm time comes, it will send those texts.
     - set your thermostat or lights when you leave home, when you return from work, or before you wake up or go to bed.
-- Advanced Note: to use more than one input in a shortcut, you will need to place them in a comma separated list inside the brackets, ie [”1”,”2”,”3”] and then inside the shortcut, use the “get dictionary from input” action (long press the blank value to select shortcut input) and “repeat with each” action to parse the values out.
+- Can I send multiple inputs to a shortcutOnTrigger, etc?
+   - Yes. Place your input in a JSON format, and use the “get dictionary from input” and "get dictionary value" actions to parse it out.
 - Why are there 2 duplicate alarms for a QR alarm while it is active?
+   - iOS sometimes doesn't run shortcuts from automations even when it should. This second alarm is a backup trigger in case that happens.
 
-## Advanced: Using QR Alarms
-- Every QR alarm needs a matching QR code. QR codes are just text stored in an image. In this system, the “text” is a Shortcuts URL that launches the QR Scanner shortcut with an input value. Multiple alarms can share the same code.
+# Advanced Features
+
+## QR Alarms
+- Every QR alarm needs a matching QR code to turn it off. Since QR codes are just text stored in image form, in this system, the “text” is a Shortcuts URL that launches the Calendar Alarms QR Scanner shortcut with your "qrCodeID" as input. Multiple alarms can share the same code.
 
 - QR code format (copy/paste): Replace "qrCodeID" with your chosen qrCodeID, and make sure it matches the qrCodeID in your alarm JSON. This ID can be anything you want, subject to the rules in the template bullet points.
 
@@ -398,3 +401,23 @@ To do so: run Calendar Alarms Engine once manually after adding or editing your 
   - Mitigation: the system uses a backup alarm to increase reliability, but it’s not foolproof.
 
   - Stale alarms: unattended QR loops expire after 1 hour, after which the system will automatically delete them.
+
+## Task Looping Alarms (repeat until complete)
+- Alarms of all types can be set to loop if a task (metric) has not been completed, a maximum number of *maxReschedules* times.
+   - example 1: keep reminding me every 30 minutes to feed the dog until I log that I fed the dog.
+   - example 2: keep looping a QR alarm that forces me to go to my computer until I have logged that I looked at my schedule.
+- This feature uses the habit tracking & app lockout system I have also designed, which allows you to log metrics/habits to google sheets. You can install that here.
+- To use task looping, add the following keys to your JSON template.
+  
+```json
+    "taskIDs": "",
+    "taskLoopMin": 30,
+    "alwaysRunAlarmOnce": false,
+```
+
+# Key Explanations
+- taskIDs: list of metrics, like: ["metricID1","metricID2"]
+- taskLoopMin: the duration to loop at
+- alwaysRunAlarmOnce: if true, it will always run the alarm the first time, even if the tasks have already been completed.
+
+- In the event that you intend on logging information to your metric google sheet from anywhere other than iOS shortcuts (like notion, the sheet itself, etc), you will need the [Task Alarm Resetter](https://www.icloud.com/shortcuts/526d7a32ff1e49a8919f30814d352e0e) shortcut, since your phone's local metric cache may not always be up to date with the sheet. You will have to input your apps script webappid near the top.
