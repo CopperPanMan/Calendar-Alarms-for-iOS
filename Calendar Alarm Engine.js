@@ -1092,6 +1092,10 @@ function shouldAppendTaskResetter(entry) {
   return Number.isFinite(prev) && prev > 0;
 }
 
+function shouldTreatTaskAsIncompleteOnThisFire(entry) {
+  return entry?.alwaysRunAlarmOnce === true && !shouldAppendTaskResetter(entry);
+}
+
 function buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload) {
   const actions = normalizeShortcutActionList(entry?.shortcutsOnTrigger);
   if (!shouldAppendTaskResetter(entry)) return actions;
