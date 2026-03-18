@@ -406,7 +406,7 @@ To do so: run Calendar Alarms Engine once manually after adding or editing your 
 - Alarms of all types can be set to loop if a task (metric) has not been completed, a maximum number of *maxReschedules* times.
    - example 1: keep reminding me every 30 minutes to feed the dog until I log that I fed the dog.
    - example 2: keep looping a QR alarm that forces me to go to my computer until I have logged that I looked at my schedule.
-- This feature uses the habit tracking & app lockout system I have also designed, which allows you to log metrics/habits to google sheets. You can install that here.
+- This feature uses [OpenHabits](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector), the habit tracking & app lockout system I designed which allows you to log metrics/habits to google sheets. You'll have to install that for this to work.
 - To use task looping, add the following keys to your JSON template.
   
 ```json
