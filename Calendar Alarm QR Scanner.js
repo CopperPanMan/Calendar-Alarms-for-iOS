@@ -352,8 +352,20 @@ async function runModeB(fm, paths, qrCodeID) {
         }
 
         if (name) {
-          // Do NOT delete nextFireTime on scan: engine pre-schedules task-loop follow-ups there,
-          // and scanning should only silence the active QR ring, not cancel the future nag.
+          const taskIDs = Array.isArray(a.taskIDs)
+            ? a.taskIDs.filter((x) => typeof x === "string" && x.trim())
+            : [];
+          const hasTaskLoop = taskIDs.length > 0;
+
+          // Non-task QR loops should stop all pending local alarms immediately on scan.
+          // Task-loop alarms keep nextFireTime because the engine pre-schedules the follow-up nag there.
+          if (!hasTaskLoop) {
+            const nextFire = Number(a.nextFireTime ?? 0);
+            if (Number.isFinite(nextFire) && nextFire > 0) {
+              const { hh, mm } = epochToHHMM(nextFire);
+              out.alarmsToDelete.push({ name, hh, mm });
+            }
+          }
 
           const backup = Number(a.qrBackupFireTime ?? 0);
           if (Number.isFinite(backup) && backup > 0) {
