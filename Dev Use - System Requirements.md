@@ -110,7 +110,7 @@ Task controls:
 - `taskLoopMin` (default = `0`, integer `0..500`)
 - `alwaysRunAlarmOnce` (default `false`, boolean)
     - if `false`, `Task Alarm Resetter` is added to trigger shortcuts on every task-alarm fire unless tasks are already complete
-    - if `true`, the first task-alarm fire skips `Task Alarm Resetter` and is treated as incomplete so the alarm still runs; later fires include it unless tasks are already complete
+    - if `true`, the first task-alarm fire skips `Task Alarm Resetter`, and later fires include it unless tasks are already complete
 
 ### JSON recognition and parsing rules (IMPORTANT)
 

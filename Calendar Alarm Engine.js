@@ -1367,9 +1367,7 @@ async function tryFastPath(input, registryAfter) {
   // --- TASK LOOP (unified for QR and non-QR) ---
   if (hasTask) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
-    const complete = shouldTreatTaskAsIncompleteOnThisFire(entry)
-      ? false
-      : await checkTaskIDsCompleteFailOpen(taskIDs);
+    const complete = await checkTaskIDsCompleteFailOpen(taskIDs);
     if (!contextGated) {
       const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
       const triggerActions = complete
