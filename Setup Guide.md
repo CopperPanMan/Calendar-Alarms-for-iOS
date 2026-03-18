@@ -415,9 +415,9 @@ To do so: run Calendar Alarms Engine once manually after adding or editing your 
     "alwaysRunAlarmOnce": false,
 ```
 
-# Key Explanations
+### Key Explanations
 - taskIDs: list of metrics, like: ["metricID1","metricID2"]
-- taskLoopMin: the duration to loop at
+- taskLoopMin: the duration to loop at.
 - alwaysRunAlarmOnce: if true, it will always run the alarm the first time, even if the tasks have already been completed.
 
 - In the event that you intend on logging information to your metric google sheet from anywhere other than iOS shortcuts (like notion, the sheet itself, etc), you will need the [Task Alarm Resetter](https://www.icloud.com/shortcuts/526d7a32ff1e49a8919f30814d352e0e) shortcut, since your phone's local metric cache may not always be up to date with the sheet. You will have to input your apps script webappid near the top.
