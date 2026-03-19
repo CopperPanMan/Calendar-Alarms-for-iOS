@@ -90,7 +90,9 @@ const output = {
   errorRegistry: "",
 };
 
+let appLockerDir = "";
 let lockoutCachePath = "";
+let appLockerBookmarkAttempted = false;
 
 function normalizeShortcutInputArray(raw) {
   if (Array.isArray(raw)) {
@@ -407,6 +409,22 @@ function resolveLockoutCachePath(fm, appLockerDir) {
   const base = String(appLockerDir ?? "").trim();
   if (!base) return "";
   return fm.joinPath(base, LOCKOUT_CACHE_FILENAME);
+}
+
+function ensureLockoutCachePathInitialized() {
+  if (lockoutCachePath) return lockoutCachePath;
+  if (appLockerBookmarkAttempted) return "";
+
+  appLockerBookmarkAttempted = true;
+
+  try {
+    appLockerDir = resolveBookmarkedDirOrThrow(fm, APP_LOCKER_DIRNAME, APP_LOCKER_DIRNAME);
+    lockoutCachePath = resolveLockoutCachePath(fm, appLockerDir);
+    return lockoutCachePath;
+  } catch (e) {
+    addError(`ERR: ${String(e)}`);
+    return "";
+  }
 }
 
 async function ensureFile(fm, path, defaultContent) {
@@ -1024,13 +1042,14 @@ async function checkTaskIDsCompleteFailOpen(taskIDs) {
     .filter((x) => x !== "");
   if (!cleanedTaskIDs.length) return true;
 
-  if (!lockoutCachePath) {
+  const cachePath = ensureLockoutCachePathInitialized();
+  if (!cachePath) {
     addError("ERR: lockout cache path not initialized; treating task as incomplete.");
     return false;
   }
 
   try {
-    const raw = await safeReadString(fm, lockoutCachePath, "");
+    const raw = await safeReadString(fm, cachePath, "");
     const trimmed = String(raw ?? "").trim();
     if (!trimmed) {
       addError("WARN: lockout cache is empty; treating task as incomplete.");
@@ -1882,10 +1901,8 @@ async function runVerifier(input, registryAfter) {
 const fm = getFileManager();
 
 let baseDir;
-let appLockerDir;
 try {
   baseDir = resolveBookmarkedDirOrThrow(fm, CALENDAR_ALARMS_DIRNAME, CALENDAR_ALARMS_DIRNAME);
-  appLockerDir = resolveBookmarkedDirOrThrow(fm, APP_LOCKER_DIRNAME, APP_LOCKER_DIRNAME);
 } catch (e) {
   addError(`ERR: ${String(e)}`);
   output.errorRegistry = errors.join("\n");
@@ -1898,7 +1915,6 @@ const lockPath = fm.joinPath(baseDir, FILES.lock);
 const scannerLastOpenedPath = fm.joinPath(baseDir, FILES.scannerLastOpened);
 const menuLastOpenedPath = fm.joinPath(baseDir, FILES.menuLastOpened);
 const menuOpenStatusPath = fm.joinPath(baseDir, FILES.menuOpenStatus);
-lockoutCachePath = resolveLockoutCachePath(fm, appLockerDir);
 
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
