@@ -922,7 +922,7 @@ function inferFiredOwnedAlarm(iosAlarms, registryArr, nowSec) {
     const candEpoch = hhmmToClosestEpoch(a.hh, a.mm, nowSec);
     if (candEpoch === null) continue;
     const dist = Math.abs(candEpoch - nowSec);
-    if (dist <= 180) likely.push({ ios: a, dist });
+    if (dist <= 30) likely.push({ ios: a, dist });
   }
   if (!likely.length) return null;
 
