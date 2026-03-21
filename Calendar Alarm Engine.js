@@ -1431,6 +1431,7 @@ async function tryFastPath(input, registryAfter) {
       : await checkTaskIDsCompleteFailOpen(taskIDs);
 
     if (complete) {
+      output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
       entry.taskSatisfied = true;
       entry.qrActive = false;
       clearQRBackupAlarm(entry, input.iosAlarms);
@@ -1443,6 +1444,7 @@ async function tryFastPath(input, registryAfter) {
     }
 
     if (taskLoopMin <= 0) {
+      if (shouldDeleteFiredTaskAlarm) output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
       addError(`ERR: taskIDs set but taskLoopMin<=0 for "${name}". Task loop cannot continue.`);
       entry.qrActive = false;
       clearQRBackupAlarm(entry, input.iosAlarms);
