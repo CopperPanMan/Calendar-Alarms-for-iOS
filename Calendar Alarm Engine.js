@@ -712,7 +712,7 @@ function normalizeCalendarAlarmObject(rawObj) {
   const taskIDs = Array.isArray(rawObj.taskIDs)
     ? rawObj.taskIDs.filter((x) => typeof x === "string" && x.trim())
     : [];
-  const alwaysRunAlarmOnce = rawObj.alwaysRunAlarmOnce === true;
+  const ignoreTaskCheckFirstTime = rawObj.ignoreTaskCheckFirstTime === true || rawObj.alwaysRunAlarmOnce === true;
   const maxReschedules = intInRange(rawObj.maxReschedules, 1, 0, 10);
 
   return {
@@ -737,7 +737,7 @@ function normalizeCalendarAlarmObject(rawObj) {
       reschedMinutes,
       taskLoopMin,
       taskIDs,
-      alwaysRunAlarmOnce,
+      ignoreTaskCheckFirstTime,
       maxReschedules,
     },
   };
@@ -776,9 +776,10 @@ function ensureRegistryEntryShape(entry) {
 
   // Registry-only task keys:
   // - taskSatisfied: suppress scheduling once this task-loop alarm is satisfied.
-  // - taskLoopFirstFireHandled: tracks whether alwaysRunAlarmOnce has already consumed its initial override.
+  // - taskCheckFirstFireHandled: tracks whether ignoreTaskCheckFirstTime has already consumed its initial override.
   entry.taskSatisfied = !!entry.taskSatisfied;
-  entry.taskLoopFirstFireHandled = entry.taskLoopFirstFireHandled === true;
+  entry.taskCheckFirstFireHandled = entry.taskCheckFirstFireHandled === true || entry.taskLoopFirstFireHandled === true;
+  delete entry.taskLoopFirstFireHandled;
   delete entry.taskCooldownScheduled;
 
   // Fill calendar-derived fields best-effort
@@ -813,7 +814,8 @@ function ensureRegistryEntryShape(entry) {
   } else {
     entry.taskIDs = entry.taskIDs.filter((x) => typeof x === "string" && x.trim());
   }
-  entry.alwaysRunAlarmOnce = entry.alwaysRunAlarmOnce === true;
+  entry.ignoreTaskCheckFirstTime = entry.ignoreTaskCheckFirstTime === true || entry.alwaysRunAlarmOnce === true;
+  delete entry.alwaysRunAlarmOnce;
   if (!Number.isFinite(Number(entry.maxReschedules))) entry.maxReschedules = 1;
 
   return entry;
@@ -1108,16 +1110,16 @@ function makeTaskResetterAction(entry, deleteAlarmPayload) {
   };
 }
 
-function isAlwaysRunAlarmOnceInitialFire(entry) {
-  return entry?.alwaysRunAlarmOnce === true && entry?.taskLoopFirstFireHandled !== true;
+function isIgnoreTaskCheckFirstTimeInitialFire(entry) {
+  return entry?.ignoreTaskCheckFirstTime === true && entry?.taskCheckFirstFireHandled !== true;
 }
 
 function shouldAppendTaskResetter(entry) {
-  return !isAlwaysRunAlarmOnceInitialFire(entry);
+  return !isIgnoreTaskCheckFirstTimeInitialFire(entry);
 }
 
 function shouldTreatTaskAsIncompleteOnThisFire(entry) {
-  return isAlwaysRunAlarmOnceInitialFire(entry);
+  return isIgnoreTaskCheckFirstTimeInitialFire(entry);
 }
 
 function buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload) {
@@ -1391,21 +1393,50 @@ async function tryFastPath(input, registryAfter) {
   // --- TASK LOOP (unified for QR and non-QR) ---
   if (hasTask) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
+
+    // Task-loop alarms must still honor the normal rescheduling gates before they are
+    // allowed to trigger, ring in QR mode, or consume the one-time task-check bypass.
+    if (contextGated) {
+      output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+
+      if (Number(entry.maxReschedules ?? 0) > 0) {
+        const remaining = Math.max(0, Math.trunc(Number(entry.maxReschedules)) - 1);
+        entry.maxReschedules = remaining;
+
+        if (remaining > 0) {
+          const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ false);
+          if (next !== null) {
+            entry.prevFireTime = entry.nextFireTime;
+            entry.nextFireTime = floorToMinute(next);
+            queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+          } else {
+            entry.prevFireTime = entry.nextFireTime;
+          }
+        } else {
+          entry.prevFireTime = entry.nextFireTime;
+        }
+      }
+
+      entry.qrActive = false;
+      clearQRBackupAlarm(entry, input.iosAlarms);
+      output.qrLoop = false;
+      return { handled: true };
+    }
+
     const complete = shouldTreatTaskAsIncompleteOnThisFire(entry)
       ? false
       : await checkTaskIDsCompleteFailOpen(taskIDs);
-    if (!contextGated) {
-      const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
-      const triggerActions = complete
-        ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
-        : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
-      queueTriggerShortcuts(triggerActions);
-    }
+    const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
+    const triggerActions = complete
+      ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
+      : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
+    queueTriggerShortcuts(triggerActions);
 
     // Always delete the fired instance; if needed we create exactly one follow-up below.
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
-    entry.taskLoopFirstFireHandled = true;
+    // Consume the initial task-check bypass only once this fire actually reached trigger handling.
+    entry.taskCheckFirstFireHandled = true;
 
     if (complete) {
       entry.taskSatisfied = true;
@@ -1438,10 +1469,9 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
-    const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
     entry.maxReschedules = loopsRemaining - 1;
     entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
+    entry.nextFireTime = floorToMinute(now + taskLoopMin * 60);
 
     queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
 
@@ -1666,7 +1696,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         firstQRFireTime: "",
         qrActive: false,
         taskSatisfied: false,
-        taskLoopFirstFireHandled: false,
+        taskCheckFirstFireHandled: false,
         qrBackupFireTime: 0,
       });
     }
@@ -1776,7 +1806,7 @@ async function runVerifier(input, registryAfter) {
     r.reschedMinutes = exp.reschedMinutes;
     r.taskLoopMin = exp.taskLoopMin;
     r.taskIDs = exp.taskIDs;
-    r.alwaysRunAlarmOnce = exp.alwaysRunAlarmOnce;
+    r.ignoreTaskCheckFirstTime = exp.ignoreTaskCheckFirstTime;
 
     // Keep remaining maxReschedules conservative
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
@@ -1823,7 +1853,7 @@ async function runVerifier(input, registryAfter) {
     r.reschedMinutes = exp.reschedMinutes;
     r.taskLoopMin = exp.taskLoopMin;
     r.taskIDs = exp.taskIDs;
-    r.alwaysRunAlarmOnce = exp.alwaysRunAlarmOnce;
+    r.ignoreTaskCheckFirstTime = exp.ignoreTaskCheckFirstTime;
 
     const newMax = Math.trunc(Number(exp.maxReschedules ?? 1));
     const oldRem = Math.trunc(Number(r.maxReschedules ?? newMax));
