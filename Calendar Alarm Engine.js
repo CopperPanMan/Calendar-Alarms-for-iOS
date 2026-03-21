@@ -1421,7 +1421,9 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
-    const shouldDeleteFiredTaskAlarm = hasQR || entry.silenceAlarm === true;
+    // Always delete the fired instance after it passes the context gates.
+    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+
     const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
     const skipTaskCheckOnInitialFire = shouldSkipTaskCheckOnInitialFire(entry);
     const complete = skipTaskCheckOnInitialFire
@@ -1453,7 +1455,6 @@ async function tryFastPath(input, registryAfter) {
     const triggerActions = skipTaskCheckOnInitialFire
       ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
       : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
-    if (shouldDeleteFiredTaskAlarm) output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
     queueTriggerShortcuts(triggerActions);
     entry.taskCheckFirstFireHandled = true;
 
