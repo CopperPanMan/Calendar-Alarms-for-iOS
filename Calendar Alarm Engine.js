@@ -1435,8 +1435,10 @@ async function tryFastPath(input, registryAfter) {
     // Always delete the fired instance; if needed we create exactly one follow-up below.
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
-    // Consume the initial task-check bypass only once this fire actually reached trigger handling.
-    entry.taskCheckFirstFireHandled = true;
+    // Only consume the initial task-check bypass once this fire actually passes the other
+    // rescheduling gates and reaches trigger handling. Fires deferred by driving/conflict/
+    // location rules should still get their first real task-check bypass later.
+    if (!contextGated) entry.taskCheckFirstFireHandled = true;
 
     if (complete) {
       entry.taskSatisfied = true;
