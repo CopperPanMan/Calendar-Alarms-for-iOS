@@ -1421,14 +1421,15 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
-    // Always delete the fired instance after it passes the context gates.
-    output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
     const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
     const skipTaskCheckOnInitialFire = shouldSkipTaskCheckOnInitialFire(entry);
     const complete = skipTaskCheckOnInitialFire
       ? false
       : await checkTaskIDsCompleteFailOpen(taskIDs);
+    const shouldDeleteFiredTaskAlarm =
+      hasQR ||
+      complete ||
+      entry.silenceAlarm === true;
 
     if (complete) {
       output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
@@ -1457,6 +1458,7 @@ async function tryFastPath(input, registryAfter) {
       : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
     queueTriggerShortcuts(triggerActions);
     entry.taskCheckFirstFireHandled = true;
+    if (shouldDeleteFiredTaskAlarm) output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
     // For QR task loops, this fire still rings in QR mode; scanning only silences this active instance.
     if (hasQR) {
