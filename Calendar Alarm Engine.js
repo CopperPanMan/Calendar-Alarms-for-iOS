@@ -1393,16 +1393,44 @@ async function tryFastPath(input, registryAfter) {
   // --- TASK LOOP (unified for QR and non-QR) ---
   if (hasTask) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
+
+    // Task-loop alarms must still honor the normal rescheduling gates before they are
+    // allowed to trigger, ring in QR mode, or consume the one-time task-check bypass.
+    if (contextGated) {
+      output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+
+      if (Number(entry.maxReschedules ?? 0) > 0) {
+        const remaining = Math.max(0, Math.trunc(Number(entry.maxReschedules)) - 1);
+        entry.maxReschedules = remaining;
+
+        if (remaining > 0) {
+          const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ false);
+          if (next !== null) {
+            entry.prevFireTime = entry.nextFireTime;
+            entry.nextFireTime = floorToMinute(next);
+            queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+          } else {
+            entry.prevFireTime = entry.nextFireTime;
+          }
+        } else {
+          entry.prevFireTime = entry.nextFireTime;
+        }
+      }
+
+      entry.qrActive = false;
+      clearQRBackupAlarm(entry, input.iosAlarms);
+      output.qrLoop = false;
+      return { handled: true };
+    }
+
     const complete = shouldTreatTaskAsIncompleteOnThisFire(entry)
       ? false
       : await checkTaskIDsCompleteFailOpen(taskIDs);
-    if (!contextGated) {
-      const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
-      const triggerActions = complete
-        ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
-        : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
-      queueTriggerShortcuts(triggerActions);
-    }
+    const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
+    const triggerActions = complete
+      ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
+      : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
+    queueTriggerShortcuts(triggerActions);
 
     // Always delete the fired instance; if needed we create exactly one follow-up below.
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
@@ -1443,10 +1471,9 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
-    const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
     entry.maxReschedules = loopsRemaining - 1;
     entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
+    entry.nextFireTime = floorToMinute(now + taskLoopMin * 60);
 
     queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
 
