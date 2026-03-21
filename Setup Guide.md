@@ -412,12 +412,12 @@ To do so: run Calendar Alarms Engine once manually after adding or editing your 
 ```json
     "taskIDs": "",
     "taskLoopMin": 30,
-    "checkTasksFirstTime": true,
+    "ignoreTaskCheckFirstTime": false,
 ```
 
 ### Key Explanations
 - taskIDs: list of metrics, like: ["metricID1","metricID2"]
 - taskLoopMin: the duration to loop at.
-- checkTasksFirstTime: defaults to true. If true, the first non-rescheduled task-loop fire checks task completion before activating the QR alarm. If false, the first non-rescheduled task-loop fire behaves like a normal QR alarm and skips both the task-completion check and `Task Alarm Resetter`; later fires still check tasks.
+- ignoreTaskCheckFirstTime: if true, the first non-rescheduled task-loop fire skips the task-completion check and is treated as incomplete; all other rescheduling logic still applies.
 
 - In the event that you intend on logging information to your metric google sheet from anywhere other than iOS shortcuts (like notion, the sheet itself, etc), you will need the [Task Alarm Resetter](https://www.icloud.com/shortcuts/526d7a32ff1e49a8919f30814d352e0e) shortcut, since your phone's local metric cache may not always be up to date with the sheet. You will have to input your apps script webappid near the top.
