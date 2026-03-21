@@ -1867,6 +1867,13 @@ async function runVerifier(input, registryAfter) {
     const oldRem = Math.trunc(Number(r.maxReschedules ?? newMax));
     r.maxReschedules = Math.min(oldRem, newMax);
 
+    // Immediate cleanup on reschedule: delete old scheduled iOS alarm at prevFireTime.
+    // This matters most for task loops after calcFireTime has moved into the "recent" bucket.
+    if (Number(r.prevFireTime ?? 0) > 0 && r.prevFireTime !== r.nextFireTime) {
+      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
+      r.prevFireTime = 0;
+    }
+
     // If it’s not QR-active, and its nextFireTime is not in the future (excluding “this minute”), delete it.
     // This implements: "previously-fired alarms are deleted immediately."
     if (r.qrActive !== true && r.nextFireTime < nowMinute) {
