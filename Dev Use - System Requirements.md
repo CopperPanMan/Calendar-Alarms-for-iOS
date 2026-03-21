@@ -108,10 +108,10 @@ Task controls:
 - `taskIDs` (default `[]`, list of string task IDs)
     - example: `"taskIDs":["taskID1","taskID2"]`
 - `taskLoopMin` (default = `0`, integer `0..500`)
-- `checkTasksFirstTime` (default `true`, boolean)
-    - if `true`, the first task-alarm fire that is not deferred by other rescheduling gates checks task completion immediately
-    - if `false`, the first task-alarm fire that is not deferred by other rescheduling gates behaves like a normal QR alarm, skipping both the task-completion check and `Task Alarm Resetter`
-    - after that first eligible fire, later task-alarm fires always check task completion and include `Task Alarm Resetter` only when tasks are still incomplete
+- `ignoreTaskCheckFirstTime` (default `false`, boolean)
+    - if `false`, `Task Alarm Resetter` is added to trigger shortcuts on every task-alarm fire unless tasks are already complete
+    - if `true`, the first task-alarm fire that is not deferred by other rescheduling gates is treated as incomplete even if the task metrics already look complete
+    - if `true`, the first task-alarm fire skips `Task Alarm Resetter`, and later fires include it unless tasks are already complete
 
 ### JSON recognition and parsing rules (IMPORTANT)
 
@@ -604,12 +604,9 @@ Example flow:
 
 1. Alarm triggers and rings (QR loop if configured).
 2. User scans QR → sets `qrActive = false`.
-3. Each time the task alarm fires, it first runs the normal reschedule gates (driving/focus, location, calendar conflicts). If any gate blocks the fire, the entire alarm is rescheduled using the normal reschedule logic.
-4. Once those gates pass:
-    - If this is the first eligible fire and `checkTasksFirstTime` is `false`, the alarm behaves like a normal QR alarm and does not run `Task Alarm Resetter`.
-    - Otherwise it checks task completion.
-        - If incomplete: activate/re-arm QR (`qrActive = true`) and continue looping, and include `Task Alarm Resetter`.
-        - If complete: do not activate QR, stop rescheduling, and clean up the current and next task-loop alarm.
+3. After `taskLoopMin`, the alarm triggers again and checks task completion:
+    - If incomplete: re-arm QR (`qrActive = true`) and continue looping.
+    - If complete: stop rescheduling and allow cleanup (delete like a completed reschedule chain).
 
 ### TaskIDs requires a loop interval
 
