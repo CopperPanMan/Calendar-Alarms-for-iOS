@@ -707,7 +707,20 @@ function normalizeCalendarAlarmObject(rawObj) {
     ? rawObj.conflictingCalendars.filter((x) => typeof x === "string" && x.trim())
     : [];
 
-  const reschedMinutes = intInRange(rawObj.reschedMinutes, 0, 0, 500);
+  const parseReschedMinutes = (v) => {
+    // Backward compatible:
+    // - number => { min: number, max: 45 }
+    // - object => { min, max }
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const min = intInRange(v.min, 0, 0, 500);
+      const maxRaw = intInRange(v.max, 45, 0, 500);
+      return { min, max: Math.max(min, maxRaw) };
+    }
+    const min = intInRange(v, 0, 0, 500);
+    return { min, max: Math.max(min, 45) };
+  };
+
+  const reschedMinutes = parseReschedMinutes(rawObj.reschedMinutes);
   const taskLoopMin = intInRange(rawObj.taskLoopMin, 0, 0, 500);
   const taskIDs = Array.isArray(rawObj.taskIDs)
     ? rawObj.taskIDs.filter((x) => typeof x === "string" && x.trim())
@@ -748,6 +761,22 @@ function normalizeCalendarAlarmObject(rawObj) {
 // ---------- Registry shape / identity ----------
 function registryKey(entry) {
   return `${String(entry?.alarmName ?? "")}|||${String(entry?.calcFireTime ?? "")}`;
+}
+
+function normalizeReschedMinutesRange(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const minRaw = Number(value.min);
+    const maxRaw = Number(value.max);
+    const min = Number.isFinite(minRaw) ? Math.trunc(minRaw) : 0;
+    const max = Number.isFinite(maxRaw) ? Math.trunc(maxRaw) : 45;
+    const minClamped = Math.max(0, Math.min(min, 500));
+    const maxClamped = Math.max(0, Math.min(max, 500));
+    return { min: minClamped, max: Math.max(minClamped, maxClamped) };
+  }
+
+  const legacy = Number(value);
+  const min = Number.isFinite(legacy) ? Math.max(0, Math.min(Math.trunc(legacy), 500)) : 0;
+  return { min, max: Math.max(min, 45) };
 }
 
 function ensureRegistryEntryShape(entry) {
@@ -805,7 +834,7 @@ function ensureRegistryEntryShape(entry) {
 
   if (typeof entry.silenceIfDriving !== "string") entry.silenceIfDriving = "OFF";
   if (!Array.isArray(entry.conflictingCalendars)) entry.conflictingCalendars = [];
-  if (!Number.isFinite(Number(entry.reschedMinutes))) entry.reschedMinutes = 0;
+  entry.reschedMinutes = normalizeReschedMinutesRange(entry.reschedMinutes);
   if (!Number.isFinite(Number(entry.taskLoopMin))) entry.taskLoopMin = 0;
   if (!Array.isArray(entry.taskIDs)) {
     if (Number.isFinite(Number(entry.taskRow)) && Number(entry.taskRow) > 0) {
@@ -1034,9 +1063,10 @@ function estimateDriveMinutes(lat1, lon1, lat2, lon2) {
   const mph = avgSpeedMph(roadMiles);
   const driveMin = (roadMiles / mph) * 60;
 
-  // For rescheduling checks, keep within a safe band.
+  // Keep a small minimum for rapid retry noise, but allow large values so caller can
+  // decide whether distance-based rescheduling is relevant.
   const raw = driveMin + OVERHEAD_MIN;
-  const clamped = Math.max(2, Math.min(raw, 45)); // keep checks between 2 and 45 minutes
+  const clamped = Math.max(2, raw);
 
   return Math.round(clamped);
 }
@@ -1166,12 +1196,17 @@ async function findConflictReadyAt(entry, fireEpoch) {
 
 async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLocation, includeTaskBaseline) {
   const candidates = [];
+  const reschedRange = normalizeReschedMinutesRange(entry.reschedMinutes);
+  const reschedMinutes = reschedRange.min;
+  const reschedMax = reschedRange.max;
 
   // Conflicts can push later than baseline
   const conflictReady = await findConflictReadyAt(entry, fireEpoch);
-  if (conflictReady !== null) candidates.push(conflictReady);
+  if (conflictReady !== null) {
+    const conflictDelayMin = Math.max(0, Math.ceil((conflictReady - fireEpoch) / 60));
+    if (conflictDelayMin <= reschedMax) candidates.push(conflictReady);
+  }
 
-  const reschedMinutes = Number(entry.reschedMinutes ?? 0);
   const taskLoopMin = Number(entry.taskLoopMin ?? 0);
 
   // Driving baseline
@@ -1232,8 +1267,10 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
       if (locationMode === "whitelist") {
         if (!insideAny && nearest !== null) {
           const minutes = estimateDriveMinutes(cur.lat, cur.lon, nearestLat, nearestLon);
-          const sec = Math.max(60, minutes * 60);
-          candidates.push(floorToMinute(fireEpoch + sec));
+          if (minutes <= reschedMax) {
+            const sec = Math.max(60, minutes * 60);
+            candidates.push(floorToMinute(fireEpoch + sec));
+          }
         }
       } else if (locationMode === "blacklist") {
         if (insideAny && reschedMinutes > 0) {
@@ -1496,14 +1533,19 @@ async function tryFastPath(input, registryAfter) {
   // If not gated: this fire is allowed to proceed.
 
   // Gating check
-  const reschedMinutes = Number(entry.reschedMinutes ?? 0);
+  const reschedRange = normalizeReschedMinutesRange(entry.reschedMinutes);
+  const reschedMinutes = reschedRange.min;
+  const reschedMax = reschedRange.max;
   let gated = false;
 
   const focus = String(input.currentFocus ?? "").trim().toLowerCase();
   if (String(entry.silenceIfDriving ?? "OFF").toUpperCase() === "ON" && focus === "driving") gated = true;
 
   const conflictReady = await findConflictReadyAt(entry, now);
-  if (conflictReady !== null) gated = true;
+  if (conflictReady !== null) {
+    const conflictDelayMin = Math.max(0, Math.ceil((conflictReady - now) / 60));
+    if (conflictDelayMin <= reschedMax) gated = true;
+  }
 
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   if ((locationMode === "whitelist" || locationMode === "blacklist") && Array.isArray(entry.locations) && entry.locations.length > 0) {
@@ -1542,7 +1584,10 @@ async function tryFastPath(input, registryAfter) {
           mode: locationMode,
         });
       }
-      if (locationMode === "whitelist" && !insideAny) gated = true;
+      if (locationMode === "whitelist" && !insideAny && nearest !== null) {
+        const estimatedMin = estimateDriveMinutes(cur.lat, cur.lon, nearestLat, nearestLon);
+        if (estimatedMin <= reschedMax) gated = true;
+      }
       if (locationMode === "blacklist" && insideAny) gated = true;
     } else {
       setLocationDebug({
