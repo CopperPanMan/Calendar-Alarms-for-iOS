@@ -59,12 +59,12 @@
         </div>
 
         <div class="grid two-col">
-          <label>Alarm Name <span class="help" tabindex="0" title="Friendly name shown in Clock alarms." data-tip="Friendly name shown in Clock alarms.">?</span><input data-field="alarmName" type="text" required /></label>
-          <label>Status <span class="help" tabindex="0" title="Use ON to enable this alarm, OFF to keep definition without scheduling." data-tip="Use ON to enable this alarm, OFF to keep definition without scheduling.">?</span>
+          <label>Alarm Name <span class="help" data-tip="Friendly name shown in Clock alarms.">?</span><input data-field="alarmName" type="text" required /></label>
+          <label>Status <span class="help" data-tip="Use ON to enable this alarm, OFF to keep definition without scheduling.">?</span>
             <select data-field="status"><option value="ON">ON</option><option value="OFF">OFF</option></select>
           </label>
-          <label>Offset Minutes <span class="help" tabindex="0" title="Minutes relative to event start/end. Supports integer or +15m / -2h / +1d syntax." data-tip="Minutes relative to event start/end. Supports integer or +15m / -2h / +1d syntax.">?</span><input data-field="offsetMin" type="text" pattern="^[-+]?\d+[mhd]?$" /></label>
-          <label>Reference <span class="help" tabindex="0" title="Choose whether offset is relative to event start or end time." data-tip="Choose whether offset is relative to event start or end time.">?</span>
+          <label>Offset Minutes <span class="help" data-tip="Minutes relative to event start/end. Supports integer or +15m / -2h / +1d syntax.">?</span><input data-field="offsetMin" type="text" pattern="^[-+]?\d+[mhd]?$" /></label>
+          <label>Reference <span class="help" data-tip="Choose whether offset is relative to event start or end time.">?</span>
             <select data-field="reference"><option value="start">start</option><option value="end">end</option></select>
           </label>
         </div>
@@ -75,9 +75,9 @@
             <section class="advanced-group">
               <h4>QR Alarm Properties</h4>
               <div class="grid two-col">
-                <label>QR Code ID <span class="help" tabindex="0" title="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~)." data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
-                <label>QR Sound File <span class="help" tabindex="0" title="MP3 filename in iCloud/Shortcuts/Calendar Alarms. Example: marimba.mp3." data-tip="MP3 filename in iCloud/Shortcuts/Calendar Alarms. Example: marimba.mp3.">?</span><input data-field="qrSoundPath" type="text" /></label>
-                <label>QR Volume (1-100) <span class="help" tabindex="0" title="Playback volume for QR alarm loops." data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
+                <label>QR Code ID <span class="help" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
+                <label>QR Sound File <span class="help" data-tip="MP3 filename in iCloud/Shortcuts/Calendar Alarms. Example: marimba.mp3.">?</span><input data-field="qrSoundPath" type="text" /></label>
+                <label>QR Volume (1-100) <span class="help" data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
               </div>
               <div data-list="qrShortcutsOnScan" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="qrShortcutsOnScan">+ Add QR Shortcut on Scan</button>
@@ -85,7 +85,7 @@
 
             <section class="advanced-group">
               <h4>Trigger & Silence Properties</h4>
-              <label class="checkbox-row">Silence Alarm <span class="help" tabindex="0" title="If true, alarm can run shortcuts silently instead of sounding." data-tip="If true, alarm can run shortcuts silently instead of sounding.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
+              <label class="checkbox-row">Silence Alarm <span class="help" data-tip="If true, alarm can run shortcuts silently instead of sounding.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
               <div data-list="shortcutsOnTrigger" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Shortcut on Trigger</button>
             </section>
@@ -93,7 +93,7 @@
             <section class="advanced-group">
               <h4>Location Properties</h4>
               <div class="grid two-col">
-                <label>Location Mode <span class="help" tabindex="0" title="whitelist: only run at listed locations. blacklist: skip at listed locations. off: ignore locations." data-tip="whitelist: only run at listed locations. blacklist: skip at listed locations. off: ignore locations.">?</span>
+                <label>Location Mode <span class="help" data-tip="whitelist: only run at listed locations. blacklist: skip at listed locations. off: ignore locations.">?</span>
                   <select data-field="locationMode"><option value="off">off</option><option value="whitelist">whitelist</option><option value="blacklist">blacklist</option></select>
                 </label>
               </div>
@@ -104,11 +104,11 @@
             <section class="advanced-group">
               <h4>Rescheduling Properties</h4>
               <div class="grid two-col">
-                <label>Silence If Driving <span class="help" tabindex="0" title="ON prevents sound when driving is detected." data-tip="ON prevents sound when driving is detected.">?</span>
+                <label>Silence If Driving <span class="help" data-tip="ON prevents sound when driving is detected.">?</span>
                   <select data-field="silenceIfDriving"><option value="OFF">OFF</option><option value="ON">ON</option></select>
                 </label>
-                <label>Max Reschedules <span class="help" tabindex="0" title="Maximum number of deferrals before alarm gives up." data-tip="Maximum number of deferrals before alarm gives up.">?</span><input data-field="maxReschedules" type="number" min="0" step="1" /></label>
-                <label>Reschedule Type <span class="help" tabindex="0" title="Fixed uses one delay. Range chooses random value from min-max." data-tip="Fixed uses one delay. Range chooses random value from min-max.">?</span>
+                <label>Max Reschedules <span class="help" data-tip="Maximum number of deferrals before alarm gives up.">?</span><input data-field="maxReschedules" type="number" min="0" step="1" /></label>
+                <label>Reschedule Type <span class="help" data-tip="Fixed uses one delay. Range chooses random value from min-max.">?</span>
                   <select data-field="reschedType"><option value="range">Range</option><option value="fixed">Fixed</option></select>
                 </label>
                 <label data-resched="fixed">Fixed Minutes<input data-field="reschedFixed" type="number" min="0" step="1" /></label>

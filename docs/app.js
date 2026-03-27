@@ -133,26 +133,6 @@ function moveItem(list, fromIndex, toIndex) {
   list.splice(toIndex, 0, item);
 }
 
-function preserveAdvancedState() {
-  openAdvancedByIndex = Array.from(document.querySelectorAll('.alarm-card details')).map((details) => details.open);
-}
-
-function validateAndStore(input, alarm, key) {
-  if (!input.checkValidity()) {
-    input.reportValidity();
-    return;
-  }
-
-  if (input.type === 'checkbox') alarm[key] = input.checked;
-  else if (input.type === 'number') alarm[key] = input.value === '' ? '' : Number(input.value);
-  else if (key === 'offsetMin') {
-    alarm[key] = input.value.trim();
-  } else {
-    alarm[key] = input.value;
-  }
-  updateOutput();
-}
-
 function renderShortcutList(container, alarm, key, alarmIndex) {
   container.innerHTML = '';
   const list = alarm[key];
@@ -358,8 +338,6 @@ function render() {
     title.textContent = `Alarm ${index + 1}`;
 
     card.dataset.index = index;
-    const details = card.querySelector('details');
-    details.open = openAdvancedByIndex[index] ?? false;
 
     card.querySelectorAll('[data-field]').forEach((input) => {
       const key = input.dataset.field;
@@ -368,7 +346,10 @@ function render() {
       else input.value = alarm[key] ?? '';
 
       input.addEventListener('input', () => {
-        validateAndStore(input, alarm, key);
+        if (input.type === 'checkbox') alarm[key] = input.checked;
+        else if (input.type === 'number') alarm[key] = input.value === '' ? '' : Number(input.value);
+        else alarm[key] = input.value;
+        updateOutput();
       });
     });
 
@@ -398,7 +379,6 @@ function render() {
         else if (listName === 'conflictingCalendars') alarm.conflictingCalendars.push('');
         else alarm[listName].push({ name: '', input: [] });
         render();
-        updateOutput();
       });
     });
 
@@ -420,8 +400,6 @@ function render() {
     });
 
     card.addEventListener('dragstart', (event) => {
-      dragFromIndex = index;
-      event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', String(index));
       card.classList.add('dragging');
     });
@@ -429,9 +407,8 @@ function render() {
     card.addEventListener('dragover', (event) => event.preventDefault());
     card.addEventListener('drop', (event) => {
       event.preventDefault();
-      const fromIndex = Number(event.dataTransfer.getData('text/plain') || dragFromIndex);
+      const fromIndex = Number(event.dataTransfer.getData('text/plain'));
       const toIndex = Number(card.dataset.index);
-      if (Number.isNaN(fromIndex) || Number.isNaN(toIndex)) return;
       moveItem(alarms, fromIndex, toIndex);
       render();
       updateOutput();

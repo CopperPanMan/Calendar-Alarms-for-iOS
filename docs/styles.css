@@ -72,8 +72,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   cursor: help;
   position: relative;
 }
-.help:hover::after,
-.help:focus-visible::after {
+.help:hover::after {
   content: attr(data-tip);
   position: absolute;
   top: 1.2rem;
