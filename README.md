@@ -23,6 +23,6 @@ The important bit: this system does not effect normal usage of your calendar or 
 
 ## Alarm JSON GUI Editor (GitHub Pages friendly)
 
-This repo now includes a static web editor in `docs/` for creating and editing calendar alarm JSON with a form-based GUI (including advanced settings, add/delete alarm, paste/load existing JSON, and output/copy-to-clipboard support).
+This repo now includes a static web editor in `alarm-json-editor/` for creating and editing calendar alarm JSON with a form-based GUI (including advanced settings, add/delete alarm, paste/load existing JSON, and output/copy-to-clipboard support).
 
-To publish it with GitHub Pages, set Pages to deploy from the **`/docs` folder on your branch** and open `docs/index.html`.
+To publish it with GitHub Pages, set Pages to deploy from the branch/folder that contains this subfolder (or copy these files into your Pages root) and open `alarm-json-editor/index.html`.
