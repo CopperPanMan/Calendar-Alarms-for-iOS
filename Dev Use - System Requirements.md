@@ -100,7 +100,7 @@ Conflict / reschedule controls:
 
 - `silenceIfDriving` (default `"OFF"`, must be `"ON"` or `"OFF"`, case-insensitive)
 - `conflictingCalendars` (default `[]`, list of calendar names)
-- `reschedMinutes` (default `0`, integer `0..500`)
+- `reschedMinutes` (default `{ "min": 0, "max": 45 }`; accepts either integer `0..500` (legacy, interpreted as `{min:value,max:45}`) or object `{ "min": 0..500, "max": 0..500 }` with `max >= min`)
 - `maxReschedules` (default `1`, integer `1..10`)
 
 Task controls:

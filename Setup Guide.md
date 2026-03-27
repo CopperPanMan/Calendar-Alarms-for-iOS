@@ -234,7 +234,7 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 
     "silenceIfDriving": "OFF",
     "conflictingCalendars": [],
-    "reschedMinutes": 0,
+    "reschedMinutes": { "min": 0, "max": 45 },
     "maxReschedules": 2
   }
 ]
@@ -255,7 +255,7 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 - locations: [[lat1, long1, radiusMeters1], [lat2, long2, radiusMeters2], ...],
 - silenceIfDriving: "ON",
 - conflictingCalendars: if event from calendar here conflicts, reschedule alarm. eg: ["calendar name 1", "calendar name 2"],
-- reschedMinutes: "reschedule_interval_in_minutes",
+- reschedMinutes: number OR { "min": number, "max": number }. Number mode is backward-compatible and treated as { "min": number, "max": 45 }.
 - maxReschedules: "max_number_of_reschedules"
 
 ---
@@ -303,7 +303,7 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 
     "silenceIfDriving": "ON",
     "conflictingCalendars": ["work meetings", "vacation", "travel"],
-    "reschedMinutes": 30,
+    "reschedMinutes": { "min": 30, "max": 90 },
     "maxReschedules": 3
   }
 ]
@@ -325,9 +325,9 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 
 - Rescheduling logic (effectively “snoozes” if it’s a bad time, up to maxReschedules times)
 
-  - If this alarm triggers while inside a conflicting event from any calendars named "work meetings", "vacation", or "travel", it will reschedule to after the event ends plus a 10 minute buffer. It also respects reschedMinutes, whichever results in a later time.
+  - If this alarm triggers while inside a conflicting event from any calendars named "work meetings", "vacation", or "travel", it will reschedule to after the event ends plus a 10 minute buffer **only if that delay is within reschedMinutes.max**.
 
-  - If the user is not within 200 meters of the work coordinates, it will reschedule to 30 minutes from now and try again.
+  - If the user is not within 200 meters of the work coordinates, it estimates travel time and reschedules only when the estimate is within `reschedMinutes.max`.
   - If locationMode was set to "blacklist", it would reschedule if the user was at work.
 
   - If the user is in the driving focus mode, it will reschedule based on an approximation of travel time to the whitelisted location.
