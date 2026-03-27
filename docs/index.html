@@ -11,8 +11,8 @@
       <header class="hero">
         <h1>Calendar Alarm JSON Editor</h1>
         <p>
-          Build calendar alarm definitions without hand-editing JSON. Start from a blank
-          list, or paste existing JSON and edit it with forms.
+          Build calendar alarm definitions with forms only. Start from a blank
+          list, or paste existing JSON and convert it to editable blocks.
         </p>
       </header>
 
@@ -22,25 +22,11 @@
           <button id="loadJsonBtn" class="btn">Load JSON</button>
           <button id="addAlarmBtn" class="btn success">Add Alarm</button>
         </div>
-        <p class="hint">
-          Tip: Advanced options are collapsed by default. Expand them only when needed.
-        </p>
       </section>
 
       <section class="card">
         <label for="jsonInput" class="label">Paste existing alarm JSON</label>
-        <textarea
-          id="jsonInput"
-          rows="10"
-          placeholder='[
-  {
-    "alarmName": "Example",
-    "status": "ON",
-    "offsetMin": 0,
-    "reference": "start"
-  }
-]'
-        ></textarea>
+        <textarea id="jsonInput" rows="10"></textarea>
         <p id="loadStatus" class="status" aria-live="polite"></p>
       </section>
 
@@ -61,102 +47,81 @@
     </main>
 
     <template id="alarmCardTemplate">
-      <article class="alarm-card">
+      <article class="alarm-card" draggable="true">
         <div class="alarm-card-header">
+          <div class="drag-handle" title="Drag to reorder alarm">⠿</div>
           <h3 class="alarm-title">Alarm</h3>
-          <button type="button" class="btn danger small delete-alarm-btn">Delete Alarm</button>
+          <div class="button-row">
+            <button type="button" class="btn secondary small move-up-btn">↑</button>
+            <button type="button" class="btn secondary small move-down-btn">↓</button>
+            <button type="button" class="btn danger small delete-alarm-btn">Delete</button>
+          </div>
         </div>
 
         <div class="grid two-col">
-          <label>
-            Alarm Name
-            <input data-field="alarmName" type="text" placeholder="Morning alarm" />
+          <label>Alarm Name <span class="help" tabindex="0" title="Friendly name shown in Clock alarms." data-tip="Friendly name shown in Clock alarms.">?</span><input data-field="alarmName" type="text" required /></label>
+          <label>Status <span class="help" tabindex="0" title="Use ON to enable this alarm, OFF to keep definition without scheduling." data-tip="Use ON to enable this alarm, OFF to keep definition without scheduling.">?</span>
+            <select data-field="status"><option value="ON">ON</option><option value="OFF">OFF</option></select>
           </label>
-          <label>
-            Status
-            <select data-field="status">
-              <option value="ON">ON</option>
-              <option value="OFF">OFF</option>
-            </select>
-          </label>
-          <label>
-            Offset Minutes
-            <input data-field="offsetMin" type="text" placeholder="0 or +15m or -2h" />
-          </label>
-          <label>
-            Reference
-            <select data-field="reference">
-              <option value="start">start</option>
-              <option value="end">end</option>
-            </select>
+          <label>Offset Minutes <span class="help" tabindex="0" title="Minutes relative to event start/end. Supports integer or +15m / -2h / +1d syntax." data-tip="Minutes relative to event start/end. Supports integer or +15m / -2h / +1d syntax.">?</span><input data-field="offsetMin" type="text" pattern="^[-+]?\d+[mhd]?$" /></label>
+          <label>Reference <span class="help" tabindex="0" title="Choose whether offset is relative to event start or end time." data-tip="Choose whether offset is relative to event start or end time.">?</span>
+            <select data-field="reference"><option value="start">start</option><option value="end">end</option></select>
           </label>
         </div>
 
         <details>
-          <summary>Advanced settings</summary>
+          <summary>Advanced Settings</summary>
           <div class="advanced-panel">
-            <div class="grid two-col">
-              <label>
-                QR Code ID
-                <input data-field="qrCodeID" type="text" placeholder="wakeup" />
-              </label>
-              <label>
-                QR Sound File Path
-                <input data-field="qrSoundPath" type="text" placeholder="marimba.mp3" />
-              </label>
-              <label>
-                QR Volume (1-100)
-                <input data-field="qrVol" type="number" min="1" max="100" />
-              </label>
-              <label>
-                Silence Alarm
-                <input data-field="silenceAlarm" type="checkbox" />
-              </label>
-              <label>
-                Location Mode
-                <select data-field="locationMode">
-                  <option value="off">off</option>
-                  <option value="whitelist">whitelist</option>
-                  <option value="blacklist">blacklist</option>
-                </select>
-              </label>
-              <label>
-                Silence If Driving
-                <select data-field="silenceIfDriving">
-                  <option value="OFF">OFF</option>
-                  <option value="ON">ON</option>
-                </select>
-              </label>
-              <label>
-                Max Reschedules
-                <input data-field="maxReschedules" type="number" min="0" />
-              </label>
-            </div>
+            <section class="advanced-group">
+              <h4>QR Alarm Properties</h4>
+              <div class="grid two-col">
+                <label>QR Code ID <span class="help" tabindex="0" title="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~)." data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
+                <label>QR Sound File <span class="help" tabindex="0" title="MP3 filename in iCloud/Shortcuts/Calendar Alarms. Example: marimba.mp3." data-tip="MP3 filename in iCloud/Shortcuts/Calendar Alarms. Example: marimba.mp3.">?</span><input data-field="qrSoundPath" type="text" /></label>
+                <label>QR Volume (1-100) <span class="help" tabindex="0" title="Playback volume for QR alarm loops." data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
+              </div>
+              <div data-list="qrShortcutsOnScan" class="list-block"></div>
+              <button type="button" class="btn small add-list-item" data-add="qrShortcutsOnScan">+ Add QR Shortcut on Scan</button>
+            </section>
 
-            <label>
-              QR Shortcuts On Scan (JSON array)
-              <textarea data-field="qrShortcutsOnScan" rows="4" placeholder='[{"name":"Shortcut Name","input":["value"]}]'></textarea>
-            </label>
+            <section class="advanced-group">
+              <h4>Trigger & Silence Properties</h4>
+              <label class="checkbox-row">Silence Alarm <span class="help" tabindex="0" title="If true, alarm can run shortcuts silently instead of sounding." data-tip="If true, alarm can run shortcuts silently instead of sounding.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
+              <div data-list="shortcutsOnTrigger" class="list-block"></div>
+              <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Shortcut on Trigger</button>
+            </section>
 
-            <label>
-              Shortcuts On Trigger (JSON array)
-              <textarea data-field="shortcutsOnTrigger" rows="4" placeholder='[{"name":"Shortcut Name","input":["value"]}]'></textarea>
-            </label>
+            <section class="advanced-group">
+              <h4>Location Properties</h4>
+              <div class="grid two-col">
+                <label>Location Mode <span class="help" tabindex="0" title="whitelist: only run at listed locations. blacklist: skip at listed locations. off: ignore locations." data-tip="whitelist: only run at listed locations. blacklist: skip at listed locations. off: ignore locations.">?</span>
+                  <select data-field="locationMode"><option value="off">off</option><option value="whitelist">whitelist</option><option value="blacklist">blacklist</option></select>
+                </label>
+              </div>
+              <div data-list="locations" class="list-block"></div>
+              <button type="button" class="btn small add-list-item" data-add="locations">+ Add Location</button>
+            </section>
 
-            <label>
-              Locations (JSON array)
-              <textarea data-field="locations" rows="3" placeholder='[[40.0907,-82.8767,200]]'></textarea>
-            </label>
+            <section class="advanced-group">
+              <h4>Rescheduling Properties</h4>
+              <div class="grid two-col">
+                <label>Silence If Driving <span class="help" tabindex="0" title="ON prevents sound when driving is detected." data-tip="ON prevents sound when driving is detected.">?</span>
+                  <select data-field="silenceIfDriving"><option value="OFF">OFF</option><option value="ON">ON</option></select>
+                </label>
+                <label>Max Reschedules <span class="help" tabindex="0" title="Maximum number of deferrals before alarm gives up." data-tip="Maximum number of deferrals before alarm gives up.">?</span><input data-field="maxReschedules" type="number" min="0" step="1" /></label>
+                <label>Reschedule Type <span class="help" tabindex="0" title="Fixed uses one delay. Range chooses random value from min-max." data-tip="Fixed uses one delay. Range chooses random value from min-max.">?</span>
+                  <select data-field="reschedType"><option value="range">Range</option><option value="fixed">Fixed</option></select>
+                </label>
+                <label data-resched="fixed">Fixed Minutes<input data-field="reschedFixed" type="number" min="0" step="1" /></label>
+                <label data-resched="min">Range Min<input data-field="reschedMin" type="number" min="0" step="1" /></label>
+                <label data-resched="max">Range Max<input data-field="reschedMax" type="number" min="0" step="1" /></label>
+              </div>
+            </section>
 
-            <label>
-              Conflicting Calendars (JSON array)
-              <textarea data-field="conflictingCalendars" rows="3" placeholder='["work meetings","travel"]'></textarea>
-            </label>
-
-            <label>
-              Reschedule Minutes (number or object)
-              <textarea data-field="reschedMinutes" rows="3" placeholder='{"min":10,"max":45} or 30'></textarea>
-            </label>
+            <section class="advanced-group">
+              <h4>Calendar Conflict Properties</h4>
+              <div data-list="conflictingCalendars" class="list-block"></div>
+              <button type="button" class="btn small add-list-item" data-add="conflictingCalendars">+ Add Conflicting Calendar</button>
+            </section>
           </div>
         </details>
       </article>
