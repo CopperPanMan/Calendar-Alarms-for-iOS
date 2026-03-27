@@ -29,6 +29,14 @@ let alarms = [];
 let dragFromIndex = null;
 let openAdvancedByIndex = [];
 
+function preserveAdvancedState() {
+  const cards = Array.from(alarmsContainer.querySelectorAll('.alarm-card'));
+  openAdvancedByIndex = cards.map((card) => {
+    const advancedToggle = card.querySelector('details');
+    return !!advancedToggle?.open;
+  });
+}
+
 function setStatus(el, message, type = '') {
   el.textContent = message;
   el.classList.remove('error', 'success');
@@ -335,9 +343,11 @@ function render() {
     const fragment = alarmTemplate.content.cloneNode(true);
     const card = fragment.querySelector('.alarm-card');
     const title = fragment.querySelector('.alarm-title');
+    const advancedToggle = fragment.querySelector('details');
     title.textContent = `Alarm ${index + 1}`;
 
     card.dataset.index = index;
+    advancedToggle.open = !!openAdvancedByIndex[index];
 
     card.querySelectorAll('[data-field]').forEach((input) => {
       const key = input.dataset.field;
