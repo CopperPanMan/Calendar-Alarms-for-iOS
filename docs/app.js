@@ -26,6 +26,8 @@ const defaultAlarm = () => ({
 });
 
 let alarms = [];
+let dragFromIndex = null;
+let openAdvancedByIndex = [];
 
 function setStatus(el, message, type = '') {
   el.textContent = message;
@@ -325,6 +327,7 @@ function setRescheduleForm(card, alarm) {
 }
 
 function render() {
+  preserveAdvancedState();
   alarmsContainer.innerHTML = '';
   emptyState.style.display = alarms.length ? 'none' : 'block';
 
@@ -414,6 +417,10 @@ function render() {
     alarmsContainer.appendChild(fragment);
   });
 }
+
+alarmsContainer.addEventListener('dragover', (event) => {
+  event.preventDefault();
+});
 
 function updateOutput() {
   const cleaned = alarms.map(cleanAlarm);
