@@ -1,0 +1,159 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --bg: #0f172a;
+  --card: #111827;
+  --card-border: #334155;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --primary: #3b82f6;
+  --success: #16a34a;
+  --danger: #dc2626;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --card-border: #dbeafe;
+    --text: #111827;
+    --muted: #475569;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.page {
+  max-width: 1050px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.hero {
+  margin-bottom: 1rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+textarea,
+input,
+select,
+button {
+  font: inherit;
+}
+
+textarea,
+input,
+select {
+  width: 100%;
+  margin-top: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid #64748b;
+  background: transparent;
+  color: inherit;
+  padding: 0.55rem;
+}
+
+input[type='checkbox'] {
+  width: auto;
+  transform: scale(1.2);
+  margin-left: 0.3rem;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  color: white;
+  background: var(--primary);
+}
+
+.btn.secondary { background: #6366f1; }
+.btn.success { background: var(--success); }
+.btn.danger { background: var(--danger); }
+.btn.small { font-size: 0.85rem; padding: 0.4rem 0.6rem; }
+
+.grid {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.two-col {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.alarm-card {
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.alarm-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.alarm-title {
+  margin: 0;
+}
+
+details {
+  margin-top: 0.8rem;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.advanced-panel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.status,
+.hint,
+.empty-state {
+  color: var(--muted);
+  margin: 0.6rem 0 0;
+}
+
+.status.error {
+  color: #ef4444;
+}
+
+.status.success {
+  color: #22c55e;
+}
