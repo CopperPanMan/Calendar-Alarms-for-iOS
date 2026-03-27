@@ -88,6 +88,8 @@ While a few are optional, it is recommended that you create these **5 automation
 
 ## F) Let's Test it Out
 
+To start, I made an [Alarm JSON Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) so you can edit and configure alarms from a real user interface. This is going to be simpler for many people than editing JSON directly.
+
 To get you accustomed to how this system works, let’s implement a demo event with 4 alarms that will go off one after another every minute for 4 minutes. The first run through may be buggy since it will require you to grant various permissions, so you’ll want to run through this at least twice. You’ll also need the accessory shortcuts from above installed. 
 
 If you would like to skip the QR alarm demo because you don't have another device with you to display the below QR code on, you can delete that alarm. To do so, delete everything shown below from the demo JSON (everything from the comma to the curly brace). Otherwise, skip this step:
