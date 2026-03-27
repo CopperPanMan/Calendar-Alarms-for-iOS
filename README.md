@@ -20,3 +20,9 @@ You write small JSON “alarm definitions” inside a Calendar event’s Notes. 
 The important bit: this system does not effect normal usage of your calendar or clock app. It only adds functionality to what your phone can currently do. It runs entirely on your own device and using your own iCloud account - no 3rd party servers, here.
 
 ### Next Step >> [Setup Guide](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Setup%20Guide.md)
+
+## Alarm JSON GUI Editor (GitHub Pages friendly)
+
+This repo now includes a static web editor in `docs/` for creating and editing calendar alarm JSON with a form-based GUI (including advanced settings, add/delete alarm, paste/load existing JSON, and output/copy-to-clipboard support).
+
+To publish it with GitHub Pages, set Pages to deploy from the **`/docs` folder on your branch** and open `docs/index.html`.

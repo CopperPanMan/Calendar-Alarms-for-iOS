@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calendar Alarm JSON Editor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <h1>Calendar Alarm JSON Editor</h1>
+        <p>
+          Build calendar alarm definitions without hand-editing JSON. Start from a blank
+          list, or paste existing JSON and edit it with forms.
+        </p>
+      </header>
+
+      <section class="card controls">
+        <div class="button-row">
+          <button id="newConfigBtn" class="btn secondary">Start from Scratch</button>
+          <button id="loadJsonBtn" class="btn">Load JSON</button>
+          <button id="addAlarmBtn" class="btn success">Add Alarm</button>
+        </div>
+        <p class="hint">
+          Tip: Advanced options are collapsed by default. Expand them only when needed.
+        </p>
+      </section>
+
+      <section class="card">
+        <label for="jsonInput" class="label">Paste existing alarm JSON</label>
+        <textarea
+          id="jsonInput"
+          rows="10"
+          placeholder='[
+  {
+    "alarmName": "Example",
+    "status": "ON",
+    "offsetMin": 0,
+    "reference": "start"
+  }
+]'
+        ></textarea>
+        <p id="loadStatus" class="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card">
+        <h2>Alarm Configuration</h2>
+        <div id="alarmsContainer" class="alarms"></div>
+        <p id="emptyState" class="empty-state">No alarms yet. Click <strong>Add Alarm</strong> to start.</p>
+      </section>
+
+      <section class="card">
+        <div class="button-row">
+          <button id="copyOutputBtn" class="btn success">Output & Copy to Clipboard</button>
+        </div>
+        <label for="jsonOutput" class="label">Generated JSON output</label>
+        <textarea id="jsonOutput" rows="14" readonly></textarea>
+        <p id="copyStatus" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <template id="alarmCardTemplate">
+      <article class="alarm-card">
+        <div class="alarm-card-header">
+          <h3 class="alarm-title">Alarm</h3>
+          <button type="button" class="btn danger small delete-alarm-btn">Delete Alarm</button>
+        </div>
+
+        <div class="grid two-col">
+          <label>
+            Alarm Name
+            <input data-field="alarmName" type="text" placeholder="Morning alarm" />
+          </label>
+          <label>
+            Status
+            <select data-field="status">
+              <option value="ON">ON</option>
+              <option value="OFF">OFF</option>
+            </select>
+          </label>
+          <label>
+            Offset Minutes
+            <input data-field="offsetMin" type="text" placeholder="0 or +15m or -2h" />
+          </label>
+          <label>
+            Reference
+            <select data-field="reference">
+              <option value="start">start</option>
+              <option value="end">end</option>
+            </select>
+          </label>
+        </div>
+
+        <details>
+          <summary>Advanced settings</summary>
+          <div class="advanced-panel">
+            <div class="grid two-col">
+              <label>
+                QR Code ID
+                <input data-field="qrCodeID" type="text" placeholder="wakeup" />
+              </label>
+              <label>
+                QR Sound File Path
+                <input data-field="qrSoundPath" type="text" placeholder="marimba.mp3" />
+              </label>
+              <label>
+                QR Volume (1-100)
+                <input data-field="qrVol" type="number" min="1" max="100" />
+              </label>
+              <label>
+                Silence Alarm
+                <input data-field="silenceAlarm" type="checkbox" />
+              </label>
+              <label>
+                Location Mode
+                <select data-field="locationMode">
+                  <option value="off">off</option>
+                  <option value="whitelist">whitelist</option>
+                  <option value="blacklist">blacklist</option>
+                </select>
+              </label>
+              <label>
+                Silence If Driving
+                <select data-field="silenceIfDriving">
+                  <option value="OFF">OFF</option>
+                  <option value="ON">ON</option>
+                </select>
+              </label>
+              <label>
+                Max Reschedules
+                <input data-field="maxReschedules" type="number" min="0" />
+              </label>
+            </div>
+
+            <label>
+              QR Shortcuts On Scan (JSON array)
+              <textarea data-field="qrShortcutsOnScan" rows="4" placeholder='[{"name":"Shortcut Name","input":["value"]}]'></textarea>
+            </label>
+
+            <label>
+              Shortcuts On Trigger (JSON array)
+              <textarea data-field="shortcutsOnTrigger" rows="4" placeholder='[{"name":"Shortcut Name","input":["value"]}]'></textarea>
+            </label>
+
+            <label>
+              Locations (JSON array)
+              <textarea data-field="locations" rows="3" placeholder='[[40.0907,-82.8767,200]]'></textarea>
+            </label>
+
+            <label>
+              Conflicting Calendars (JSON array)
+              <textarea data-field="conflictingCalendars" rows="3" placeholder='["work meetings","travel"]'></textarea>
+            </label>
+
+            <label>
+              Reschedule Minutes (number or object)
+              <textarea data-field="reschedMinutes" rows="3" placeholder='{"min":10,"max":45} or 30'></textarea>
+            </label>
+          </div>
+        </details>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
