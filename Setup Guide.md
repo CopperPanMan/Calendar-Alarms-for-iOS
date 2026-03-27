@@ -234,7 +234,7 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 
     "silenceIfDriving": "OFF",
     "conflictingCalendars": [],
-    "reschedMinutes": { "min": 0, "max": 45 },
+    "reschedMinutes": { "min": 10, "max": 45 },
     "maxReschedules": 2
   }
 ]
