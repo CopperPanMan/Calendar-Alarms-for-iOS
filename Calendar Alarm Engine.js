@@ -808,8 +808,10 @@ function ensureRegistryEntryShape(entry) {
   // Registry-only task keys:
   // - taskSatisfied: suppress scheduling once this task-loop alarm is satisfied.
   // - taskCheckFirstFireHandled: tracks whether checkTasksFirstTime=false has already consumed its initial override.
+  // - taskLoopEligible: allows taskLoopMin follow-ups only after at least one ungated fire reached task handling.
   entry.taskSatisfied = !!entry.taskSatisfied;
   entry.taskCheckFirstFireHandled = entry.taskCheckFirstFireHandled === true || entry.taskLoopFirstFireHandled === true;
+  entry.taskLoopEligible = entry.taskLoopEligible === true;
   delete entry.taskLoopFirstFireHandled;
   delete entry.taskCooldownScheduled;
 
@@ -1444,7 +1446,8 @@ async function tryFastPath(input, registryAfter) {
         return { handled: true };
       }
 
-      const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
+      // Context-gated task fires should never start/advance task-loop cadence.
+      const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ false);
       entry.maxReschedules = loopsRemaining - 1;
       entry.prevFireTime = entry.nextFireTime;
       entry.nextFireTime = floorToMinute(next ?? (now + Math.max(taskLoopMin, 1) * 60));
@@ -1457,6 +1460,9 @@ async function tryFastPath(input, registryAfter) {
 
       return { handled: true };
     }
+
+    // This fire passed context gates and reached task handling; task-loop baseline is now eligible.
+    entry.taskLoopEligible = true;
 
     const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
     const skipTaskCheckOnInitialFire = shouldSkipTaskCheckOnInitialFire(entry);
@@ -1513,7 +1519,13 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
-    const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
+    const next = await computeRescheduleTime(
+      entry,
+      fireEpoch,
+      input.currentFocus,
+      input.currentLocation,
+      /* includeTaskBaseline */ entry.taskLoopEligible === true
+    );
     entry.maxReschedules = loopsRemaining - 1;
     entry.prevFireTime = entry.nextFireTime;
     entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
@@ -1750,6 +1762,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         qrActive: false,
         taskSatisfied: false,
         taskCheckFirstFireHandled: false,
+        taskLoopEligible: false,
         qrBackupFireTime: 0,
       });
     }
