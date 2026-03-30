@@ -1,4 +1,6 @@
-const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you want ignored by this system like ["name1","name2"]
+const DISABLED_CALENDAR_NAMES = [];
+
+//write out calendar names above that you want ignored by this system like ["name1","name2"]
 
 
 // Variables used by Scriptable.
@@ -28,6 +30,7 @@ const DISABLED_CALENDAR_NAMES = []; //write out calendar names here that you wan
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
 // Output: JSON string set via Script.setShortcutOutput()
 
+const taskAlarmResetter = "Task Alarm Resetter"
 const DELIM = ":;:";
 
 // Path config
@@ -1141,7 +1144,7 @@ function makeTaskResetterAction(entry, deleteAlarmPayload) {
   };
 
   return {
-    name: "Task Alarm Resetter",
+    name: taskAlarmResetter,
     input: [JSON.stringify(payload)],
     silenceAlarm: false,
   };
