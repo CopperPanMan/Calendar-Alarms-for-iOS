@@ -30,7 +30,7 @@ const DISABLED_CALENDAR_NAMES = [];
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
 // Output: JSON string set via Script.setShortcutOutput()
 
-const taskAlarmResetter = "Task Alarm Resetter"
+const TASK_ALARM_RESETTER = "Task Alarm Resetter"
 const DELIM = ":;:";
 
 // Path config
@@ -1144,7 +1144,7 @@ function makeTaskResetterAction(entry, deleteAlarmPayload) {
   };
 
   return {
-    name: taskAlarmResetter,
+    name: TASK_ALARM_RESETTER,
     input: [JSON.stringify(payload)],
     silenceAlarm: false,
   };
