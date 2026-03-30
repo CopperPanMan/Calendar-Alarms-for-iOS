@@ -1374,11 +1374,24 @@ function scheduleQRLoop(entry, baseEpoch, iosAlarms) {
 // ---------- Fast-path ----------
 
 async function isRescheduledForContextGates(entry, fireEpoch, input) {
+  const reschedRange = normalizeReschedMinutesRange(entry.reschedMinutes);
+  const reschedMinutes = reschedRange.min;
+  const reschedMax = reschedRange.max;
+
   const focus = String(input.currentFocus ?? "").trim().toLowerCase();
-  if (String(entry.silenceIfDriving ?? "OFF").toUpperCase() === "ON" && focus === "driving") return true;
+  if (
+    String(entry.silenceIfDriving ?? "OFF").toUpperCase() === "ON" &&
+    focus === "driving" &&
+    reschedMinutes > 0
+  ) {
+    return true;
+  }
 
   const conflictReady = await findConflictReadyAt(entry, fireEpoch);
-  if (conflictReady !== null) return true;
+  if (conflictReady !== null) {
+    const conflictDelayMin = Math.max(0, Math.ceil((conflictReady - fireEpoch) / 60));
+    if (conflictDelayMin <= reschedMax) return true;
+  }
 
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   if ((locationMode === "whitelist" || locationMode === "blacklist") && Array.isArray(entry.locations) && entry.locations.length > 0) {
@@ -1387,16 +1400,48 @@ async function isRescheduledForContextGates(entry, fireEpoch, input) {
 
     const defaultRadius = Number(entry.radiusMeters ?? 50);
     let insideAny = false;
+    let nearest = null;
+    let nearestLat = null;
+    let nearestLon = null;
+    let nearestRadius = null;
+
     for (const pair of entry.locations) {
       if (!Array.isArray(pair) || pair.length < 2) continue;
       const lat = Number(pair[0]), lon = Number(pair[1]);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
       const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
       const d = haversineMeters(cur.lat, cur.lon, lat, lon);
+
+      if (nearest === null || d < nearest) {
+        nearest = d;
+        nearestLat = lat;
+        nearestLon = lon;
+        nearestRadius = radius;
+      }
+
       if (d <= radius) insideAny = true;
     }
 
-    if (locationMode === "whitelist" && !insideAny) return true;
+    if (nearest !== null) {
+      setLocationDebug({
+        current: { lat: cur.lat, lon: cur.lon },
+        nearest: {
+          lat: nearestLat,
+          lon: nearestLon,
+          distanceMeters: Math.round(nearest),
+          radiusMeters: Number.isFinite(nearestRadius) ? nearestRadius : null,
+        },
+        insideAny,
+        mode: locationMode,
+      });
+    }
+
+    if (locationMode === "whitelist" && !insideAny && nearest !== null) {
+      const estimatedMin = estimateDriveMinutes(cur.lat, cur.lon, nearestLat, nearestLon);
+      if (estimatedMin <= reschedMax) return true;
+    }
+
     if (locationMode === "blacklist" && insideAny) return true;
   }
 
@@ -1441,26 +1486,40 @@ async function tryFastPath(input, registryAfter) {
     // Context gates always win first for task alarms, matching normal alarm reschedule behavior.
     if (contextGated) {
       output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
+    
       const loopsRemaining = Math.max(0, Math.trunc(Number(entry.maxReschedules ?? 0)));
       if (loopsRemaining <= 0) {
         entry.qrActive = false;
         clearQRBackupAlarm(entry, input.iosAlarms);
         return { handled: true };
       }
-
+    
       // Context-gated task fires should never start/advance task-loop cadence.
-      const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ false);
-      entry.maxReschedules = loopsRemaining - 1;
+      const next = await computeRescheduleTime(
+        entry,
+        fireEpoch,
+        input.currentFocus,
+        input.currentLocation,
+        /* includeTaskBaseline */ false
+      );
+    
       entry.prevFireTime = entry.nextFireTime;
+    
+      if (next === null) {
+        entry.qrActive = false;
+        clearQRBackupAlarm(entry, input.iosAlarms);
+        return { handled: true };
+      }
+    
+      entry.maxReschedules = loopsRemaining - 1;
       entry.nextFireTime = floorToMinute(next);
       queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
-
+    
       if (hasQR && entry.qrActive === true) {
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
         updateQRBackupAlarm(entry, now, input.iosAlarms);
       }
-
+    
       return { handled: true };
     }
 
@@ -1617,22 +1676,30 @@ async function tryFastPath(input, registryAfter) {
 
   if (gated) {
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
-
+  
     if (reschedMinutes > 0 && Number(entry.maxReschedules ?? 0) > 0) {
       const remaining = Math.max(0, Math.trunc(Number(entry.maxReschedules)) - 1);
-      entry.maxReschedules = remaining;
-
+      entry.prevFireTime = entry.nextFireTime;
+  
       if (remaining > 0) {
-        const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
-        entry.prevFireTime = entry.nextFireTime;
-        entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
-
-        queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+        const next = await computeRescheduleTime(
+          entry,
+          fireEpoch,
+          input.currentFocus,
+          input.currentLocation,
+          /* includeTaskBaseline */ false
+        );
+  
+        if (next !== null) {
+          entry.maxReschedules = remaining;
+          entry.nextFireTime = floorToMinute(next);
+          queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+        }
       } else {
-        entry.prevFireTime = entry.nextFireTime;
+        entry.maxReschedules = remaining;
       }
     }
-
+  
     return { handled: true };
   }
 
