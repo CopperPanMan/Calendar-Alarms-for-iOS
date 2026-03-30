@@ -1453,7 +1453,7 @@ async function tryFastPath(input, registryAfter) {
       const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ false);
       entry.maxReschedules = loopsRemaining - 1;
       entry.prevFireTime = entry.nextFireTime;
-      entry.nextFireTime = floorToMinute(next ?? (now + Math.max(taskLoopMin, 1) * 60));
+      entry.nextFireTime = floorToMinute(next);
       queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
 
       if (hasQR && entry.qrActive === true) {
