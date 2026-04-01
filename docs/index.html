@@ -118,8 +118,9 @@
 
             <section class="advanced-group">
               <h4>Task Looping <span class="help" data-tip="Configure task checking loop behavior for this alarm.">?</span></h4>
+              <label class="checkbox-row">Enable Task Looping <span class="help" data-tip="If enabled, this alarm can loop until configured tasks are completed.">?</span><input data-field="enableTaskLooping" type="checkbox" /></label>
               <p class="hint task-loop-warning">Requires <strong>OpenHabits</strong> installed. See the <a href="../Setup Guide.md" target="_blank" rel="noopener">setup guide</a> for details.</p>
-              <div class="task-loop-settings">
+              <div class="task-loop-settings" data-task-loop-settings>
                 <div data-list="taskIDs" class="list-block"></div>
                 <button type="button" class="btn small add-list-item" data-add="taskIDs">+ Add Task ID</button>
                 <div class="grid two-col">
