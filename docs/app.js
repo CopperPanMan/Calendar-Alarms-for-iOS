@@ -23,6 +23,7 @@ const defaultAlarm = () => ({
   conflictingCalendars: [],
   reschedMinutes: { min: 10, max: 45 },
   maxReschedules: 2,
+  enableTaskLooping: false,
   taskIDs: [],
   taskLoopMin: 30,
   checkTasksFirstTime: true,
@@ -69,12 +70,7 @@ function normalizeAlarm(raw = {}) {
   alarm.locations = Array.isArray(alarm.locations)
     ? alarm.locations.map((loc) => {
         if (Array.isArray(loc)) {
-          return {
-            name: typeof loc[3] === 'string' ? loc[3] : '',
-            lat: Number(loc[0]) || 0,
-            lon: Number(loc[1]) || 0,
-            radius: Number(loc[2]) || 50,
-          };
+          return { name: '', lat: Number(loc[0]) || 0, lon: Number(loc[1]) || 0, radius: Number(loc[2]) || 50 };
         }
         return {
           name: typeof loc?.name === 'string' ? loc.name : '',
@@ -88,13 +84,13 @@ function normalizeAlarm(raw = {}) {
     ? alarm.conflictingCalendars.map((name) => String(name))
     : [];
   alarm.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id)) : [];
+  alarm.enableTaskLooping =
+    typeof alarm.enableTaskLooping === 'boolean'
+      ? alarm.enableTaskLooping
+      : alarm.taskIDs.length > 0 || Number(alarm.taskLoopMin) !== 30 || alarm.checkTasksFirstTime === false;
   alarm.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
   alarm.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
   return alarm;
-}
-
-function hasTaskLoopingSettings(alarm) {
-  return alarm.taskIDs.length > 0 || Number(alarm.taskLoopMin) !== 30 || alarm.checkTasksFirstTime === false;
 }
 
 function cleanShortcut(shortcut) {
@@ -129,7 +125,7 @@ function cleanAlarm(alarm) {
 
   const locations = alarm.locations
     .filter((loc) => Number.isFinite(Number(loc.lat)) && Number.isFinite(Number(loc.lon)) && Number.isFinite(Number(loc.radius)))
-    .map((loc) => [Number(loc.lat), Number(loc.lon), Number(loc.radius), String(loc.name ?? '')]);
+    .map((loc) => [Number(loc.lat), Number(loc.lon), Number(loc.radius)]);
   if (locations.length) cleaned.locations = locations;
 
   if (alarm.silenceIfDriving === 'ON') cleaned.silenceIfDriving = 'ON';
@@ -147,7 +143,7 @@ function cleanAlarm(alarm) {
   }
 
   if (Number.isFinite(Number(alarm.maxReschedules))) cleaned.maxReschedules = Number(alarm.maxReschedules);
-  if (hasTaskLoopingSettings(alarm)) {
+  if (alarm.enableTaskLooping) {
     cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
     cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
     cleaned.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
@@ -391,14 +387,15 @@ function setRescheduleForm(card, alarm) {
 }
 
 function setTaskLoopForm(card, alarm) {
-  const taskLoopToggle = card.querySelector('[data-task-loop-toggle]');
+  const enableTaskLooping = card.querySelector('[data-field="enableTaskLooping"]');
   const taskLoopSettings = card.querySelector('[data-task-loop-settings]');
   const syncVisibility = () => {
-    taskLoopSettings.style.display = taskLoopToggle.open ? 'block' : 'none';
+    taskLoopSettings.style.display = enableTaskLooping.checked ? 'block' : 'none';
   };
-  taskLoopToggle.open = hasTaskLoopingSettings(alarm);
+  enableTaskLooping.checked = !!alarm.enableTaskLooping;
   syncVisibility();
-  taskLoopToggle.addEventListener('toggle', () => {
+  enableTaskLooping.addEventListener('change', () => {
+    alarm.enableTaskLooping = enableTaskLooping.checked;
     syncVisibility();
     updateOutput();
   });
@@ -459,7 +456,10 @@ function render() {
         const listName = button.dataset.add;
         if (listName === 'locations') alarm.locations.push({ name: '', lat: 0, lon: 0, radius: 50 });
         else if (listName === 'conflictingCalendars') alarm.conflictingCalendars.push('');
-        else if (listName === 'taskIDs') alarm.taskIDs.push('');
+        else if (listName === 'taskIDs') {
+          alarm.enableTaskLooping = true;
+          alarm.taskIDs.push('');
+        }
         else alarm[listName].push({ name: '', input: [] });
         render();
       });
