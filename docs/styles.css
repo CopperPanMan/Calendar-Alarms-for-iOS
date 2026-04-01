@@ -51,6 +51,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
 .advanced-panel { display: grid; gap: 1rem; }
 .advanced-group { border: 1px solid var(--card-border); border-radius: 8px; padding: 0.8rem; }
 .advanced-group h4 { margin: 0 0 0.7rem; }
+.advanced-group h5 { margin: 0.9rem 0 0.6rem; font-size: 0.95rem; }
 
 .list-block { display: grid; gap: 0.6rem; margin-bottom: 0.5rem; }
 .sub-card { border: 1px solid var(--card-border); border-radius: 8px; padding: 0.6rem; }
@@ -86,6 +87,10 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   border-radius: 6px;
   font-size: 0.75rem;
   line-height: 1.35;
+}
+.helper-inline {
+  vertical-align: middle;
+  margin-left: 0.4rem;
 }
 
 .status, .hint, .empty-state { color: var(--muted); margin: 0.6rem 0 0; }

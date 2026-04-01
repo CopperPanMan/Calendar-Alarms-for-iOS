@@ -23,6 +23,9 @@ const defaultAlarm = () => ({
   conflictingCalendars: [],
   reschedMinutes: { min: 10, max: 45 },
   maxReschedules: 2,
+  taskIDs: [],
+  taskLoopMin: 30,
+  checkTasksFirstTime: true,
 });
 
 let alarms = [];
@@ -78,6 +81,9 @@ function normalizeAlarm(raw = {}) {
   alarm.conflictingCalendars = Array.isArray(alarm.conflictingCalendars)
     ? alarm.conflictingCalendars.map((name) => String(name))
     : [];
+  alarm.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id)) : [];
+  alarm.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
+  alarm.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
   return alarm;
 }
 
@@ -131,6 +137,9 @@ function cleanAlarm(alarm) {
   }
 
   if (Number.isFinite(Number(alarm.maxReschedules))) cleaned.maxReschedules = Number(alarm.maxReschedules);
+  cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
+  cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
+  cleaned.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
 
   return cleaned;
 }
@@ -159,6 +168,7 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
       <label>Shortcut Name<input type="text" data-shortcut-field="name" required /></label>
       <div class="list-block" data-input-list></div>
       <button type="button" class="btn small" data-action="add-input">+ Add Input</button>
+      <span class="help helper-inline" data-tip="This input will be passed into this configured shortcut.">?</span>
     `;
 
     const nameInput = block.querySelector('[data-shortcut-field="name"]');
@@ -236,9 +246,9 @@ function renderLocations(container, alarm) {
         </div>
       </div>
       <div class="grid three-col">
-        <label>Lat<input type="number" step="any" data-field="lat" /></label>
-        <label>Long<input type="number" step="any" data-field="lon" /></label>
-        <label>Radius m<input type="number" min="1" step="1" data-field="radius" /></label>
+        <label>Lat <span class="help" data-tip="Latitude coordinate for this location.">?</span><input type="number" step="any" data-field="lat" /></label>
+        <label>Long <span class="help" data-tip="Longitude coordinate for this location.">?</span><input type="number" step="any" data-field="lon" /></label>
+        <label>Radius m <span class="help" data-tip="Distance in meters around this coordinate.">?</span><input type="number" min="1" step="1" data-field="radius" /></label>
       </div>
     `;
 
@@ -267,6 +277,38 @@ function renderLocations(container, alarm) {
     });
 
     container.appendChild(block);
+  });
+}
+
+function renderTaskIDs(container, alarm) {
+  container.innerHTML = '';
+  alarm.taskIDs.forEach((taskID, idx) => {
+    const row = document.createElement('div');
+    row.className = 'inline-row';
+    row.innerHTML = `
+      <input type="text" data-field="taskID" placeholder="Task ID" />
+      <button type="button" class="btn secondary small" data-action="up">↑</button>
+      <button type="button" class="btn secondary small" data-action="down">↓</button>
+      <button type="button" class="btn danger small" data-action="delete">Delete</button>
+    `;
+    row.querySelector('[data-field="taskID"]').value = taskID;
+    row.querySelector('[data-field="taskID"]').addEventListener('input', (event) => {
+      alarm.taskIDs[idx] = event.target.value;
+      updateOutput();
+    });
+    row.querySelector('[data-action="up"]').addEventListener('click', () => {
+      moveItem(alarm.taskIDs, idx, idx - 1);
+      render();
+    });
+    row.querySelector('[data-action="down"]').addEventListener('click', () => {
+      moveItem(alarm.taskIDs, idx, idx + 1);
+      render();
+    });
+    row.querySelector('[data-action="delete"]').addEventListener('click', () => {
+      alarm.taskIDs.splice(idx, 1);
+      render();
+    });
+    container.appendChild(row);
   });
 }
 
@@ -344,7 +386,7 @@ function render() {
     const card = fragment.querySelector('.alarm-card');
     const title = fragment.querySelector('.alarm-title');
     const advancedToggle = fragment.querySelector('details');
-    title.textContent = `Alarm ${index + 1}`;
+    title.innerHTML = `Alarm ${index + 1} <span class="help" data-tip="One alarm on an event.">?</span>`;
 
     card.dataset.index = index;
     advancedToggle.open = !!openAdvancedByIndex[index];
@@ -381,12 +423,14 @@ function render() {
     renderShortcutList(card.querySelector('[data-list="shortcutsOnTrigger"]'), alarm, 'shortcutsOnTrigger', index);
     renderLocations(card.querySelector('[data-list="locations"]'), alarm, index);
     renderConflictCalendars(card.querySelector('[data-list="conflictingCalendars"]'), alarm, index);
+    renderTaskIDs(card.querySelector('[data-list="taskIDs"]'), alarm, index);
 
     card.querySelectorAll('.add-list-item').forEach((button) => {
       button.addEventListener('click', () => {
         const listName = button.dataset.add;
         if (listName === 'locations') alarm.locations.push({ lat: 0, lon: 0, radius: 50 });
         else if (listName === 'conflictingCalendars') alarm.conflictingCalendars.push('');
+        else if (listName === 'taskIDs') alarm.taskIDs.push('');
         else alarm[listName].push({ name: '', input: [] });
         render();
       });

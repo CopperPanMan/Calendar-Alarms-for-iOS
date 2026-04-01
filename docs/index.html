@@ -50,7 +50,7 @@
       <article class="alarm-card" draggable="true">
         <div class="alarm-card-header">
           <div class="drag-handle" title="Drag to reorder alarm">⠿</div>
-          <h3 class="alarm-title">Alarm</h3>
+          <h3 class="alarm-title">Alarm <span class="help" data-tip="One alarm on an event.">?</span></h3>
           <div class="button-row">
             <button type="button" class="btn secondary small move-up-btn">↑</button>
             <button type="button" class="btn secondary small move-down-btn">↓</button>
@@ -63,7 +63,7 @@
           <label>Status <span class="help" data-tip="Use ON to enable this alarm, OFF to keep definition without scheduling.">?</span>
             <select data-field="status"><option value="ON">ON</option><option value="OFF">OFF</option></select>
           </label>
-          <label>Offset Minutes <span class="help" data-tip="Minutes relative to event start/end. Supports integer or +15m / -2h / +1d syntax.">?</span><input data-field="offsetMin" type="text" pattern="^[-+]?\d+[mhd]?$" /></label>
+          <label>Offset Minutes <span class="help" data-tip="Minutes relative to event start/end. Negative values are before the event, positive values are after. Supports integer or +15m / -2h / +1d syntax.">?</span><input data-field="offsetMin" type="text" pattern="^[-+]?\d+[mhd]?$" /></label>
           <label>Reference <span class="help" data-tip="Choose whether offset is relative to event start or end time.">?</span>
             <select data-field="reference"><option value="start">start</option><option value="end">end</option></select>
           </label>
@@ -73,7 +73,7 @@
           <summary>Advanced Settings</summary>
           <div class="advanced-panel">
             <section class="advanced-group">
-              <h4>QR Alarm Properties</h4>
+              <h4>QR Alarm Properties <span class="help" data-tip="Fill these properties in for an alarm that you want to require a QR scan to turn off.">?</span></h4>
               <div class="grid two-col">
                 <label>QR Code ID <span class="help" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
                 <label>QR Sound File <span class="help" data-tip="MP3 filename in iCloud/Shortcuts/Calendar Alarms. Example: marimba.mp3.">?</span><input data-field="qrSoundPath" type="text" /></label>
@@ -81,29 +81,22 @@
               </div>
               <div data-list="qrShortcutsOnScan" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="qrShortcutsOnScan">+ Add QR Shortcut on Scan</button>
+              <span class="help helper-inline" data-tip="This shortcut will run when the QR code is scanned.">?</span>
             </section>
 
             <section class="advanced-group">
-              <h4>Trigger & Silence Properties</h4>
+              <h4>Trigger & Silence Properties <span class="help" data-tip="Fill out these properties to run custom apple shortcuts when this alarm goes off.">?</span></h4>
               <label class="checkbox-row">Silence Alarm <span class="help" data-tip="If true, alarm can run shortcuts silently instead of sounding.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
               <div data-list="shortcutsOnTrigger" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Shortcut on Trigger</button>
             </section>
 
             <section class="advanced-group">
-              <h4>Location Properties</h4>
+              <h4>Rescheduling Properties <span class="help" data-tip="Properties for delaying alarms based on scheduling, calendar conflicts, and location conditions.">?</span></h4>
               <div class="grid two-col">
                 <label>Location Mode <span class="help" data-tip="whitelist: only run at listed locations. blacklist: skip at listed locations. off: ignore locations.">?</span>
                   <select data-field="locationMode"><option value="off">off</option><option value="whitelist">whitelist</option><option value="blacklist">blacklist</option></select>
                 </label>
-              </div>
-              <div data-list="locations" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="locations">+ Add Location</button>
-            </section>
-
-            <section class="advanced-group">
-              <h4>Rescheduling Properties</h4>
-              <div class="grid two-col">
                 <label>Silence If Driving <span class="help" data-tip="ON prevents sound when driving is detected.">?</span>
                   <select data-field="silenceIfDriving"><option value="OFF">OFF</option><option value="ON">ON</option></select>
                 </label>
@@ -112,15 +105,25 @@
                   <select data-field="reschedType"><option value="range">Range</option><option value="fixed">Fixed</option></select>
                 </label>
                 <label data-resched="fixed">Fixed Minutes<input data-field="reschedFixed" type="number" min="0" step="1" /></label>
-                <label data-resched="min">Range Min<input data-field="reschedMin" type="number" min="0" step="1" /></label>
-                <label data-resched="max">Range Max<input data-field="reschedMax" type="number" min="0" step="1" /></label>
+                <label data-resched="min">Range Min <span class="help" data-tip="Minimum minutes used when Reschedule Type is Range.">?</span><input data-field="reschedMin" type="number" min="0" step="1" /></label>
+                <label data-resched="max">Range Max <span class="help" data-tip="Maximum minutes used when Reschedule Type is Range.">?</span><input data-field="reschedMax" type="number" min="0" step="1" /></label>
               </div>
+              <h5>Location Properties <span class="help" data-tip="Location settings used to determine whether alarm rescheduling should apply.">?</span></h5>
+              <div data-list="locations" class="list-block"></div>
+              <button type="button" class="btn small add-list-item" data-add="locations">+ Add Location</button>
+              <h5>Calendar Conflict Properties <span class="help" data-tip="Calendars that can suppress or alter alarm rescheduling behavior when conflicts are detected.">?</span></h5>
+              <div data-list="conflictingCalendars" class="list-block"></div>
+              <button type="button" class="btn small add-list-item" data-add="conflictingCalendars">+ Add Conflicting Calendar</button>
             </section>
 
             <section class="advanced-group">
-              <h4>Calendar Conflict Properties</h4>
-              <div data-list="conflictingCalendars" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="conflictingCalendars">+ Add Conflicting Calendar</button>
+              <h4>Task Looping <span class="help" data-tip="Configure task checking loop behavior for this alarm.">?</span></h4>
+              <div data-list="taskIDs" class="list-block"></div>
+              <button type="button" class="btn small add-list-item" data-add="taskIDs">+ Add Task ID</button>
+              <div class="grid two-col">
+                <label>Task Loop Min <span class="help" data-tip="Minutes between task-check loops.">?</span><input data-field="taskLoopMin" type="number" min="0" step="1" /></label>
+                <label class="checkbox-row">Check Tasks First Time <span class="help" data-tip="If true, checks tasks immediately before the first loop wait.">?</span><input data-field="checkTasksFirstTime" type="checkbox" /></label>
+              </div>
             </section>
           </div>
         </details>
