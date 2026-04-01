@@ -92,12 +92,6 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   vertical-align: middle;
   margin-left: 0.4rem;
 }
-.task-loop-settings {
-  margin-top: 0.75rem;
-}
-.task-loop-warning {
-  margin-top: 0.5rem;
-}
 
 .status, .hint, .empty-state { color: var(--muted); margin: 0.6rem 0 0; }
 .status.error { color: #ef4444; }

@@ -23,7 +23,6 @@ const defaultAlarm = () => ({
   conflictingCalendars: [],
   reschedMinutes: { min: 10, max: 45 },
   maxReschedules: 2,
-  enableTaskLooping: false,
   taskIDs: [],
   taskLoopMin: 30,
   checkTasksFirstTime: true,
@@ -70,10 +69,9 @@ function normalizeAlarm(raw = {}) {
   alarm.locations = Array.isArray(alarm.locations)
     ? alarm.locations.map((loc) => {
         if (Array.isArray(loc)) {
-          return { name: '', lat: Number(loc[0]) || 0, lon: Number(loc[1]) || 0, radius: Number(loc[2]) || 50 };
+          return { lat: Number(loc[0]) || 0, lon: Number(loc[1]) || 0, radius: Number(loc[2]) || 50 };
         }
         return {
-          name: typeof loc?.name === 'string' ? loc.name : '',
           lat: Number(loc?.lat) || 0,
           lon: Number(loc?.lon) || 0,
           radius: Number(loc?.radius) || 50,
@@ -84,10 +82,6 @@ function normalizeAlarm(raw = {}) {
     ? alarm.conflictingCalendars.map((name) => String(name))
     : [];
   alarm.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id)) : [];
-  alarm.enableTaskLooping =
-    typeof alarm.enableTaskLooping === 'boolean'
-      ? alarm.enableTaskLooping
-      : alarm.taskIDs.length > 0 || Number(alarm.taskLoopMin) !== 30 || alarm.checkTasksFirstTime === false;
   alarm.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
   alarm.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
   return alarm;
@@ -143,11 +137,9 @@ function cleanAlarm(alarm) {
   }
 
   if (Number.isFinite(Number(alarm.maxReschedules))) cleaned.maxReschedules = Number(alarm.maxReschedules);
-  if (alarm.enableTaskLooping) {
-    cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
-    cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
-    cleaned.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
-  }
+  cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
+  cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
+  cleaned.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
 
   return cleaned;
 }
@@ -254,21 +246,19 @@ function renderLocations(container, alarm) {
         </div>
       </div>
       <div class="grid three-col">
-        <label>Name <span class="help" data-tip="Optional label to help identify this location in the editor.">?</span><input type="text" data-field="name" /></label>
         <label>Lat <span class="help" data-tip="Latitude coordinate for this location.">?</span><input type="number" step="any" data-field="lat" /></label>
         <label>Long <span class="help" data-tip="Longitude coordinate for this location.">?</span><input type="number" step="any" data-field="lon" /></label>
         <label>Radius m <span class="help" data-tip="Distance in meters around this coordinate.">?</span><input type="number" min="1" step="1" data-field="radius" /></label>
       </div>
     `;
 
-    block.querySelector('[data-field="name"]').value = loc.name || '';
     block.querySelector('[data-field="lat"]').value = loc.lat;
     block.querySelector('[data-field="lon"]').value = loc.lon;
     block.querySelector('[data-field="radius"]').value = loc.radius;
 
-    ['name', 'lat', 'lon', 'radius'].forEach((field) => {
+    ['lat', 'lon', 'radius'].forEach((field) => {
       block.querySelector(`[data-field="${field}"]`).addEventListener('input', (event) => {
-        alarm.locations[idx][field] = field === 'name' ? event.target.value : Number(event.target.value);
+        alarm.locations[idx][field] = Number(event.target.value);
         updateOutput();
       });
     });
@@ -386,21 +376,6 @@ function setRescheduleForm(card, alarm) {
   });
 }
 
-function setTaskLoopForm(card, alarm) {
-  const enableTaskLooping = card.querySelector('[data-field="enableTaskLooping"]');
-  const taskLoopSettings = card.querySelector('[data-task-loop-settings]');
-  const syncVisibility = () => {
-    taskLoopSettings.style.display = enableTaskLooping.checked ? 'block' : 'none';
-  };
-  enableTaskLooping.checked = !!alarm.enableTaskLooping;
-  syncVisibility();
-  enableTaskLooping.addEventListener('change', () => {
-    alarm.enableTaskLooping = enableTaskLooping.checked;
-    syncVisibility();
-    updateOutput();
-  });
-}
-
 function render() {
   preserveAdvancedState();
   alarmsContainer.innerHTML = '';
@@ -431,7 +406,6 @@ function render() {
     });
 
     setRescheduleForm(card, alarm);
-    setTaskLoopForm(card, alarm);
     card.querySelector('[data-field="reschedFixed"]').addEventListener('input', (e) => {
       alarm.reschedFixed = Number(e.target.value);
       updateOutput();
@@ -454,12 +428,9 @@ function render() {
     card.querySelectorAll('.add-list-item').forEach((button) => {
       button.addEventListener('click', () => {
         const listName = button.dataset.add;
-        if (listName === 'locations') alarm.locations.push({ name: '', lat: 0, lon: 0, radius: 50 });
+        if (listName === 'locations') alarm.locations.push({ lat: 0, lon: 0, radius: 50 });
         else if (listName === 'conflictingCalendars') alarm.conflictingCalendars.push('');
-        else if (listName === 'taskIDs') {
-          alarm.enableTaskLooping = true;
-          alarm.taskIDs.push('');
-        }
+        else if (listName === 'taskIDs') alarm.taskIDs.push('');
         else alarm[listName].push({ name: '', input: [] });
         render();
       });
