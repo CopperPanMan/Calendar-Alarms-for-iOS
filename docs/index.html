@@ -86,7 +86,7 @@
 
             <section class="advanced-group">
               <h4>Trigger & Silence Properties <span class="help" data-tip="Fill out these properties to run custom apple shortcuts when this alarm goes off.">?</span></h4>
-              <label class="checkbox-row">Silence Alarm <span class="help" data-tip="If true, alarm can run shortcuts silently instead of sounding.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
+              <label class="checkbox-row">Silence Alarm <span class="help" data-tip="If true, alarm can silence itself in order to only run a shortcut.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
               <div data-list="shortcutsOnTrigger" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Shortcut on Trigger</button>
             </section>
@@ -117,12 +117,12 @@
             </section>
 
             <section class="advanced-group">
-              <h4>Task Looping <span class="help" data-tip="Configure task checking loop behavior for this alarm.">?</span></h4>
+              <h4>Task Looping <span class="help" data-tip="Requires OpenHabits. Make sure OpenHabits is installed and review the setup guide for details.">?</span></h4>
               <div data-list="taskIDs" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="taskIDs">+ Add Task ID</button>
               <div class="grid two-col">
                 <label>Task Loop Min <span class="help" data-tip="Minutes between task-check loops.">?</span><input data-field="taskLoopMin" type="number" min="0" step="1" /></label>
-                <label class="checkbox-row">Check Tasks First Time <span class="help" data-tip="If true, checks tasks immediately before the first loop wait.">?</span><input data-field="checkTasksFirstTime" type="checkbox" /></label>
+                <label class="checkbox-row">Check Tasks First Time <span class="help" data-tip="if unchecked (ie false), it will not check task completion status the first time this alarm runs.">?</span><input data-field="checkTasksFirstTime" type="checkbox" /></label>
               </div>
             </section>
           </div>
