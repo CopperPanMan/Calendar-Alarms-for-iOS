@@ -69,12 +69,18 @@ function normalizeAlarm(raw = {}) {
   alarm.locations = Array.isArray(alarm.locations)
     ? alarm.locations.map((loc) => {
         if (Array.isArray(loc)) {
-          return { lat: Number(loc[0]) || 0, lon: Number(loc[1]) || 0, radius: Number(loc[2]) || 50 };
+          return {
+            lat: Number(loc[0]) || 0,
+            lon: Number(loc[1]) || 0,
+            radius: Number(loc[2]) || 50,
+            name: typeof loc[3] === 'string' ? loc[3] : '',
+          };
         }
         return {
           lat: Number(loc?.lat) || 0,
           lon: Number(loc?.lon) || 0,
           radius: Number(loc?.radius) || 50,
+          name: typeof loc?.name === 'string' ? loc.name : '',
         };
       })
     : [];
@@ -119,7 +125,7 @@ function cleanAlarm(alarm) {
 
   const locations = alarm.locations
     .filter((loc) => Number.isFinite(Number(loc.lat)) && Number.isFinite(Number(loc.lon)) && Number.isFinite(Number(loc.radius)))
-    .map((loc) => [Number(loc.lat), Number(loc.lon), Number(loc.radius)]);
+    .map((loc) => [Number(loc.lat), Number(loc.lon), Number(loc.radius), String(loc.name || '')]);
   if (locations.length) cleaned.locations = locations;
 
   if (alarm.silenceIfDriving === 'ON') cleaned.silenceIfDriving = 'ON';
@@ -245,20 +251,22 @@ function renderLocations(container, alarm) {
           <button type="button" class="btn danger small" data-action="delete">Delete</button>
         </div>
       </div>
-      <div class="grid three-col">
+      <div class="grid four-col">
         <label>Lat <span class="help" data-tip="Latitude coordinate for this location.">?</span><input type="number" step="any" data-field="lat" /></label>
         <label>Long <span class="help" data-tip="Longitude coordinate for this location.">?</span><input type="number" step="any" data-field="lon" /></label>
         <label>Radius m <span class="help" data-tip="Distance in meters around this coordinate.">?</span><input type="number" min="1" step="1" data-field="radius" /></label>
+        <label>Name <span class="help" data-tip="Visual label only for identifying this location in the editor.">?</span><input type="text" data-field="name" /></label>
       </div>
     `;
 
     block.querySelector('[data-field="lat"]').value = loc.lat;
     block.querySelector('[data-field="lon"]').value = loc.lon;
     block.querySelector('[data-field="radius"]').value = loc.radius;
+    block.querySelector('[data-field="name"]').value = loc.name || '';
 
-    ['lat', 'lon', 'radius'].forEach((field) => {
+    ['lat', 'lon', 'radius', 'name'].forEach((field) => {
       block.querySelector(`[data-field="${field}"]`).addEventListener('input', (event) => {
-        alarm.locations[idx][field] = Number(event.target.value);
+        alarm.locations[idx][field] = field === 'name' ? event.target.value : Number(event.target.value);
         updateOutput();
       });
     });
@@ -428,11 +436,12 @@ function render() {
     card.querySelectorAll('.add-list-item').forEach((button) => {
       button.addEventListener('click', () => {
         const listName = button.dataset.add;
-        if (listName === 'locations') alarm.locations.push({ lat: 0, lon: 0, radius: 50 });
+        if (listName === 'locations') alarm.locations.push({ lat: 0, lon: 0, radius: 50, name: '' });
         else if (listName === 'conflictingCalendars') alarm.conflictingCalendars.push('');
-        else if (listName === 'taskIDs') alarm.taskIDs.push('');
+        else if (listName === 'taskIDs') alarm.taskIDs.push('task-id');
         else alarm[listName].push({ name: '', input: [] });
         render();
+        updateOutput();
       });
     });
 
