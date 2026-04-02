@@ -11,14 +11,13 @@
       <header class="hero">
         <h1>Calendar Alarm Editor</h1>
         <p>
-          Start from scratch, or paste existing alarm JSON to edit it with a
-          simple interface. Then copy the output into your event’s Notes.
+          Create and edit alarms with a simple interface.
         </p>
       </header>
 
       <section class="card controls">
         <h2>1. Get Started</h2>
-        <label for="jsonInput" class="label">To create new alarms, continue to <strong>Edit Alarms</strong> below. If you already have alarm JSON, paste it here and click <strong>Load Existing</strong>.</label>
+        <label for="jsonInput" class="label">To edit existing alarms, paste the JSON for your event here and click <strong>Load Existing</strong>. Otherwise, continue to <strong>Edit Alarms</strong> below.</label>
         <textarea id="jsonInput" rows="10"></textarea>
         <p id="loadStatus" class="status" aria-live="polite"></p>
         <div class="button-row">
@@ -45,10 +44,10 @@
       <section class="card">
         <h2>3. Export</h2>
         <p class="hint">Your new alarm JSON updates automatically as you edit. When you're ready, click <strong>Copy Output.</strong></p>
+        <textarea id="jsonOutput" rows="14" readonly></textarea>
         <div class="button-row">
           <button id="copyOutputBtn" class="btn success">Copy Output</button>
         </div>
-        <textarea id="jsonOutput" rows="14" readonly></textarea>
         <p id="copyStatus" class="status" aria-live="polite"></p>
         <p class="hint">Copy this output into your event’s Notes.</p>
       </section>
