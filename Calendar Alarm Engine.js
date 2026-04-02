@@ -1128,18 +1128,21 @@ async function checkTaskIDsCompleteFailOpen(taskIDs) {
   return false;
 }
 
-function makeTaskResetterAction(entry, deleteAlarmPayload) {
+function makeTaskResetterAction(entry, nextAlarmPayload) {
   const taskIDs = Array.isArray(entry?.taskIDs)
     ? entry.taskIDs.map((x) => String(x ?? "").trim()).filter((x) => x)
     : [];
 
+  const payloadAlarm = nextAlarmPayload && typeof nextAlarmPayload === "object"
+    ? nextAlarmPayload
+    : {};
   const payload = {
     taskLoopMetricIDs: taskIDs,
     qrCodeID: String(entry?.qrCodeID ?? ""),
     alarmToDelete: {
-      name: String(deleteAlarmPayload?.name ?? ""),
-      hh: String(deleteAlarmPayload?.hh ?? ""),
-      mm: String(deleteAlarmPayload?.mm ?? ""),
+      name: String(payloadAlarm?.name ?? ""),
+      hh: String(payloadAlarm?.hh ?? ""),
+      mm: String(payloadAlarm?.mm ?? ""),
     },
   };
 
@@ -1158,10 +1161,10 @@ function shouldAppendTaskResetter(entry) {
   return !shouldSkipTaskCheckOnInitialFire(entry);
 }
 
-function buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload) {
+function buildTriggerActionsForTaskLoop(entry, nextAlarmPayload) {
   const actions = normalizeShortcutActionList(entry?.shortcutsOnTrigger);
   if (!shouldAppendTaskResetter(entry)) return actions;
-  actions.push(makeTaskResetterAction(entry, deleteAlarmPayload));
+  actions.push(makeTaskResetterAction(entry, nextAlarmPayload));
   return actions;
 }
 
@@ -1490,7 +1493,6 @@ async function tryFastPath(input, registryAfter) {
     // This fire passed context gates and reached task handling; task-loop baseline is now eligible.
     entry.taskLoopEligible = true;
 
-    const deleteAlarmPayload = { name, hh: firedHH, mm: firedMM };
     const skipTaskCheckOnInitialFire = shouldSkipTaskCheckOnInitialFire(entry);
     const complete = skipTaskCheckOnInitialFire
       ? false
@@ -1522,9 +1524,33 @@ async function tryFastPath(input, registryAfter) {
       return { handled: true };
     }
 
+    const loopsRemaining = Math.max(0, Math.trunc(Number(entry.maxReschedules ?? 0)));
+    let nextScheduledAlarmPayload = null;
+    if (loopsRemaining > 0) {
+      const next = await computeRescheduleTime(
+        entry,
+        fireEpoch,
+        input.currentFocus,
+        input.currentLocation,
+        /* includeTaskBaseline */ entry.taskLoopEligible === true
+      );
+      entry.maxReschedules = loopsRemaining - 1;
+      entry.prevFireTime = entry.nextFireTime;
+      entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
+
+      queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+      const nextHHMM = epochToHHMM(entry.nextFireTime);
+      nextScheduledAlarmPayload = { name, hh: nextHHMM.hh, mm: nextHHMM.mm };
+
+      if (hasQR) {
+        output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
+        updateQRBackupAlarm(entry, now, input.iosAlarms);
+      }
+    }
+
     const triggerActions = skipTaskCheckOnInitialFire
       ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
-      : buildTriggerActionsForTaskLoop(entry, deleteAlarmPayload);
+      : buildTriggerActionsForTaskLoop(entry, nextScheduledAlarmPayload);
     queueTriggerShortcuts(triggerActions);
     entry.taskCheckFirstFireHandled = true;
     if (shouldDeleteFiredTaskAlarm) output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
@@ -1538,29 +1564,10 @@ async function tryFastPath(input, registryAfter) {
       output.qrLoop = true;
     }
 
-    const loopsRemaining = Math.max(0, Math.trunc(Number(entry.maxReschedules ?? 0)));
     if (loopsRemaining <= 0) {
       if (!hasQR) entry.qrActive = false;
       clearQRBackupAlarm(entry, input.iosAlarms);
       return { handled: true };
-    }
-
-    const next = await computeRescheduleTime(
-      entry,
-      fireEpoch,
-      input.currentFocus,
-      input.currentLocation,
-      /* includeTaskBaseline */ entry.taskLoopEligible === true
-    );
-    entry.maxReschedules = loopsRemaining - 1;
-    entry.prevFireTime = entry.nextFireTime;
-    entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
-
-    queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
-
-    if (hasQR) {
-      output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
-      updateQRBackupAlarm(entry, now, input.iosAlarms);
     }
 
     return { handled: true };
