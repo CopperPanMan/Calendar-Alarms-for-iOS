@@ -1,23 +1,23 @@
 :root {
   color-scheme: light dark;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  --bg: #0f172a;
-  --card: #111827;
-  --card-border: #334155;
-  --text: #e5e7eb;
-  --muted: #94a3b8;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --card-border: #dbeafe;
+  --text: #111827;
+  --muted: #475569;
   --primary: #3b82f6;
   --success: #16a34a;
   --danger: #dc2626;
 }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #f8fafc;
-    --card: #ffffff;
-    --card-border: #dbeafe;
-    --text: #111827;
-    --muted: #475569;
+    --bg: #0f172a;
+    --card: #111827;
+    --card-border: #334155;
+    --text: #e5e7eb;
+    --muted: #94a3b8;
   }
 }
 
@@ -97,3 +97,19 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
 .status, .hint, .empty-state { color: var(--muted); margin: 0.6rem 0 0; }
 .status.error { color: #ef4444; }
 .status.success { color: #22c55e; }
+
+.scope-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.scope-btn {
+  opacity: 0.75;
+}
+
+.scope-btn.is-active {
+  opacity: 1;
+  outline: 2px solid color-mix(in srgb, var(--primary) 50%, transparent);
+}

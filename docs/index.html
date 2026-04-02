@@ -18,20 +18,26 @@
 
       <section class="card controls">
         <h2>1. Get Started</h2>
-        <p class="hint">Paste existing alarm JSON to load it into the editor, or click Start Fresh.</p>
+        <p class="hint">Paste existing alarm JSON to load it into the editor.</p>
         <label for="jsonInput" class="label">Paste existing alarm JSON</label>
         <textarea id="jsonInput" rows="10"></textarea>
         <p id="loadStatus" class="status" aria-live="polite"></p>
         <div class="button-row">
           <button id="loadJsonBtn" class="btn">Load Existing</button>
-          <button id="newConfigBtn" class="btn secondary">Start Fresh</button>
         </div>
       </section>
 
       <section class="card">
-        <h2>2. Alarm Configuration</h2>
+        <h2>2. Edit Config</h2>
+        <div class="scope-picker" role="tablist" aria-label="Config section">
+          <button type="button" class="btn secondary small scope-btn is-active" data-scope="global">Global</button>
+          <button type="button" class="btn secondary small scope-btn" data-scope="metrics">Metrics</button>
+          <button type="button" class="btn secondary small scope-btn" data-scope="blocks">Blocks</button>
+        </div>
+        <p id="scopeHint" class="hint">Settings that apply to everything</p>
         <div class="button-row">
           <button id="addAlarmBtn" class="btn success">Add Alarm</button>
+          <button id="newConfigBtn" class="btn danger">Reset All</button>
         </div>
         <div id="alarmsContainer" class="alarms"></div>
         <p id="emptyState" class="empty-state">No alarms yet. Click <strong>Add Alarm</strong> to start.</p>
@@ -43,8 +49,8 @@
           <button id="copyOutputBtn" class="btn success">Output & Copy to Clipboard</button>
         </div>
         <textarea id="jsonOutput" rows="14" readonly></textarea>
+        <p class="hint">Copy this output into <code>Config.gs</code>.</p>
         <p id="copyStatus" class="status" aria-live="polite"></p>
-        <p class="hint">Copy this output into your event’s Notes.</p>
       </section>
     </main>
 
