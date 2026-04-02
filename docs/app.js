@@ -5,6 +5,8 @@ const jsonOutput = document.getElementById('jsonOutput');
 const loadStatus = document.getElementById('loadStatus');
 const copyStatus = document.getElementById('copyStatus');
 const emptyState = document.getElementById('emptyState');
+const scopeHint = document.getElementById('scopeHint');
+const scopeButtons = Array.from(document.querySelectorAll('.scope-btn'));
 
 const defaultAlarm = () => ({
   alarmName: 'New Alarm',
@@ -533,9 +535,23 @@ function addAlarm() {
 document.getElementById('newConfigBtn').addEventListener('click', () => {
   alarms = [];
   jsonInput.value = '';
-  setStatus(loadStatus, 'Started a fresh configuration.', 'success');
+  setStatus(loadStatus, 'Configuration reset.', 'success');
   render();
   updateOutput();
+});
+
+const scopeMessages = {
+  global: 'Settings that apply to everything',
+  metrics: 'Metrics are individual pieces of data being logged',
+  blocks: 'Blocks are individual criteria that prevent access to an app or website',
+};
+
+scopeButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const scope = button.dataset.scope;
+    scopeButtons.forEach((candidate) => candidate.classList.toggle('is-active', candidate === button));
+    scopeHint.textContent = scopeMessages[scope] || '';
+  });
 });
 
 document.getElementById('loadJsonBtn').addEventListener('click', loadFromInput);
