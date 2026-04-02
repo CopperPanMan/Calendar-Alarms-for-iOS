@@ -18,7 +18,7 @@
 
       <section class="card controls">
         <h2>1. Get Started</h2>
-        <label for="jsonInput" class="label">Paste existing alarm JSON to load it into the editor, or click <strong>Start Fresh.</strong></label>
+        <label for="jsonInput" class="label">To create new alarms, continue to <strong>Edit Alarms</strong> below. If you already have alarm JSON, paste it here and click <strong>Load Existing</strong>.</label>
         <textarea id="jsonInput" rows="10"></textarea>
         <p id="loadStatus" class="status" aria-live="polite"></p>
         <div class="button-row">
@@ -27,10 +27,16 @@
       </section>
 
       <section class="card">
-        <h2>2. Edit Alarms</h2>
+        <div class="section-header">
+          <h2>2. Edit Alarms</h2>
+          <div class="button-row">
+            <button id="undoBtn" class="btn secondary">Undo</button>
+            <button id="redoBtn" class="btn secondary">Redo</button>
+            <button id="newConfigBtn" class="btn danger">Reset All</button>
+          </div>
+        </div>
         <div class="button-row">
           <button id="addAlarmBtn" class="btn success">Add Alarm</button>
-          <button id="newConfigBtn" class="btn danger">Reset All</button>
         </div>
         <div id="alarmsContainer" class="alarms"></div>
         <p id="emptyState" class="empty-state">No alarms yet. Click <strong>Add Alarm</strong> to start.</p>
@@ -38,8 +44,8 @@
 
       <section class="card">
         <h2>3. Export</h2>
+        <p class="hint">Your new alarm JSON updates automatically as you edit. When you're ready, click <strong>Copy Output.</strong></p>
         <div class="button-row">
-          <button id="generateOutputBtn" class="btn">Generate Output</button>
           <button id="copyOutputBtn" class="btn success">Copy Output</button>
         </div>
         <textarea id="jsonOutput" rows="14" readonly></textarea>

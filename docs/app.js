@@ -5,6 +5,8 @@ const jsonOutput = document.getElementById('jsonOutput');
 const loadStatus = document.getElementById('loadStatus');
 const copyStatus = document.getElementById('copyStatus');
 const emptyState = document.getElementById('emptyState');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
 
 const defaultAlarm = () => ({
   alarmName: 'New Alarm',
@@ -31,6 +33,9 @@ const defaultAlarm = () => ({
 let alarms = [];
 let dragFromIndex = null;
 let openAdvancedByIndex = [];
+let history = [];
+let historyIndex = -1;
+let isNavigatingHistory = false;
 
 function preserveAdvancedState() {
   const cards = Array.from(alarmsContainer.querySelectorAll('.alarm-card'));
@@ -44,6 +49,39 @@ function setStatus(el, message, type = '') {
   el.textContent = message;
   el.classList.remove('error', 'success');
   if (type) el.classList.add(type);
+}
+
+function snapshotState() {
+  return JSON.stringify(alarms);
+}
+
+function updateHistoryButtons() {
+  undoBtn.disabled = historyIndex <= 0;
+  redoBtn.disabled = historyIndex >= history.length - 1;
+}
+
+function pushHistorySnapshot() {
+  if (isNavigatingHistory) return;
+  const snapshot = snapshotState();
+  if (history[historyIndex] === snapshot) {
+    updateHistoryButtons();
+    return;
+  }
+  history = history.slice(0, historyIndex + 1);
+  history.push(snapshot);
+  historyIndex = history.length - 1;
+  updateHistoryButtons();
+}
+
+function restoreHistoryAt(index) {
+  if (index < 0 || index >= history.length) return;
+  isNavigatingHistory = true;
+  historyIndex = index;
+  alarms = JSON.parse(history[historyIndex]).map((alarm) => normalizeAlarm(alarm));
+  render();
+  updateOutput();
+  isNavigatingHistory = false;
+  updateHistoryButtons();
 }
 
 function normalizeShortcut(item) {
@@ -488,6 +526,7 @@ alarmsContainer.addEventListener('dragover', (event) => {
 function updateOutput() {
   const cleaned = alarms.map(cleanAlarm);
   jsonOutput.value = JSON.stringify(cleaned, null, 2);
+  pushHistorySnapshot();
 }
 
 function loadFromInput() {
@@ -512,19 +551,9 @@ function loadFromInput() {
   }
 }
 
-function generateOutput() {
-  setStatus(copyStatus, '');
-  try {
-    updateOutput();
-    setStatus(copyStatus, 'Generated Output.', 'success');
-  } catch (error) {
-    setStatus(copyStatus, `Could not generate output: ${error.message}`, 'error');
-  }
-}
-
 async function copyOutput() {
   if (!jsonOutput.value.trim()) {
-    setStatus(copyStatus, 'Generate output first.', 'error');
+    setStatus(copyStatus, 'No output to copy yet.', 'error');
     return;
   }
   try {
@@ -552,9 +581,23 @@ document.getElementById('newConfigBtn').addEventListener('click', () => {
   updateOutput();
 });
 
+undoBtn.addEventListener('click', () => restoreHistoryAt(historyIndex - 1));
+redoBtn.addEventListener('click', () => restoreHistoryAt(historyIndex + 1));
+
+document.addEventListener('keydown', (event) => {
+  const isUndo = (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z';
+  const isRedo = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'z';
+  if (isUndo) {
+    event.preventDefault();
+    restoreHistoryAt(historyIndex - 1);
+  } else if (isRedo) {
+    event.preventDefault();
+    restoreHistoryAt(historyIndex + 1);
+  }
+});
+
 document.getElementById('loadJsonBtn').addEventListener('click', loadFromInput);
 document.getElementById('addAlarmBtn').addEventListener('click', addAlarm);
-document.getElementById('generateOutputBtn').addEventListener('click', generateOutput);
 document.getElementById('copyOutputBtn').addEventListener('click', copyOutput);
 
 render();
