@@ -512,11 +512,24 @@ function loadFromInput() {
   }
 }
 
+function generateOutput() {
+  setStatus(copyStatus, '');
+  try {
+    updateOutput();
+    setStatus(copyStatus, 'Generated Output.', 'success');
+  } catch (error) {
+    setStatus(copyStatus, `Could not generate output: ${error.message}`, 'error');
+  }
+}
+
 async function copyOutput() {
-  updateOutput();
+  if (!jsonOutput.value.trim()) {
+    setStatus(copyStatus, 'Generate output first.', 'error');
+    return;
+  }
   try {
     await navigator.clipboard.writeText(jsonOutput.value);
-    setStatus(copyStatus, 'JSON copied to clipboard.', 'success');
+    setStatus(copyStatus, 'Copied to clipboard.', 'success');
   } catch {
     jsonOutput.focus();
     jsonOutput.select();
@@ -533,13 +546,16 @@ function addAlarm() {
 document.getElementById('newConfigBtn').addEventListener('click', () => {
   alarms = [];
   jsonInput.value = '';
-  setStatus(loadStatus, 'Started a fresh configuration.', 'success');
+  setStatus(loadStatus, 'Reset all alarms and cleared pasted JSON.', 'success');
+  setStatus(copyStatus, '');
   render();
   updateOutput();
 });
 
 document.getElementById('loadJsonBtn').addEventListener('click', loadFromInput);
 document.getElementById('addAlarmBtn').addEventListener('click', addAlarm);
+document.getElementById('generateOutputBtn').addEventListener('click', generateOutput);
 document.getElementById('copyOutputBtn').addEventListener('click', copyOutput);
 
-addAlarm();
+render();
+updateOutput();
