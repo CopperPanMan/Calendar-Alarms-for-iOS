@@ -3,46 +3,48 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Calendar Alarm JSON Editor</title>
+    <title>Calendar Alarm Editor</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="page">
       <header class="hero">
-        <h1>Calendar Alarm JSON Editor</h1>
+        <h1>Calendar Alarm Editor</h1>
         <p>
-          Build calendar alarm definitions with forms only. Start from a blank
-          list, or paste existing JSON and convert it to editable blocks.
+          Start from scratch, or paste existing alarm JSON to edit it with a
+          simple interface. Then copy the output into your event’s Notes.
         </p>
       </header>
 
       <section class="card controls">
+        <h2>1. Get Started</h2>
+        <p class="hint">Paste existing alarm JSON to load it into the editor, or click Start Fresh.</p>
+        <label for="jsonInput" class="label">Paste existing alarm JSON</label>
+        <textarea id="jsonInput" rows="10"></textarea>
+        <p id="loadStatus" class="status" aria-live="polite"></p>
         <div class="button-row">
-          <button id="newConfigBtn" class="btn secondary">Start from Scratch</button>
-          <button id="loadJsonBtn" class="btn">Load JSON</button>
-          <button id="addAlarmBtn" class="btn success">Add Alarm</button>
+          <button id="loadJsonBtn" class="btn">Load Existing</button>
+          <button id="newConfigBtn" class="btn secondary">Start Fresh</button>
         </div>
       </section>
 
       <section class="card">
-        <label for="jsonInput" class="label">Paste existing alarm JSON</label>
-        <textarea id="jsonInput" rows="10"></textarea>
-        <p id="loadStatus" class="status" aria-live="polite"></p>
-      </section>
-
-      <section class="card">
-        <h2>Alarm Configuration</h2>
+        <h2>2. Alarm Configuration</h2>
+        <div class="button-row">
+          <button id="addAlarmBtn" class="btn success">Add Alarm</button>
+        </div>
         <div id="alarmsContainer" class="alarms"></div>
         <p id="emptyState" class="empty-state">No alarms yet. Click <strong>Add Alarm</strong> to start.</p>
       </section>
 
       <section class="card">
+        <h2>3. Export</h2>
         <div class="button-row">
           <button id="copyOutputBtn" class="btn success">Output & Copy to Clipboard</button>
         </div>
-        <label for="jsonOutput" class="label">Generated JSON output</label>
         <textarea id="jsonOutput" rows="14" readonly></textarea>
         <p id="copyStatus" class="status" aria-live="polite"></p>
+        <p class="hint">Copy this output into your event’s Notes.</p>
       </section>
     </main>
 
