@@ -1,3 +1,5 @@
+### Quick Link: [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/)
+
 # 1) One-time setup (15–30 minutes)
 
 ## A) Install apps
@@ -56,8 +58,8 @@ While a few are optional, it is recommended that you add these **5 Shortcuts** (
 - [**CA Wake Times**](https://www.icloud.com/shortcuts/64f042cca3564d5f8980de743ae5cc4b) *(optional)*
   - Quickly change tomorrow’s wake-up alarm by adjusting the end time of your “Sleep” calendar event.
   - Recommended: Once created, open the shortcut to edit, click the shortcut name, click "Add to Homescreen". Now you can edit your alarm from the homescreen.
-  - Requires a calendar event titled **“Sleep”** with an alarm set to:  
-    `{"offsetMin": 0, "reference": "end"}`
+  - Requires a calendar event titled **“Sleep”** with an alarm set to 0 offset, referencing the event end. More on that below.
+
 - Accessory Shortcuts *(optional - these are not part of the system, but are great for running with alarms. Needed for the Demo step below)*
    - [**Speak Text**](https://www.icloud.com/shortcuts/1338bc99babe425ca9c816200885f6db)
    - [**Start Timer for Input**](https://www.icloud.com/shortcuts/2e5c366cf69542849c6ef3c02568bf06)
@@ -80,66 +82,87 @@ While a few are optional, it is recommended that you create these **5 automation
 
 4. *(Optional)* **App** → When “Calendar” is closed, run immediately → run shortcut **Calendar Alarms Engine**
    - *What it does:* If you edited any calendar events, this reschedules their alarms immediately upon closing the Calendar app.
+   - *NOTE* you can swap this to a different calendar app of your choice, but this automation may not work correctly if the event you are editing hasn't yet been synced your iOS calendar app when you close calendar.
 
 5. *(Optional)* **App** → When “Clock” is closed, run immediately → run shortcut **Calendar Alarms qrClockCloser**
    - *What it does:* Prevents users from opening the Clock app when a QR alarm is active, stopping them from “breaking the rules” by disabling active QR alarms without scanning.
 
-*NOTE: iOS will ask you to grant permissions the first time these shortcuts run. You will need to grant them all (ie always allow. always delete, allow access, etc) in order for the system to work as expected.*
+> [!NOTE]
+> *iOS will ask you to grant permissions the first time these shortcuts run. You will need to grant them all (ie always allow. always delete, allow access, etc) in order for the system to work as expected.*
 
-## F) Let's Test it Out
+You have now completed setup!
 
-To start, I made an [Alarm JSON Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) so you can edit and configure alarms from a real user interface. This is going to be simpler for many people than editing JSON directly.
+<br>
 
-To get you accustomed to how this system works, let’s implement a demo event with 4 alarms that will go off one after another every minute for 4 minutes. The first run through may be buggy since it will require you to grant various permissions, so you’ll want to run through this at least twice. You’ll also need the accessory shortcuts from above installed. 
+---
 
-If you would like to skip the QR alarm demo because you don't have another device with you to display the below QR code on, you can delete that alarm. To do so, delete everything shown below from the demo JSON (everything from the comma to the curly brace). Otherwise, skip this step:
+<br>
 
-```json
-   ,
-  {
-    "alarmName": "Demo: QR Alarm - scan code: wakeup to turn off.",
-    "status": "ON",
-    "offsetMin": 3,
-    "reference": "start",
+# 2) Let's Test it Out
 
-    "qrCodeID": "wakeup",
-    "qrSoundPath": "marimba.mp3",
-    "qrVol": 50
-  }
-```
+To start, you should know that alarms are created via JSON code in the notes section of a calendar event. Don't worry! You don't have to know how JSON works beyond copy/pasting it.
 
-### Demo Event Alarm Explanations
+I recommend using the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to create and edit alarms from a simple interface.
 
-- Alarm 1: regular alarm, like you would find in the clock app.
-- Alarm 2: alarm that starts a timer, and opens the app “Chrome”
-- Alarm 3: silent alarm that cancels the prior timer, speaks text, and displays a notification
-- Alarm 4: QR alarm that loops a marimba sound (if the file exists in the folder, if not it is a generic notification sound) until the QR code below is scanned. (qrCodeID = “wakeup”, made using the CA qrCodeMaker shortcut)
-    1. When this alarm goes off, a menu should pop up to scan the code. If it doesn't, you can *always* scan the QR code with your regular camera app.
-    2. Watch what happens if you don’t interact with your phone for a minute or two while the alarm runs. Another alarm will trigger, which will extend the loop until you scan the code. With no user involvement, this cycle will automatically stop after an hour.
+> [!Note]
+> *Whether you make 1 or 100 alarms on an event, they will live inside **one** JSON code block. Copy/Pasting multiple JSON code blocks to schedule multiple alarms will *not* work - they need to made and pasted as one block.*
+> *You can use whatever calendar app you want, but the calendar you are using must be synced to the iOS calendar app.*
 
-<img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
+<details>
+<summary>Optional: What is JSON, and How does this Work?</summary>
+<br>
 
-`Note: iOS sometimes quietly decides to not run automations based on low battery percentage and/or high cpu load, and that can cause shortcuts to occasionally run late or not at all, or cause a QR alarm to not start immediately. These are unfortunately not issues with this system, but rather apple not giving priority to user automations.`
+JSON is a structured way to label information in `"key":"value"` pairs so a computer can read it reliably. It’s not instructions, it’s *storage*. Think of it like a set of boxes, where the **key** is the label and the **value** is what’s inside.
+
+The JSON in your calendar event stores settings that the **Calendar Alarm Engine** shortcuts uses to schedule alarms in the iOS clock app. The JSON itself *does not do anything* - remember, it is a *storage medium*.
+
+More info can be found in [this article](https://stackoverflow.blog/2022/06/02/a-beginners-guide-to-json-the-data-format-for-the-internet/) from Stack Overflow. If you're feeling advanced, you can always create and edit alarms directly in JSON.
+
+</details>
+
+
+## Demo Time!
+
+To get you accustomed to how this system works, let’s implement 4 test alarms on a demo event. These alarms will go off one after another every minute, lasting 4 minutes total, and will demonstrate various most of the features of the system. The code and further explanations are in the toggle below the instructions. The first run-through could be buggy due to permissions requests, so we'll have you do this twice. 
 
 ### Demo Instructions
 
-1. Make a new event called “demo” (pick any start time for now - the event name and end time do not matter. Copy/Paste the DEMO JSON code below into its notes section. Then, set the event start time to 2 minutes from now.
-2. If you did this on a mac, make sure that this demo event has synced onto your phone’s calendar app. Once it has, close your calendar app to schedule these alarms (approve permissions if needed), and open the clock app. You should have 4 new alarms, all separated by a minute, with the first starting at event_start + 2 minutes.
-3. Let these alarms run through over the next 4-6 minutes, and grant permissions when asked. The first run-through may be buggy due to these permission requests. Once finished, run the alarms again by editing the demo event's start time (again) to 2 minutes from now, and repeat steps 2 and 3.
-4. Optional: feel free to play around with the values inside the code to get a feel for what things do!
+Pre-Steps
+   1. Make sure you either:
+      - Have all of the shortcuts and automations from above installed (including the accessory shortcuts), and that you have another device nearby that can display the below QR code.
+      - OR use the [Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to remove the last alarm (the QR alarm) and/or the shortcuts that are configured to run on alarms 2 and 3.*
+   3. If possible, plug your device in if your battery is below 50%. This will make things go smoother. See FAQ for more info.
 
-## Demo Event JSON
+Main Steps
+   1. In your calendar app, make a new event called “demo” anytime today.
+   2. Copy/Paste the DEMO JSON code from the toggle below into its notes section. Explanations of what these alarms do are also there, but you can also load the code into the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to better understand their settings.
+   3. Then, set the event start time to 2 minutes from now. Example - if it is currently 3:07pm, set it to 3:09pm. If you did this from a Mac - make sure this event has synced to your iPhone.
+   4. Close your calendar app to schedule these alarms (approve permissions if needed - always allow, always delete, always access, etc), and open the clock app. You should have 4 new alarms, all separated by a minute, with the first starting at event_start + 2 minutes.
+   5. Let these alarms run through over the next 4-6 minutes, and approve permissions when asked.
+   6. Once finished, run the alarms again by repeating steps 3-5. This time the experience should be smoother and more representative of normal use.
+   7. Optional: feel free to play around with the values inside the code using the Alarm Editor to get a feel for what things do!
+
+<details>
+<summary>Demo Event Alarm Explanations and Code</summary>
+<br>
+
+- Alarm 1: regular alarm, like you would find in the clock app.
+- Alarm 2: alarm that starts a timer, and displays a custom notificaion.
+- Alarm 3: silent alarm that cancels the prior timer and speaks text.
+- Alarm 4: QR alarm that loops a marimba.mp3 until the QR code below is scanned. If the marimba.mp3 does not exist in the Calendar Alarms folder, it is a generic notification sound. (qrCodeID = “wakeup”, made using the CA qrCodeMaker shortcut)
+    1. When this alarm goes off, a menu should pop up to scan the code below. If it doesn't, you can *always* scan the QR code with your regular camera app.
+    2. Feel free to watch what happens if you don’t interact with your phone for a minute or two while the alarm runs. Another alarm will trigger, which will extend the loop until you scan the code. With no user involvement, this cycle will automatically stop after an hour.
 
 ```json
 [
   {
-    "alarmName": "Demo: This is a basic alarm.",
+    "alarmName": "Demo 1: This is a basic alarm.",
     "status": "ON",
     "offsetMin": 0,
     "reference": "start"
   },
   {
-    "alarmName": "Demo: This alarm starts a 1.1 minute timer and sends a notification.",
+    "alarmName": "Demo 2: This alarm starts a 1.1 minute timer and sends a notification.",
     "status": "ON",
     "offsetMin": 1,
     "reference": "start",
@@ -156,7 +179,7 @@ If you would like to skip the QR alarm demo because you don't have another devic
     ]
   },
   {
-    "alarmName": "Demo: This alarm silences itself in order to silently stop the current timer and speak text.",
+    "alarmName": "Demo 3: This alarm silences itself in order to silently stop the current timer and speak text.",
     "status": "ON",
     "offsetMin": 2,
     "reference": "start",
@@ -174,7 +197,7 @@ If you would like to skip the QR alarm demo because you don't have another devic
     "silenceAlarm": true
   },
   {
-    "alarmName": "Demo: QR Alarm - scan code: wakeup to turn off.",
+    "alarmName": "Demo 4: QR Alarm - scan code: wakeup to turn off.",
     "status": "ON",
     "offsetMin": 3,
     "reference": "start",
@@ -186,240 +209,124 @@ If you would like to skip the QR alarm demo because you don't have another devic
 ]
 ```
 
----
+</details>
 
-# 2) Digging Deeper, and Finishing Setup
+<img width="200" height="200" alt="image" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
 
-## JSON Primer
-As you have seen, Alarms are created via JSON code in the notes section of a Calendar event. Think of JSON as a specific way of writing out a list of settings in "key":"value" pairs, where a "key" represents the name of a setting, and the "value" represents the value you want that setting to be set to. JSON is picky about punctuation, but the rules are simple. More info can be found in [this article](https://stackoverflow.blog/2022/06/02/a-beginners-guide-to-json-the-data-format-for-the-internet/) from StackOverflow. 
 
-For our purposes, an alarm looks like the blank template below. This JSON block includes **one alarm** with every available setting shown. Any number of alarms is possible by copy/pasting the inner alarm object {} - ie everything inside of the outer brackets[], and adding commas between each object.
 
-## Setup a Blank Alarm Template
-- To make new alarm setup easier, create an event that recurs daily. Copy and paste the blank template below into the notes section of that event. Then, under the JSON you just pasted, copy and paste the key explanations as well.
-- Now, just copy/paste the JSON block from that event any time you want to create a new alarm. If an alarm already exists, just copy/paste everything but the outer brackets.
-- You now have everything you need to get started with this system!
+<br>
 
 ---
 
-## Blank Alarm Template
-```json
-[
-  {
-    "alarmName": "Template",
-    "status": "OFF",
-    "offsetMin": 0,
-    "reference": "start",
+<br>
 
-    "qrCodeID": "",
-    "qrSoundPath": "",
-    "qrVol": 50,
-    "qrShortcutsOnScan": [
-      {
-        "name": "",
-        "input": [""]
-      }
-    ],
+# 3) Feature Reference
 
-    "shortcutsOnTrigger": [
-      {
-        "name": "",
-        "input": [""]
-      }
-    ],
-    "silenceAlarm": false,
+## Basic Alarms
 
-    "locationMode": "off",
-    "locations": [
-      [0, 0, 50]
-    ],
+Basic alarms are the default type of alarm. In the editor, just click **Add Alarm** and fill in the top row:
 
-    "silenceIfDriving": "OFF",
-    "conflictingCalendars": [],
-    "reschedMinutes": { "min": 10, "max": 45 },
-    "maxReschedules": 2
-  }
-]
-```
+- **Alarm Name**
+- **Status**
+- **Offset Minutes**
+- **Reference**
 
-### Key explanations (JSON cheat-sheet: text goes in quotes, numbers and true/false do not, and the outermost '{}' are one alarm)
-- alarmName: the name of your alarm
-- status: ON or OFF
-- offsetMin: number of minutes from the start or end of the event. Neg=before, Pos=after. Also accepts a string like “2h”, “-6d”, “+15m” (no decimals)
-- reference: START or END
-- qrCodeID: for qr alarms, this is the unique ID you place in CA qrCodeMaker. eg: your_ID_here (no spaces. Allowed characters: A–Z a–z 0–9 - . _ ~)
-- qrSoundPath: for qr alarms, filename.mp3
-- qrVol: for qr alarms, volume, 1 to 100,
-- qrShortcutsOnScan: for qr alarms, run shortcuts when you scan the QR code. eg: [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
-- shortcutsOnTrigger: run shortcuts when the alarm first goes off. eg: [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
-- silenceAlarm: true or false, useful for silently running a shortcut on trigger.
-- locationMode: whitelist, blacklist, or off -> whitelist = ONLY run if at one of these locations (ie reschedule if not), blacklist = NEVER run if at one of these locations
-- locations: [[lat1, long1, radiusMeters1], [lat2, long2, radiusMeters2], ...],
-- silenceIfDriving: "ON",
-- conflictingCalendars: if event from calendar here conflicts, reschedule alarm. eg: ["calendar name 1", "calendar name 2"],
-- reschedMinutes: number OR { "min": number, "max": number }. Number mode is backward-compatible and treated as { "min": number, "max": 45 }.
-- maxReschedules: "max_number_of_reschedules"
+If you stop there, you have a standard alarm tied to that calendar event.
+
+Use this for simple reminders like:
+
+- leave for the airport in 5 minutes
+- join a meeting
+- wake up - at the end of a Sleep event
 
 ---
-
-# Examples and Further Context
-
-## What are the Formatting Rules?
-- General Rules
-  - You can delete unwanted settings: alarmName is required, but you can delete any other "key": "value" pair (setting) you don’t want. Missing keys are filled with safe defaults (usually equivalent to “off” for optional features). Just don’t change the names of any keys.
-
-  - Unlimited lists: If a value is shown in brackets[] (like locations) or braces{} (like alarms, shortcutsOnTrigger, etc), you can include as many of those objects as you want, separated by commas. Useful for multiple locations, multiple shortcuts, multiple alarms, etc.
-  - You can also have as many alarms as you want on one event by copying/pasting the outer {} alarm object, with commas between each, as shown in an example below.
-
-  - Avoid duplicates: Where possible, avoid creating a Calendar Alarm with the exact same name + time as any other alarm, calendar alarm or regular. Failure to do so can lead to old alarms not being properly deleted due to ambiguity over what is “owned” by Calendar Alarms, and can cause QR alarms to not loop correctly.
-
-- JSON Punctuation Rules
-  - Keys and text values are in quotes, but number values are not. Use regular quotes (" ") NOT smart quotes (“ ”).
-
-  - Commas separate all key/value pairs, all items in arrays [], and all objects {}. Watch out for missing or trailing commas. Extra spaces don’t matter.
-
-  - You can write notes above and below the JSON block, but do not write comments or notes inside of the JSON block itself (ie inside the outer brackets []).
-
-  - The shortcut will notify you of an error if any of these are wrong. When in doubt, no matter what the error says, your problem is commas or quotes (missing, misplaced, or extra).
-    
-
-## Example Single Alarm for Completing a task called “Plan Workday” on an event called “Work” (includes all possible keys)
-```json
-[
-  {
-    "alarmName": "Scan Plan Workday At Computer",
-    "status": "ON",
-    "offsetMin": 30,
-    "reference": "start",
-
-    "qrCodeID": "plan_workday",
-    "qrSoundPath": "wakeup_alarm_ringtone.mp3",
-    "qrVol": 40,
-    "qrShortcutsOnScan": [{"name": "Show Tasks", "input": ["plan_workday", "computer"]}],
-
-    "shortcutsOnTrigger": [{"name": "Open Notion", "input": ["work"]}],
-    "silenceAlarm": false,
-
-    "locationMode": "whitelist",
-    "locations": [[40.0907, -82.8767, 200]],
-
-    "silenceIfDriving": "ON",
-    "conflictingCalendars": ["work meetings", "vacation", "travel"],
-    "reschedMinutes": { "min": 30, "max": 90 },
-    "maxReschedules": 3
-  }
-]
-```
-### What does this Alarm Do?
-- General scheduling and QR settings
-
-  - This alarm is turned on and will go off 30 minutes after the start of the event it’s on.
-
-  - It will play the alarm tone "wakeup_alarm_ringtone.mp3" on loop until a QR code is scanned that contains the qrCodeID "plan_workday".
-
-  - It will run the shortcut “Open Notion” when it triggers and pass the input array `["work"]`.
-
-  - Optional: set `"silenceAlarm": true` for silent one-shot behavior (the alarm is deleted at trigger and only `shortcutsOnTrigger` runs).
-
-  - It will run the shortcut “Show Tasks” when the correct QR code is scanned and pass `["plan_workday", "computer"]` as input.
-
-  - These can be any user-made shortcuts, but names must be exact matches. Input can contain one item or many items.
-
-- Rescheduling logic (effectively “snoozes” if it’s a bad time, up to maxReschedules times)
-
-  - If this alarm triggers while inside a conflicting event from any calendars named "work meetings", "vacation", or "travel", it will reschedule to after the event ends plus a 10 minute buffer **only if that delay is within reschedMinutes.max**.
-
-  - If the user is not within 200 meters of the work coordinates, it estimates travel time and reschedules only when the estimate is within `reschedMinutes.max`.
-  - If locationMode was set to "blacklist", it would reschedule if the user was at work.
-
-  - If the user is in the driving focus mode, it will reschedule based on an approximation of travel time to the whitelisted location.
-
-## Example Double Alarm Sleep Event
-```json
-[
-  {
-    "alarmName": "Go to Bed in 1 hour",
-    "status": "ON",
-    "offsetMin": -60,
-    "reference": "start"
-  },
-  {
-    "alarmName": "Wake Up",
-    "status": "ON",
-    "offsetMin": 0,
-    "reference": "end",
-
-    "qrCodeID": "toothbrush",
-    "qrSoundPath": "wakeup_alarm_ringtone.mp3",
-    "qrSoundLen": 2.13,
-    "qrVol": 40,
-    "qrShortcutsOnScan": [{"name": "Show Morning Tasks", "input": ["wake"]}],
-
-    "shortcutsOnTrigger": [{"name": "Turn Lights On", "input": ["bedroom", "50%"]}],
-    "silenceAlarm": false,
-
-    "silenceIfDriving": "ON",
-    "conflictingCalendars": ["work meetings", "vacation"],
-    "reschedMinutes": 30,
-    "maxReschedules": 3
-  }
-]
-```
-### Notes on These Alarms
-- These two alarms would exist on a hypothetical event called “Sleep” that begins at 11PM and ends at 7AM, and serve to notify the user to go to bed and to wake up, respectively.
-
-- The first alarm will go off at 10PM to say “Go to Bed in 1 hour”.
-
-- The second alarm will go off at 7AM and will require you to scan a QR code to turn off.
-
-## C) How to manually schedule alarms
-The automations above will automatically schedule any alarm(s) you make on your phone, and any alarm(s) that will run after today. However, if you make an alarm on another device that is intended to trigger today, you might need to manually schedule it.
-
-To do so: run Calendar Alarms Engine once manually after adding or editing your alarm(s). This forces a sync. After it runs, any alarm scheduled to go off today (even from events ±7 days with offsetMin values that put them in range of today) should now exist in the Clock app.
-
-## FAQ
-- What are some use cases for launching shortcuts from alarms?
-    - set a cascade of create timer/delete timer shortcuts and/or Show Input Notification shortcuts to silently “pace” your morning or night routine, while never having to touch your phone.
-    - get travel time to work before your commute in the morning
-    - send a text to the numbers you list to remind them to check in for their flight. This flight can be in 6 months, and when the alarm time comes, it will send those texts.
-    - set your thermostat or lights when you leave home, when you return from work, or before you wake up or go to bed.
-- Can I send multiple inputs to a shortcutOnTrigger, etc?
-   - Yes. Place your input in a JSON format, and use the “get dictionary from input” and "get dictionary value" actions to parse it out.
-- Why are there 2 duplicate alarms for a QR alarm while it is active?
-   - iOS sometimes doesn't run shortcuts from automations even when it should. This second alarm is a backup trigger in case that happens.
-
-# Advanced Features
 
 ## QR Alarms
-- Every QR alarm needs a matching QR code to turn it off. Since QR codes are just text stored in image form, in this system, the “text” is a Shortcuts URL that launches the Calendar Alarms QR Scanner shortcut with your "qrCodeID" as input. Multiple alarms can share the same code.
 
-- QR code format (copy/paste): Replace "qrCodeID" with your chosen qrCodeID, and make sure it matches the qrCodeID in your alarm JSON. This ID can be anything you want, subject to the rules in the template bullet points.
+Use a QR alarm when you want the alarm to require physical action to turn off.
 
-  - ```shortcuts://run-shortcut?name=Calendar%20Alarms%20QR%20Scanner&input=YOUR_ID```
-- How to turn off a QR alarm: Scan the code using either the iPhone Camera app, or the Calendar Alarms QR Scanner shortcut directly.
+In the editor, open **Advanced Settings** and fill in **QR Alarm Properties**. Once enabled, the alarm will keep looping until the correct QR code is scanned by the iPhone Camera app or the Prompt that shows on-screen during a QR alarm.
 
-- Reliability note (iOS limitation): On low battery or under heavy system load, iOS may silently decide not to run an alarm-triggered automation. If that happens, a QR alarm may stop re-triggering after a few minutes, even though it hasn’t been scanned yet.
+- Each QR alarm will have a matching QR code that turns it off. Generate that matching QR code by putting the qrCodeID from the alarm into the CA qrCodeMaker apple shortcut. Multiple alarms can share the same code. Scan that code to turn the alarm off.
+- If you ever find yourself with no ability to scan the code, turn your phone off and back on, then open the clock app and turn off the next scheduled QR alarm before the clock app closes. The alarm will be automatically marked as complete after an hour. This is intentionally annoying to do, because otherwise it doesn't enforce behavior.
+- Since QR codes are just text stored in image form, in this system, the “text” is a Shortcuts URL that launches the *Calendar Alarms QR Scanner* shortcut with your "qrCodeID" as input.
 
-  - Mitigation: the system uses a backup alarm to increase reliability, but it’s not foolproof.
+Good use cases:
 
-  - Stale alarms: unattended QR loops expire after 1 hour, after which the system will automatically delete them.
+- forcing yourself out of bed
+- making yourself go to your desk, open your task manager app, and scan the code on a task titled "plan your workday"
+- requiring yourself to reach a real location before dismissing the alarm
 
-## Task Looping Alarms (repeat until complete)
-- Alarms of all types can be set to loop if a task (metric) has not been completed, a maximum number of *maxReschedules* times.
-   - example 1: keep reminding me every 30 minutes to feed the dog until I log that I fed the dog.
-   - example 2: keep looping a QR alarm that forces me to go to my computer until I have logged that I looked at my schedule.
+---
+
+## Trigger Shortcuts and Silent Alarms
+
+Use **Trigger & Silence Properties** when you want an alarm to do something beyond just ring.
+
+This lets you:
+
+- run one or more shortcuts when the alarm goes off
+- make the alarm self-silence while still running those actions
+
+This is useful for things like spoken reminders, notifications, timers, lights, or custom automations.
+
+---
+
+## Rescheduling
+
+Use **Rescheduling Properties** when an alarm should go off at the right time, not just the original time.
+
+Depending on how you configure it, the alarm can wait and try again later if:
+
+- you are driving
+- you are in a conflicting calendar event
+- you are not yet at the right location
+- you are at a location where the alarm should not fire
+
+This is useful for context-dependent reminders like “review my day plan once I actually get to work.”
+
+---
+
+## Task Looping
+
+## Advanced: Task Looping
+- Use **Task Looping** when an alarm should keep coming back until one or more tasks are completed.
 - This feature uses [OpenHabits](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector), the habit tracking & app lockout system I designed which allows you to log metrics/habits to google sheets. You'll have to install that for this to work.
-- To use task looping, add the following keys to your JSON template.
-  
-```json
-    "taskIDs": "",
-    "taskLoopMin": 30,
-    "ignoreTaskCheckFirstTime": false,
-```
+- Alarms of all types can be set to loop if a task (ie metric) has not been completed, a maximum number of *maxReschedules* times.
+   - example 1: keep reminding me every 30 minutes to feed the dog until I log that I fed the dog.
+   - example 2: keep looping a QR alarm that forces me to go to my computer until I have logged that I planned my workday.
+   - example 3: keep reminding me to go to bed until I have logged that I flossed.
+- In the event that you intend on logging metric completion to your OphenHabits google sheet from anywhere other than iOS shortcuts (like notion, the sheet itself, etc), you will need the [Task Alarm Resetter](https://www.icloud.com/shortcuts/d1f393c9331244edaee10041944d776d) shortcut, since your phone's local metric cache may not always be up to date with the sheet. Follow the instructions inside the shortcut.
 
-### Key Explanations
-- taskIDs: list of metrics, like: ["metricID1","metricID2"]
-- taskLoopMin: the duration to loop at.
-- ignoreTaskCheckFirstTime: if true, the first non-rescheduled task-loop fire skips the task-completion check and is treated as incomplete; all other rescheduling logic still applies.
+---
 
-- In the event that you intend on logging information to your metric google sheet from anywhere other than iOS shortcuts (like notion, the sheet itself, etc), you will need the [Task Alarm Resetter](https://www.icloud.com/shortcuts/526d7a32ff1e49a8919f30814d352e0e) shortcut, since your phone's local metric cache may not always be up to date with the sheet. You will have to input your apps script webappid near the top.
+## Combining Features
+
+You can combine multiple behaviors on the same alarm.
+
+For example, one alarm can:
+
+- require a QR scan
+- run shortcuts on trigger
+- reschedule if you are driving
+- keep looping until a task is complete
+
+For most users, the best approach is to start simple, test it once, and then add more advanced behavior when needed.
+
+---
+
+# 4) FAQ
+- What are some use cases for launching shortcuts from alarms?
+    - upon your wakeup alarm going off, turn your lights on, fan off, thermostat up, and coffee maker on. Because it's tied to a calendar event, you can change your wake time and it all moves with it.
+    - set a cascade of create timer/delete timer shortcuts and/or Show Input Notification shortcuts to silently “pace” your morning or night routine, while never having to touch your phone.
+    - get travel time to work before your commute in the morning
+    - send a text to a set group of phone numbers (your friends perhaps) to remind them to check in for their flight. This flight can be in 6 months, and when the alarm time comes, it will send those texts automtically.
+- Can I send multiple inputs to a shortcutOnTrigger, etc?
+   - Yes. Place your input in a JSON format, and use the “get dictionary from input” and "get dictionary value" actions to parse it out.
+- My alarm didn't delete itself and/or a shortcut didn't run, even though it was configured to. Or it worked, but it was delayed.
+   - iOS sometimes quietly decides to not run automations based on low battery percentage and/or high cpu load, and that can cause shortcuts to occasionally run late or not at all. Unfortunately, this is an apple thing, and means that advanced features can be less reliable on low power, hot cpu, old devices, etc, and can occasionally cause QR alarms to not start immediately, QR or silent alarms to not be auto-deleted, or configured shortcuts to not be run.*
+- Why are there 2 duplicate alarms for a QR alarm while it is active?
+   - same reason as above - iOS sometimes doesn't run shortcuts from automations even when it should. This second alarm is a backup trigger in case that happens.
+
+
