@@ -46,3 +46,7 @@ The important part is that this does **not** affect normal usage of your Calenda
 It also runs entirely on your own device and iCloud account. There are no third-party servers involved.
 
 ### Next Step >> [Setup Guide](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Setup%20Guide.md)
+
+<br>
+
+*OpenHabits was created by Mike, founder of [Sierra Mille](https://www.sierramille.com/). It grew out of a broader interest in designing environments, digital and physical, that make the right behavior easier than the wrong one.*
