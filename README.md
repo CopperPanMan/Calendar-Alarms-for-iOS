@@ -1,28 +1,48 @@
-# iOS Calendar Alarms
+# Calendar Alarms for iOS
 
 ## What is this?
 
-Calendar Alarms for iOS is the most powerful alarm "app” available today, and it’s not even an app. Instead, it’s a handful of shortcuts and automations entirely owned by you, for free, forever.
-In addition to your normal iOS clock app functionality, iOS Alarms can now be set using the notes section of your calendar events. For instance:
+Calendar Alarms is the most powerful alarm app available today — and it isn’t even an app.
 
-- **Never oversleep with the QR code scanning feature -** By setting QR code alarms, you can force yourself to go to any place, at any time.
-- **Never miss a deadline** - set 3 staggered alarms for your flight in 3 months right from its calendar event so you never check in or leave late again!
-- **Run custom shortucts from alarms** - run your own shortcuts upon a specific alarm going off or a qr alarm-code being scanned - like turning your lights on, or sending a text
-- **Keep your clock app clutter free** - No more irrelevant old alarms. Class was cancelled? If the calendar alarm is outdated or the event no longer exists, the system deletes it from the clock app for you.
-- **Get notified only when it counts** – this system can automatically reschedule alarms to a better time, like if you’re driving, if you have a conflicting meeting, if you aren’t at work or home yet, and even more.
+Instead, it’s a set of Apple Shortcuts and automations that you own completely, running on your own device, for free, forever.
+
+It adds powerful new behavior to the iPhone alarm app by letting you define alarms inside the **Notes** section of your calendar events. That means your alarms can now live alongside the events they belong to, instead of being scattered across the Clock app.
+
+## Why use it?
+
+With Calendar Alarms for iOS, you can:
+
+- **Shift multiple alarms on one event at one time**  
+  Move all 10 of your wakeup alarms forward or back in time at the same time.
+
+- **Force yourself out of bed with QR alarms**  
+  Require yourself to scan a QR code in a real location before the alarm will stop.
+
+- **Set alarms months in advance, right on the event that matters**  
+  Add multiple alarms to a flight, appointment, meeting, or deadline directly inside that calendar event.
+
+- **Run your own shortcuts when alarms go off**  
+  Turn on lights, send texts, start timers, speak reminders, or trigger any other shortcut you want.
+
+- **Keep the Clock app clean automatically**  
+  If an event is deleted, changed, or becomes outdated, its alarms are cleaned up for you.
+
+- **Get notified when it actually makes sense**  
+  Alarms can automatically reschedule themselves if you’re driving, in a conflicting meeting, or not yet at the right location.
 
 ## How does it work?
 
+You write small JSON alarm definitions inside a Calendar event’s **Notes** field. You can do that manually, or use the [**Alarm Editor**](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to make it easier.
 
+The system reads those definitions, creates matching iOS Clock alarms, and manages more advanced behavior like:
 
-You write small JSON “alarm definitions” inside a Calendar event’s Notes. The system converts those into iOS Clock alarms, and maintain runtime behavior for some more complex features, such as optional QR-codes to turn off, and optional rescheduling behavior for things like calendar conflicts, driving, or location settings.
+- QR-code shutoff
+- trigger shortcuts
+- smart rescheduling
+- cleanup of outdated alarms
 
-The important bit: this system does not effect normal usage of your calendar or clock app. It only adds functionality to what your phone can currently do. It runs entirely on your own device and using your own iCloud account - no 3rd party servers, here.
+The important part is that this does **not** affect normal usage of your Calendar or Clock app. It only adds functionality on top of what your phone already does.
+
+It also runs entirely on your own device and iCloud account. There are no third-party servers involved.
 
 ### Next Step >> [Setup Guide](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Setup%20Guide.md)
-
-## Alarm JSON GUI Editor (GitHub Pages friendly)
-
-This repo now includes a static web editor in `alarm-json-editor/` for creating and editing calendar alarm JSON with a form-based GUI (including advanced settings, add/delete alarm, paste/load existing JSON, and output/copy-to-clipboard support).
-
-To publish it with GitHub Pages, set Pages to deploy from the branch/folder that contains this subfolder (or copy these files into your Pages root) and open `alarm-json-editor/index.html`.
