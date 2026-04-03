@@ -1,5 +1,10 @@
 ### Quick Link: [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/)
 
+This guide covers one-time setup, a first demo, and the main features of the system.
+
+<br>
+<br>
+
 # 1) One-time setup (15–30 minutes)
 
 ## A) Install apps
