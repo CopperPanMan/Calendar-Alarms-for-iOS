@@ -996,14 +996,40 @@ function inferFiredOwnedAlarm(iosAlarms, registryArr, nowSec) {
       const r = registryArr[i];
       if (r.alarmName !== name) continue;
 
-      const rt = epochToHHMM(r.nextFireTime);
-      if (rt.hh !== hh || rt.mm !== mm) continue;
+      const candidates = [];
 
-      const delta = Math.abs(r.nextFireTime - nowSec);
-      if (delta > 15 * 60) continue;
+      const nextEpoch = Number(r.nextFireTime ?? 0);
+      if (Number.isFinite(nextEpoch) && nextEpoch > 0) {
+        const nextHHMM = epochToHHMM(nextEpoch);
+        if (nextHHMM.hh === hh && nextHHMM.mm === mm) {
+          candidates.push({ firedEpoch: nextEpoch, source: "nextFireTime" });
+        }
+      }
 
-      if (!best || delta < best.delta) best = { registryIndex: i, ios: cand.ios, delta };
-      else if (best && delta === best.delta) best = { ambiguous: true };
+      const backupEpoch = Number(r.qrBackupFireTime ?? 0);
+      if (Number.isFinite(backupEpoch) && backupEpoch > 0) {
+        const backupHHMM = epochToHHMM(backupEpoch);
+        if (backupHHMM.hh === hh && backupHHMM.mm === mm) {
+          candidates.push({ firedEpoch: backupEpoch, source: "qrBackupFireTime" });
+        }
+      }
+
+      for (const match of candidates) {
+        const delta = Math.abs(match.firedEpoch - nowSec);
+        if (delta > 15 * 60) continue;
+
+        if (!best || delta < best.delta) {
+          best = {
+            registryIndex: i,
+            ios: cand.ios,
+            delta,
+            firedEpoch: match.firedEpoch,
+            firedSource: match.source,
+          };
+        } else if (best && delta === best.delta) {
+          best = { ambiguous: true };
+        }
+      }
     }
   }
 
@@ -1425,7 +1451,7 @@ async function tryFastPath(input, registryAfter) {
   const name = entry.alarmName;
   const firedHH = fired.ios.hh;
   const firedMM = fired.ios.mm;
-  const fireEpoch = Number(entry.nextFireTime ?? 0) || now;
+  const fireEpoch = Number(fired.firedEpoch ?? 0) || Number(entry.nextFireTime ?? 0) || now;
 
   // Only proceed if the fired iOS alarm is uniquely identifiable
   if (findIOSMatches(input.iosAlarms, name, firedHH, firedMM) !== 1) {
