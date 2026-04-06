@@ -17,7 +17,7 @@ const LOCK_STALE_SEC = 30;
 const LOCK_RETRY_DELAY_MS = 500;
 const LOCK_HARD_TIMEOUT_MS = 30000;
 
-const MENU_DEDUPE_SEC = 20;        // avoid duplicate menu overlays
+const MENU_DEDUPE_SEC = 9;        // avoid duplicate menu overlays
 const MENU_STALE_SEC = 120;        // stuck-rescue
 
 const FILES = {
