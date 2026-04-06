@@ -162,7 +162,7 @@ Main Steps
 
 <img width="150" height="150" alt="image" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
 <br>
-<em>qrCodeID = “wakeup”, made using the CA qrCodeMaker shortcut</em>
+<em>This QR code was generated in the CA qrCodeMaker shortcut using qrCodeID = "wakeup". Find more on configuring QR alarms in the QR Alarm section of Feature Reference, below.</em>
 
 <br>  
 <br>
@@ -262,7 +262,7 @@ Use a QR alarm when you want the alarm to require physical action to turn off.
 
 In the editor, open **Advanced Settings** and fill in **QR Alarm Properties**. Once enabled, the alarm will keep looping until the correct QR code is scanned by the iPhone Camera app or the Prompt that shows on-screen during a QR alarm.
 
-- Each QR alarm will have a matching QR code that turns it off. Generate that matching QR code by putting the qrCodeID from the alarm into the CA qrCodeMaker apple shortcut. Multiple alarms can share the same code. Scan that code to turn the alarm off.
+- Each QR alarm will have a matching QR code that turns it off. Generate that matching QR code by putting the qrCodeID from the alarm into the CA qrCodeMaker apple shortcut, or using its URL format. Multiple alarms can share the same code. Scan that code to turn the alarm off.
 - Since QR codes are just text stored in image form, in this system, the “text” is a Shortcuts URL that launches the *Calendar Alarms QR Scanner* shortcut with your "qrCodeID" as input.
 
 Good use cases:
