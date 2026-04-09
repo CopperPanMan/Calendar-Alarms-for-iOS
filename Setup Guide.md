@@ -107,7 +107,7 @@ You have now completed the one-time setup!
 
 To start, you should know that alarms are created via JSON code in the notes section of a calendar event. Don't worry! You don't have to know how JSON works beyond copy/pasting it.
 
-I recommend using the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to create and edit alarms from a simple interface.
+I recommend using the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to create and edit alarms from a simple interface. Tip - put a link to this editor in the notes of a recurring Calendar Event to always have easy access.
 
 > [!Note]
 > *Whether you make 1 or 100 alarms on an event, they will live inside **one** JSON code block. Copy/Pasting multiple JSON code blocks to schedule multiple alarms will *not* work - they need to be made and pasted as one block.*
