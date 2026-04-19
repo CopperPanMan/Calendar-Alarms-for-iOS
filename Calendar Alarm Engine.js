@@ -1190,7 +1190,7 @@ function shouldAppendTaskResetter(entry) {
 function buildTriggerActionsForTaskLoop(entry, nextAlarmPayload) {
   const actions = normalizeShortcutActionList(entry?.shortcutsOnTrigger);
   if (!shouldAppendTaskResetter(entry)) return actions;
-  actions.push(makeTaskResetterAction(entry, nextAlarmPayload));
+  actions.unshift(makeTaskResetterAction(entry, nextAlarmPayload));
   return actions;
 }
 
