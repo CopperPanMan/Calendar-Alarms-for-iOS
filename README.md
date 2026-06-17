@@ -25,7 +25,7 @@ With Calendar Alarms for iOS, you can:
   Turn on lights, send texts, start timers, speak reminders, or trigger any other shortcut you want.
 
 - **Keep the Clock app clean automatically**  
-  If an event is deleted, changed, or becomes outdated, its alarms are cleaned up for you.
+  If an event is deleted, changed, becomes outdated, or your timezone changes, its alarms are cleaned up and re-created at the correct local Clock time for you.
 
 - **Get notified when it actually makes sense**  
   Alarms can automatically reschedule themselves if you’re driving, in a conflicting meeting, or not yet at the right location.
@@ -40,6 +40,7 @@ The system reads those definitions, creates matching iOS Clock alarms, and manag
 - trigger shortcuts
 - smart rescheduling
 - cleanup of outdated alarms
+- timezone-crossing adjustments that keep Clock alarms aligned to the phone’s current local time
 
 The important part is that this does **not** affect normal usage of your Calendar or Clock app. It only adds functionality on top of what your phone already does.
 

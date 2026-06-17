@@ -191,4 +191,4 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 ## C) How to manually schedule alarms
 The automations above will automatically schedule any alarm(s) you make on your phone, and any alarm(s) that will run after today. However, if you make an alarm on another device that is intended to trigger today, you might need to manually schedule it.
 
-To do so: run Calendar Alarms Engine once manually after adding or editing your alarm(s). This forces a sync. After it runs, any alarm scheduled to go off today (even from events ±7 days with offsetMin values that put them in range of today) should now exist in the Clock app.
+To do so: run Calendar Alarms Engine once manually after adding or editing your alarm(s). This forces a sync. After it runs, any alarm scheduled to go off today (even from events ±7 days with offsetMin values that put them in range of today) should now exist in the Clock app. If you cross timezones, running the engine also lets Calendar Alarms clean up the old local Clock time it created and recreate/keep the alarm at the phone’s current local time.

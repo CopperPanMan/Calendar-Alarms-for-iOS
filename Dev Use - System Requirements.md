@@ -148,10 +148,13 @@ Registry-only keys (must exist for any registry entry):
 
 - `calcFireTime` (epoch seconds; computed from calendar event start/end + `offsetMin`; set when verifier runs. Refers to the original intended time)
 - `prevFireTime` (epoch seconds; prior scheduled fire time for cleanup)
+- `prevFireHHMM` (string; Clock-facing `HH:mm` that was used for `prevFireTime`, for timezone-safe cleanup)
 - `nextFireTime` (epoch seconds; next scheduled fire time that should exist as an iOS alarm)
+- `nextFireHHMM` (string; Clock-facing `HH:mm` that was used for `nextFireTime`, for timezone-safe cleanup)
 - `firstQRFireTime` (epoch seconds or empty; only set when QR alarm first actually triggers)
 - `qrActive` (boolean; true while QR loop is active)
 - `qrBackupFireTime` (epoch seconds; backup scheduled fire time that should exist as an iOS alarm when QR loop is active)
+- `qrBackupHHMM` (string; Clock-facing `HH:mm` that was used for `qrBackupFireTime`, for timezone-safe cleanup)
 
 Task-loop runtime keys (registry-only):
 
@@ -166,7 +169,7 @@ Task-loop runtime keys (registry-only):
 
 The system must only add/delete iOS alarms that are “owned” by this system:
 
-- Owned if it matches a registry entry (name + time derived from `nextFireTime` or `qrBackupFireTime`), or
+- Owned if it matches a registry entry (name + stored Clock-facing `nextFireHHMM`, `prevFireHHMM`, or `qrBackupHHMM`; fall back to deriving from the matching epoch only for legacy entries), or
 - Owned if it matches a validated expected alarm from Calendar during verifier reconciliation.
 
 ### Never delete unrelated alarms
@@ -625,16 +628,18 @@ If any task completion query fails (no internet / timeout / error):
 
 ---
 
-## 13) Timezone constraint / mitigation
+## 13) Timezone behavior / mitigation
 
-Known limitation:
+Expected behavior:
 
-- Device timezone changes can cause temporary mismatches between registry epochs and iOS HH:MM.
+- Calendar event times are read in the phone’s current local timezone, so newly generated alarms should use the current local Clock time after travel.
+- Registry entries store epoch seconds as the canonical scheduling values and also store Clock-facing `HH:mm` mirror fields (`nextFireHHMM`, `prevFireHHMM`, `qrBackupHHMM`) for the exact iOS Clock alarms the system created.
+- When deleting owned Clock alarms, Engine must use the stored `HH:mm` mirror first, then fall back to deriving `HH:mm` from the epoch only for legacy registry entries that do not have the mirror field.
+- If multiple iOS Clock alarms have the same `alarmName + HH:mm`, Engine must not delete any of them and must record an ambiguity warning, because iOS does not expose stable Clock alarm IDs.
 
-Mitigation:
+Known migration limitation:
 
-- Engine runs whenever any alarm goes off; verifier will re-align future alarms under the new timezone.
-- It is acceptable that one alarm may misfire during transition, but the system must converge afterward.
+- Existing pre-mirror registry entries may not be able to clean up stale alarms created in an earlier timezone because they do not contain the original Clock-facing `HH:mm`. After a successful reconciliation creates or refreshes an alarm, future timezone crossings should clean up using the stored mirror value.
 
 ---
 
