@@ -81,6 +81,7 @@ While a few are optional, it is recommended that you create these **5 automation
 
 2. *(Required)* **Alarm** → When any alarm goes off, run immediately → run shortcut **Calendar Alarms Engine**
    - *What it does:* Runs the brains of the system. It schedules new alarms, deletes old ones, and manages QR and reschedule loops where applicable.
+   - *Timezone note:* If you travel across timezones, the engine uses the phone’s current local Calendar times for new alarms and cleans up the prior local Clock alarms it created.
 
 3. *(Optional)* **Alarm** → When any alarm goes off, run immediately → run shortcut **Calendar Alarms QR Scanner**
    - *What it does:* Presents a menu with scan options when QR alarms run that makes scanning codes easier, so you don’t have to manually open the camera.

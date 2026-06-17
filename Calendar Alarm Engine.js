@@ -26,6 +26,7 @@ const DISABLED_CALENDAR_NAMES = [];
 // IMPORTANT: This introduces registry-only keys:
 // - taskSatisfied (boolean): suppresses future scheduling for that calendar alarm until TTL cleanup.
 // - qrBackupFireTime (number): backup QR loop fire time (failsafe alarm).
+// - nextFireHHMM / prevFireHHMM / qrBackupHHMM (string): Clock-facing HH:mm mirrors used for safe iOS alarm cleanup across timezone changes.
 //
 // Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
 // Output: JSON string set via Script.setShortcutOutput()
@@ -219,6 +220,24 @@ function pad2(n) {
 function epochToHHMM(epochSec) {
   const d = new Date(epochSec * 1000);
   return { hh: pad2(d.getHours()), mm: pad2(d.getMinutes()) };
+}
+
+function epochToHHMMString(epochSec) {
+  const { hh, mm } = epochToHHMM(epochSec);
+  return `${hh}:${mm}`;
+}
+
+function parseHHMMString(s) {
+  const t = String(s ?? "").trim();
+  const m = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return null;
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+
+  return { hh: pad2(h), mm: pad2(min) };
 }
 
 function epochTo12HourTime(epochSec) {
@@ -564,13 +583,24 @@ function findIOSMatches(iosAlarms, name, hh, mm) {
 }
 
 function queueDeleteIOSIfUnique(iosAlarms, name, epochSec) {
-  const { hh, mm } = epochToHHMM(epochSec);
-  const c = findIOSMatches(iosAlarms, name, hh, mm);
+  return queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, name, "", epochSec);
+}
+
+function queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, name, storedHHMM, fallbackEpochSec) {
+  let hhmm = parseHHMMString(storedHHMM);
+
+  if (!hhmm && Number.isFinite(Number(fallbackEpochSec)) && Number(fallbackEpochSec) > 0) {
+    hhmm = epochToHHMM(fallbackEpochSec);
+  }
+
+  if (!hhmm) return false;
+
+  const c = findIOSMatches(iosAlarms, name, hhmm.hh, hhmm.mm);
   if (c === 1) {
-    output.alarmsToDelete.push({ name, hh, mm });
+    output.alarmsToDelete.push({ name, hh: hhmm.hh, mm: hhmm.mm });
     return true;
   }
-  if (c > 1) addError(`ERR: duplicate iOS alarms found (won't delete): "${name}" @ ${hh}:${mm}`);
+  if (c > 1) addError(`ERR: duplicate iOS alarms found (won't delete): "${name}" @ ${hhmm.hh}:${hhmm.mm}`);
   return false;
 }
 
@@ -583,6 +613,21 @@ function queueAddIOSIfMissing(iosAlarms, name, epochSec) {
   }
   if (c > 1) addError(`ERR: duplicate iOS alarms exist (won't add): "${name}" @ ${hh}:${mm}`);
   return false;
+}
+
+function refreshNextFireHHMMAndDeleteStaleIOS(iosAlarms, entry) {
+  const next = Number(entry?.nextFireTime ?? 0);
+  if (!Number.isFinite(next) || next <= 0) {
+    entry.nextFireHHMM = "";
+    return;
+  }
+
+  const desiredHHMM = epochToHHMMString(next);
+  const stored = parseHHMMString(entry.nextFireHHMM);
+  if (stored && `${stored.hh}:${stored.mm}` !== desiredHHMM) {
+    queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, entry.alarmName, entry.nextFireHHMM, next);
+  }
+  entry.nextFireHHMM = desiredHHMM;
 }
 
 function dedupeOutputOps() {
@@ -793,9 +838,11 @@ function ensureRegistryEntryShape(entry) {
 
   const nf = Number(entry.nextFireTime);
   entry.nextFireTime = floorToMinute(Number.isFinite(nf) ? Math.trunc(nf) : entry.calcFireTime);
+  if (typeof entry.nextFireHHMM !== "string") entry.nextFireHHMM = "";
 
   const pf = Number(entry.prevFireTime);
   entry.prevFireTime = Number.isFinite(pf) ? floorToMinute(Math.trunc(pf)) : 0;
+  if (typeof entry.prevFireHHMM !== "string") entry.prevFireHHMM = "";
 
   if (entry.firstQRFireTime === "" || typeof entry.firstQRFireTime === "undefined") {
     entry.firstQRFireTime = "";
@@ -807,6 +854,7 @@ function ensureRegistryEntryShape(entry) {
   entry.qrActive = !!entry.qrActive;
   const qb = Number(entry.qrBackupFireTime);
   entry.qrBackupFireTime = Number.isFinite(qb) ? floorToMinute(Math.trunc(qb)) : 0;
+  if (typeof entry.qrBackupHHMM !== "string") entry.qrBackupHHMM = "";
 
   // Registry-only task keys:
   // - taskSatisfied: suppress scheduling once this task-loop alarm is satisfied.
@@ -1376,25 +1424,28 @@ function updateQRBackupAlarm(entry, baseEpoch, iosAlarms) {
 
   const existing = Number(entry.qrBackupFireTime ?? 0);
   if (Number.isFinite(existing) && existing > 0 && existing !== backup) {
-    queueDeleteIOSIfUnique(iosAlarms, entry.alarmName, existing);
+    queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, entry.alarmName, entry.qrBackupHHMM, existing);
   }
 
   entry.qrBackupFireTime = backup;
+  entry.qrBackupHHMM = epochToHHMMString(backup);
   queueAddIOSIfMissing(iosAlarms, entry.alarmName, backup);
 }
 
 function clearQRBackupAlarm(entry, iosAlarms) {
   const existing = Number(entry.qrBackupFireTime ?? 0);
   if (Number.isFinite(existing) && existing > 0) {
-    queueDeleteIOSIfUnique(iosAlarms, entry.alarmName, existing);
+    queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, entry.alarmName, entry.qrBackupHHMM, existing);
   }
   entry.qrBackupFireTime = 0;
+  entry.qrBackupHHMM = "";
 }
 
 function scheduleQRLoop(entry, baseEpoch, iosAlarms) {
   const base = floorToMinute(baseEpoch);
   const next = base + QR_LOOP_INTERVAL_SEC;
   updateQRBackupAlarm(entry, base, iosAlarms);
+  entry.nextFireHHMM = epochToHHMMString(next);
   queueAddIOSIfMissing(iosAlarms, entry.alarmName, next);
   return next;
 }
@@ -1505,7 +1556,9 @@ async function tryFastPath(input, registryAfter) {
 
       entry.maxReschedules = loopsRemaining - 1;
       entry.prevFireTime = entry.nextFireTime;
+      entry.prevFireHHMM = entry.nextFireHHMM;
       entry.nextFireTime = floorToMinute(next);
+      entry.nextFireHHMM = epochToHHMMString(entry.nextFireTime);
       queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
 
       if (hasQR && entry.qrActive === true) {
@@ -1562,7 +1615,9 @@ async function tryFastPath(input, registryAfter) {
       );
       entry.maxReschedules = loopsRemaining - 1;
       entry.prevFireTime = entry.nextFireTime;
+      entry.prevFireHHMM = entry.nextFireHHMM;
       entry.nextFireTime = floorToMinute(next ?? (now + taskLoopMin * 60));
+      entry.nextFireHHMM = epochToHHMMString(entry.nextFireTime);
 
       queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
       const nextHHMM = epochToHHMM(entry.nextFireTime);
@@ -1681,11 +1736,14 @@ async function tryFastPath(input, registryAfter) {
       if (remaining > 0) {
         const next = await computeRescheduleTime(entry, fireEpoch, input.currentFocus, input.currentLocation, /* includeTaskBaseline */ true);
         entry.prevFireTime = entry.nextFireTime;
+        entry.prevFireHHMM = entry.nextFireHHMM;
         entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
+        entry.nextFireHHMM = epochToHHMMString(entry.nextFireTime);
 
         queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
       } else {
         entry.prevFireTime = entry.nextFireTime;
+        entry.prevFireHHMM = entry.nextFireHHMM;
       }
     }
 
@@ -1722,7 +1780,9 @@ async function tryFastPath(input, registryAfter) {
       if (!isCalendarFire) {
         // Optional: clear scheduling pointers so verifier can cleanly re-establish later
         entry.prevFireTime = entry.nextFireTime;
+        entry.prevFireHHMM = entry.nextFireHHMM;
         entry.nextFireTime = 0;
+        entry.nextFireHHMM = "";
         clearQRBackupAlarm(entry, input.iosAlarms);
         output.qrLoop = false;
         return { handled: true };
@@ -1736,6 +1796,7 @@ async function tryFastPath(input, registryAfter) {
 
     // Continue ringing (minute tick)
     entry.prevFireTime = entry.nextFireTime;
+    entry.prevFireHHMM = entry.nextFireHHMM;
     entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
     output.qrLoop = true;
     output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
@@ -1816,13 +1877,16 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         ...a,
         calcFireTime,
         prevFireTime: 0,
+        prevFireHHMM: "",
         nextFireTime: calcFireTime,
+        nextFireHHMM: epochToHHMMString(calcFireTime),
         firstQRFireTime: "",
         qrActive: false,
         taskSatisfied: false,
         taskCheckFirstFireHandled: false,
         taskLoopEligible: false,
         qrBackupFireTime: 0,
+        qrBackupHHMM: "",
       });
     }
   }
@@ -1878,25 +1942,29 @@ async function runVerifier(input, registryAfter) {
       }
       const backupTime = Number(r.qrBackupFireTime ?? 0);
       if (Number.isFinite(backupTime) && backupTime < nowMinute) {
-        queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, backupTime);
+        queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.qrBackupHHMM, backupTime);
         r.qrBackupFireTime = 0;
+        r.qrBackupHHMM = "";
       }
     } else if (Number(r.qrBackupFireTime ?? 0) > 0) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.qrBackupHHMM, r.qrBackupFireTime);
       r.qrBackupFireTime = 0;
+      r.qrBackupHHMM = "";
     }
 
     // ✅ Delete any owned iOS alarms that are in the past (but NOT this minute)
     // This keeps Clock tidy and prevents clutter from already-fired alarms.
     if (Number.isFinite(r.nextFireTime) && r.nextFireTime < nowMinute) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.nextFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.nextFireHHMM, r.nextFireTime);
     }
 
     // If QR is active and its nextFireTime somehow fell behind (device off / missed),
     // push it forward to the next minute so the loop continues cleanly.
     if (r.qrActive === true && r.nextFireTime < nowMinute) {
       r.prevFireTime = r.nextFireTime;
+      r.prevFireHHMM = r.nextFireHHMM;
       r.nextFireTime = scheduleQRLoop(r, nowMinute, input.iosAlarms);
+      r.nextFireHHMM = epochToHHMMString(r.nextFireTime);
     }
   }
 
@@ -1905,6 +1973,7 @@ async function runVerifier(input, registryAfter) {
     const exp = expected.get(k);
 
     if (!regMap.has(k)) {
+      exp.nextFireHHMM = epochToHHMMString(exp.nextFireTime);
       regMap.set(k, deepClone(exp));
       queueAddIOSIfMissing(input.iosAlarms, exp.alarmName, exp.nextFireTime);
       continue;
@@ -1940,12 +2009,14 @@ async function runVerifier(input, registryAfter) {
 
     // Immediate cleanup on reschedule: delete old scheduled iOS alarm at prevFireTime
     if (Number(r.prevFireTime ?? 0) > 0 && r.prevFireTime !== r.nextFireTime) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.prevFireHHMM, r.prevFireTime);
       r.prevFireTime = 0;
+      r.prevFireHHMM = "";
     }
 
     // Ensure iOS alarm exists for nextFireTime if it's within the next 24h (and not taskSatisfied)
     if (!r.taskSatisfied && r.nextFireTime >= now && r.nextFireTime <= calcMax) {
+      refreshNextFireHHMMAndDeleteStaleIOS(input.iosAlarms, r);
       queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
       if (r.qrActive === true) updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
     }
@@ -1987,8 +2058,9 @@ async function runVerifier(input, registryAfter) {
     // Immediate cleanup on reschedule: delete old scheduled iOS alarm at prevFireTime.
     // This matters most for task loops after calcFireTime has moved into the "recent" bucket.
     if (Number(r.prevFireTime ?? 0) > 0 && r.prevFireTime !== r.nextFireTime) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.prevFireHHMM, r.prevFireTime);
       r.prevFireTime = 0;
+      r.prevFireHHMM = "";
     }
 
     // If it’s not QR-active, and its nextFireTime is not in the future (excluding “this minute”), delete it.
@@ -2001,6 +2073,7 @@ async function runVerifier(input, registryAfter) {
 
     // If it's rescheduled into the future, ensure iOS alarm exists (only if within next 24h)
     if (!r.taskSatisfied && r.nextFireTime >= now && r.nextFireTime <= calcMax) {
+      refreshNextFireHHMMAndDeleteStaleIOS(input.iosAlarms, r);
       queueAddIOSIfMissing(input.iosAlarms, r.alarmName, r.nextFireTime);
       if (r.qrActive === true) updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
     }
@@ -2012,11 +2085,11 @@ async function runVerifier(input, registryAfter) {
     if (!r) continue;
 
     if (Number(r.prevFireTime ?? 0) > 0 && r.prevFireTime !== r.nextFireTime) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.prevFireHHMM, r.prevFireTime);
     }
-    queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.nextFireTime);
+    queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.nextFireHHMM, r.nextFireTime);
     if (Number(r.qrBackupFireTime ?? 0) > 0) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.qrBackupHHMM, r.qrBackupFireTime);
     }
 
     regMap.delete(k);
@@ -2037,6 +2110,7 @@ async function runVerifier(input, registryAfter) {
       // ensure it stays scheduled in the future
       if (r.nextFireTime < nowMinute) {
         r.prevFireTime = r.nextFireTime;
+        r.prevFireHHMM = r.nextFireHHMM;
         r.nextFireTime = scheduleQRLoop(r, nowMinute, input.iosAlarms);
       }
       updateQRBackupAlarm(r, nowMinute, input.iosAlarms);
@@ -2045,11 +2119,11 @@ async function runVerifier(input, registryAfter) {
 
     // delete its paired iOS alarm if present
     if (Number(r.prevFireTime ?? 0) > 0 && r.prevFireTime !== r.nextFireTime) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.prevFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.prevFireHHMM, r.prevFireTime);
     }
-    queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.nextFireTime);
+    queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.nextFireHHMM, r.nextFireTime);
     if (Number(r.qrBackupFireTime ?? 0) > 0) {
-      queueDeleteIOSIfUnique(input.iosAlarms, r.alarmName, r.qrBackupFireTime);
+      queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, r.alarmName, r.qrBackupHHMM, r.qrBackupFireTime);
     }
 
     regMap.delete(k);
