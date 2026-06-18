@@ -1401,6 +1401,9 @@ async function ensureInputLocationForEntry(input, entry) {
 
 async function getCurrentLocation() {
   const cached = readLocationCache();
+  let locationFetchFailures = 0;
+  let lastLocationError = null;
+
   for (let attempt = 1; attempt <= LOCATION_MAX_ATTEMPTS; attempt++) {
     try {
       Location.setAccuracyToHundredMeters();
@@ -1409,9 +1412,15 @@ async function getCurrentLocation() {
         writeLocationCache(loc);
         return { lat: loc.latitude, lon: loc.longitude };
       }
+      lastLocationError = new Error("INVALID_LOCATION_RESPONSE");
     } catch (e) {
-      addError(`ERR: failed to fetch location (attempt ${attempt}/${LOCATION_MAX_ATTEMPTS}: ${String(e)})`);
+      lastLocationError = e;
     }
+    locationFetchFailures++;
+  }
+
+  if (locationFetchFailures >= LOCATION_MAX_ATTEMPTS) {
+    addError(`ERR: failed to fetch location (${String(lastLocationError)})`);
   }
 
   if (cached) return { lat: cached.lat, lon: cached.lon, cached: true };
