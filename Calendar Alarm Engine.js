@@ -1411,9 +1411,15 @@ async function getCurrentLocation() {
         writeLocationCache(loc);
         return { lat: loc.latitude, lon: loc.longitude };
       }
+      lastLocationError = new Error("INVALID_LOCATION_RESPONSE");
     } catch (e) {
       lastLocationError = e;
     }
+    locationFetchFailures++;
+  }
+
+  if (locationFetchFailures >= LOCATION_MAX_ATTEMPTS) {
+    addError(`ERR: failed to fetch location (${String(lastLocationError)})`);
   }
 
   if (lastLocationError) {
