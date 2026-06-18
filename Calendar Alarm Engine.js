@@ -1401,7 +1401,6 @@ async function ensureInputLocationForEntry(input, entry) {
 
 async function getCurrentLocation() {
   const cached = readLocationCache();
-  let locationFetchFailures = 0;
   let lastLocationError = null;
 
   for (let attempt = 1; attempt <= LOCATION_MAX_ATTEMPTS; attempt++) {
@@ -1420,6 +1419,10 @@ async function getCurrentLocation() {
   }
 
   if (locationFetchFailures >= LOCATION_MAX_ATTEMPTS) {
+    addError(`ERR: failed to fetch location (${String(lastLocationError)})`);
+  }
+
+  if (lastLocationError) {
     addError(`ERR: failed to fetch location (${String(lastLocationError)})`);
   }
 
