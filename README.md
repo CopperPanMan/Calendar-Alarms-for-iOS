@@ -30,11 +30,15 @@ You choose which events have alarms, configure those alarms with the [**Alarm Ed
 
 ## How do I Use it?
 
-Once [setup](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Setup%20Guide.md) is finished, you use the [**Alarm Editor**](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to configure alarms for a calendar event. You can also just give your favorite AI the link to this repo and describe what alarms you want, and have it generate all of the JSON alarms for you, which works suprisingly well (at least on GPT 5.5). You can always take back into Alarm Editor to edit.
+Once [setup](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Setup%20Guide.md) is finished, you use the [**Alarm Editor**](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to configure alarms for a calendar event.
 
 Each event gets one JSON block, even if that event has multiple alarms. The editor generates that block for you, and you paste it into the event’s Notes field. Calendar Alarms then reads the event notes, creates the matching alarms in the iOS Clock app, and keeps them updated when the event changes.
 
 To edit an event’s alarms later, paste that same JSON block back into the editor, make your changes, and replace the old block in the event notes.
+
+> [!NOTE]
+> *You can also give your AI-of-choice the link to [this github repo](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS) and describe what alarms you want, and have it generate all of the JSON for you, which works suprisingly well (at least on GPT 5.5). You can always take it back into Alarm Editor to edit.*
+> *You can also use that trick for setup help, use-case ideation, and debugging, or even give it to codex/claude code to add or edit any feature you want.*
 
 ## Why?
 
