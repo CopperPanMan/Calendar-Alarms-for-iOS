@@ -2,7 +2,7 @@
 
 ## What is this?
 
-Calendar Alarms for iOS is the most powerful alarm "app" on the market, and it's not even an app.
+Calendar Alarms for iOS combines a powerful list of features in a way no other "app" has - and it's not even an app.
 
 Instead, it's a totally free and open source collection of apple shortcuts and automations that lets you create real iOS Clock alarms directly from iOS calendar events, then keeps those alarms synced as the events change. It runs entirely on your own device and iCloud account.
 
