@@ -1,6 +1,5 @@
 ### Quick Links
 - [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) — create and edit alarms with a simple interface
-- [Calendar Alarms AI Helper](link) — has access to this repo's docs, so a great optional tool if you have questions about setup or features, or want help creating alarms (it can even create them from raw JSON)
 
 <br>
 <br>
