@@ -46,6 +46,8 @@ This project allows you to automate your attention and life in a way that wasn't
 
 *I (Mike, founder of [Sierra Mille](https://www.sierramille.com/)) created this as part of my OpenHabits project, a task tracking/time management system that I created to get my life back on track, and to create a reliable way of controlling my future decisions and behavior. Put simply, It grew out of a broader interest in designing environments, digital and physical, that make the right behavior easier than the wrong one.*
 
+If you want one comprehensive productivity "OS", I recommend you use this with [OpenHabits](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector), which is a task/data tracker and screentime manager I developed alongside Calendar Alarms and that integrates very well.
+
 <br>
 
 ### Next Step >> [Setup Guide](https://github.com/CopperPanMan/Calendar-Alarms/blob/main/Setup%20Guide.md)
