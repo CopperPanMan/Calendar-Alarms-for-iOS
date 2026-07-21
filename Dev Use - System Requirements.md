@@ -95,6 +95,8 @@ Location gating:
 - `locations` (default `[]`, list of `[lat, lon, radiusMeters]` triplets)
     - `lat` and `lon` are numbers
     - `radiusMeters` is integer `1..500`
+- Location gates fail closed: unavailable location is treated as outside a whitelist and inside a blacklist, so the alarm's trigger/QR actions do not run.
+- A failed fresh fetch must not use stale cached coordinates to pass a gate. Record the failure and fail-closed decision in debug output rather than adding a repetitive user-facing `errorRegistry` entry.
 
 Conflict / reschedule controls:
 
@@ -153,6 +155,8 @@ Registry-only keys (must exist for any registry entry):
 - `nextFireHHMM` (string; Clock-facing `HH:mm` that was used for `nextFireTime`, for timezone-safe cleanup)
 - `firstQRFireTime` (epoch seconds or empty; only set when QR alarm first actually triggers)
 - `qrActive` (boolean; true while QR loop is active)
+- `qrPending` (boolean; true when QR enforcement is waiting for another QR alarm to finish)
+- `qrPendingSince` (epoch seconds; used to promote waiting QR alarms in deterministic FIFO order)
 - `qrBackupFireTime` (epoch seconds; backup scheduled fire time that should exist as an iOS alarm when QR loop is active)
 - `qrBackupHHMM` (string; Clock-facing `HH:mm` that was used for `qrBackupFireTime`, for timezone-safe cleanup)
 
@@ -329,7 +333,13 @@ If Scriptable returns `"locationRequest": true`:
 
 ### Phase B — Fast-path (run first)
 
-If a registry-owned alarm is inferred to have just fired, attempt:
+Infer every distinct registry-owned alarm that has just fired. Alarms with different names at the same time are processed together rather than treated as globally ambiguous.
+
+- Evaluate each due alarm independently and aggregate its shortcut, task, reschedule, QR, add, and delete operations.
+- If multiple physical iOS alarms share the same `alarmName + HH:mm`, skip only the unsafe deletion; still perform the confidently matched logical alarm's non-destructive actions.
+- Fetch location at most once for the whole batch when any due alarm requires it.
+
+For each inferred alarm, attempt:
 
 1. QR loop handling (if applicable), or
 2. Non-QR “silence/reschedule/task/location/conflict” handling (driving/conflict/location/task), and if handled, skip verifier.
@@ -496,9 +506,9 @@ If `qrLoop != null`:
         - Else:
             - wait `qrSoundLen` seconds
 - Loop stops naturally when registry `qrActive` is set false or entry is deleted.
-- This must handle multiple active QR alarms. In that event:
-    - this loop must not exceed the configured duration
-    - the alarm whose sound file is played should be the one with the earliest `firstQRFireTime`.
+- At most one alarm may have `qrActive == true`.
+- Choose an already-active alarm first; otherwise choose the oldest `qrPendingSince`, then intended fire time and registry order.
+- Due QR alarms that do not win still run their non-QR trigger/task behavior once, then become `qrPending` and retry without starting a second QR sound or backup loop.
 
 ---
 
