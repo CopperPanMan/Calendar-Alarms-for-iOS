@@ -1404,6 +1404,25 @@ async function ensureInputLocationForEntry(input, entry) {
   input.currentLocation = await getCurrentLocation();
 }
 
+function reportLocationFailureOutcome(input, entry, fireEpoch, nextFireTime, skippedReason) {
+  if (!input || input.locationAttempted !== true || input.currentLocation || !entryUsesLocation(entry)) return;
+
+  const name = String(entry.alarmName ?? "Unnamed alarm");
+  if (Number.isFinite(nextFireTime)) {
+    const delayMinutes = Math.max(1, Math.ceil((nextFireTime - fireEpoch) / 60));
+    addError(
+      `WARN: Location could not be fetched after ${LOCATION_MAX_ATTEMPTS} attempts for "${name}". ` +
+      `This alarm was rescheduled for ${delayMinutes} minute${delayMinutes === 1 ? "" : "s"} later (${epochToHHMMString(nextFireTime)}).`
+    );
+    return;
+  }
+
+  addError(
+    `WARN: Location could not be fetched after ${LOCATION_MAX_ATTEMPTS} attempts for "${name}". ` +
+    `This alarm occurrence was skipped and no follow-up was scheduled${skippedReason ? ` (${skippedReason})` : ""}.`
+  );
+}
+
 async function getCurrentLocation() {
   const cached = readLocationCache();
   let lastLocationError = null;
@@ -1571,6 +1590,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
       if (loopsRemaining <= 0) {
         entry.qrActive = false;
         clearQRBackupAlarm(entry, input.iosAlarms);
+        reportLocationFailureOutcome(input, entry, fireEpoch, null, "no reschedules remaining");
         return { handled: true };
       }
 
@@ -1588,6 +1608,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
         entry.qrActive = false;
         clearQRBackupAlarm(entry, input.iosAlarms);
         entry.prevFireTime = entry.nextFireTime;
+        reportLocationFailureOutcome(input, entry, fireEpoch, null, "no valid reschedule time was available");
         return { handled: true };
       }
 
@@ -1597,6 +1618,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
       entry.nextFireTime = floorToMinute(next);
       entry.nextFireHHMM = epochToHHMMString(entry.nextFireTime);
       queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+      reportLocationFailureOutcome(input, entry, fireEpoch, entry.nextFireTime, "");
 
       if (hasQR && allowQR && entry.qrActive === true) {
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
@@ -1785,10 +1807,15 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
         entry.nextFireHHMM = epochToHHMMString(entry.nextFireTime);
 
         queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
+        reportLocationFailureOutcome(input, entry, fireEpoch, entry.nextFireTime, "");
       } else {
         entry.prevFireTime = entry.nextFireTime;
         entry.prevFireHHMM = entry.nextFireHHMM;
+        reportLocationFailureOutcome(input, entry, fireEpoch, null, "no reschedules remaining");
       }
+    } else {
+      const reason = reschedMinutes <= 0 ? "rescheduling is disabled" : "no reschedules remaining";
+      reportLocationFailureOutcome(input, entry, fireEpoch, null, reason);
     }
 
     return { handled: true };
