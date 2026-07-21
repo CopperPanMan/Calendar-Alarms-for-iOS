@@ -96,7 +96,8 @@ Location gating:
     - `lat` and `lon` are numbers
     - `radiusMeters` is integer `1..500`
 - Location gates fail closed: unavailable location is treated as outside a whitelist and inside a blacklist, so the alarm's trigger/QR actions do not run.
-- A failed fresh fetch must not use stale cached coordinates to pass a gate. Record the failure and fail-closed decision in debug output rather than adding a repetitive user-facing `errorRegistry` entry.
+- Request hundred-meter accuracy so the location lookup does not wait for unnecessary GPS-level precision. Try a fresh location lookup up to two times for the whole batch.
+- A failed fresh fetch must not use stale cached coordinates to pass a gate. Record the failure and fail-closed decision in debug output, and add a user-facing `errorRegistry` warning for each affected fired alarm that says whether the occurrence was rescheduled (and by how many minutes) or skipped (and why).
 
 Conflict / reschedule controls:
 
@@ -337,7 +338,7 @@ Infer every distinct registry-owned alarm that has just fired. Alarms with diffe
 
 - Evaluate each due alarm independently and aggregate its shortcut, task, reschedule, QR, add, and delete operations.
 - If multiple physical iOS alarms share the same `alarmName + HH:mm`, skip only the unsafe deletion; still perform the confidently matched logical alarm's non-destructive actions.
-- Fetch location at most once for the whole batch when any due alarm requires it.
+- Run at most one shared location acquisition cycle for the whole batch when any due alarm requires it; that cycle may make up to two fresh attempts.
 
 For each inferred alarm, attempt:
 
