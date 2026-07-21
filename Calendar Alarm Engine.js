@@ -154,9 +154,9 @@ function readLocationCache() {
     if (!Keychain.contains(LOCATION_CACHE_KEY)) return null;
     const parsed = safeJSONParse(Keychain.get(LOCATION_CACHE_KEY));
     if (!parsed.ok || !parsed.val) return null;
-    const { lat, lon } = parsed.val;
+    const { lat, lon, ts } = parsed.val;
     if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return null;
-    return { lat: Number(lat), lon: Number(lon), cached: true };
+    return { lat: Number(lat), lon: Number(lon), ts: Number(ts), cached: true };
   } catch (e) {
     addError(`WARN: failed to read location cache (${String(e)})`);
     return null;
@@ -570,6 +570,7 @@ function parseEngineInput(inputStr) {
     iosAlarms,
     currentFocus: String(focusPart ?? "").trim(),
     currentLocation: null,
+    locationAttempted: false,
   };
 }
 
@@ -852,6 +853,9 @@ function ensureRegistryEntryShape(entry) {
   }
 
   entry.qrActive = !!entry.qrActive;
+  entry.qrPending = entry.qrPending === true;
+  const qps = Number(entry.qrPendingSince);
+  entry.qrPendingSince = Number.isFinite(qps) && qps > 0 ? Math.trunc(qps) : 0;
   const qb = Number(entry.qrBackupFireTime);
   entry.qrBackupFireTime = Number.isFinite(qb) ? floorToMinute(Math.trunc(qb)) : 0;
   if (typeof entry.qrBackupHHMM !== "string") entry.qrBackupHHMM = "";
@@ -1023,7 +1027,7 @@ function registryEquals(a, b) {
 }
 
 // ---------- Fired-alarm inference ----------
-function inferFiredOwnedAlarm(iosAlarms, registryArr, nowSec) {
+function inferFiredOwnedAlarms(iosAlarms, registryArr, nowSec) {
   const likely = [];
   for (const a of iosAlarms) {
     const candEpoch = hhmmToClosestEpoch(a.hh, a.mm, nowSec);
@@ -1031,14 +1035,13 @@ function inferFiredOwnedAlarm(iosAlarms, registryArr, nowSec) {
     const dist = Math.abs(candEpoch - nowSec);
     if (dist <= 30) likely.push({ ios: a, dist });
   }
-  if (!likely.length) return null;
+  if (!likely.length) return [];
 
-  let best = null;
+  const matchesByRegistry = new Map();
   for (const cand of likely) {
     const { name, hh, mm } = cand.ios;
 
-    // if duplicates exist in iOS for this name+time, inference is unsafe
-    if (findIOSMatches(iosAlarms, name, hh, mm) !== 1) continue;
+    const iosMatchCount = findIOSMatches(iosAlarms, name, hh, mm);
 
     for (let i = 0; i < registryArr.length; i++) {
       const r = registryArr[i];
@@ -1066,27 +1069,24 @@ function inferFiredOwnedAlarm(iosAlarms, registryArr, nowSec) {
         const delta = Math.abs(match.firedEpoch - nowSec);
         if (delta > 15 * 60) continue;
 
-        if (!best || delta < best.delta) {
-          best = {
+        const previous = matchesByRegistry.get(i);
+        if (!previous || delta < previous.delta) {
+          matchesByRegistry.set(i, {
             registryIndex: i,
             ios: cand.ios,
+            iosUnique: iosMatchCount === 1,
             delta,
             firedEpoch: match.firedEpoch,
             firedSource: match.source,
-          };
-        } else if (best && delta === best.delta) {
-          best = { ambiguous: true };
+          });
         }
       }
     }
   }
 
-  if (!best) return null;
-  if (best.ambiguous) {
-    addError("WARN: fired-alarm inference ambiguous; skipping fast-path.");
-    return null;
-  }
-  return best;
+  return Array.from(matchesByRegistry.values()).sort((a, b) =>
+    a.firedEpoch - b.firedEpoch || a.registryIndex - b.registryIndex
+  );
 }
 
 // ---------- Gating helpers ----------
@@ -1308,7 +1308,7 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   const defaultRadius = Number(entry.radiusMeters ?? 50);
 
   if ((locationMode === "whitelist" || locationMode === "blacklist") && locs.length > 0) {
-    const cur = currentLocation; // null means "ignore location features"
+    const cur = currentLocation; // null means the configured location gate fails closed
     if (cur) {
       let nearest = null;
       let nearestLat = null;
@@ -1366,7 +1366,11 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
         insideAny: null,
         mode: locationMode,
         reason: "currentLocation unavailable",
+        decision: "failClosed",
       });
+      if (reschedMinutes > 0) {
+        candidates.push(floorToMinute(fireEpoch + reschedMinutes * 60));
+      }
     }
   }
 
@@ -1395,7 +1399,8 @@ function entryUsesLocation(entry) {
 
 async function ensureInputLocationForEntry(input, entry) {
   if (!input || !entryUsesLocation(entry)) return;
-  if (input.currentLocation) return;
+  if (input.currentLocation || input.locationAttempted === true) return;
+  input.locationAttempted = true;
   input.currentLocation = await getCurrentLocation();
 }
 
@@ -1415,18 +1420,16 @@ async function getCurrentLocation() {
     } catch (e) {
       lastLocationError = e;
     }
-    locationFetchFailures++;
   }
 
-  if (locationFetchFailures >= LOCATION_MAX_ATTEMPTS) {
-    addError(`ERR: failed to fetch location (${String(lastLocationError)})`);
-  }
-
-  if (lastLocationError) {
-    addError(`ERR: failed to fetch location (${String(lastLocationError)})`);
-  }
-
-  if (cached) return { lat: cached.lat, lon: cached.lon, cached: true };
+  setLocationDebug({
+    current: null,
+    reason: "currentLocation unavailable",
+    decision: "failClosed",
+    attempts: LOCATION_MAX_ATTEMPTS,
+    cachedLocationAvailable: !!cached,
+    lastError: lastLocationError ? String(lastLocationError) : "unknown",
+  });
   return null;
 }
 
@@ -1460,6 +1463,37 @@ function scheduleQRLoop(entry, baseEpoch, iosAlarms) {
   entry.nextFireHHMM = epochToHHMMString(next);
   queueAddIOSIfMissing(iosAlarms, entry.alarmName, next);
   return next;
+}
+
+function deferQRLoop(entry, baseEpoch, iosAlarms) {
+  const next = floorToMinute(baseEpoch) + QR_LOOP_INTERVAL_SEC;
+  output.alarmsToAdd = output.alarmsToAdd.filter((alarm) => alarm.name !== entry.alarmName);
+  entry.qrActive = false;
+  entry.qrPending = true;
+  if (!(Number.isFinite(Number(entry.qrPendingSince)) && Number(entry.qrPendingSince) > 0)) {
+    entry.qrPendingSince = nowEpoch();
+  }
+  clearQRBackupAlarm(entry, iosAlarms);
+  entry.prevFireTime = entry.nextFireTime;
+  entry.prevFireHHMM = entry.nextFireHHMM;
+  entry.nextFireTime = next;
+  entry.nextFireHHMM = epochToHHMMString(next);
+  queueAddIOSIfMissing(iosAlarms, entry.alarmName, next);
+  return next;
+}
+
+function serializeExistingQRLoops(registryArr, iosAlarms) {
+  const active = registryArr
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => entry?.qrActive === true)
+    .sort((a, b) => {
+      const at = Number(a.entry.firstQRFireTime ?? 0) || Number.MAX_SAFE_INTEGER;
+      const bt = Number(b.entry.firstQRFireTime ?? 0) || Number.MAX_SAFE_INTEGER;
+      return at - bt || a.index - b.index;
+    });
+  for (let i = 1; i < active.length; i++) {
+    deferQRLoop(active[i].entry, nowEpoch(), iosAlarms);
+  }
 }
 
 
@@ -1503,11 +1537,8 @@ async function isRescheduledForContextGates(entry, fireEpoch, input) {
   return false;
 }
 
-async function tryFastPath(input, registryAfter) {
+async function processFiredAlarm(input, registryAfter, fired, allowQR) {
   const now = nowEpoch();
-  const fired = inferFiredOwnedAlarm(input.iosAlarms, registryAfter, now);
-  if (!fired) return { handled: false };
-
   const entry = registryAfter[fired.registryIndex];
   await ensureInputLocationForEntry(input, entry);
 
@@ -1515,12 +1546,6 @@ async function tryFastPath(input, registryAfter) {
   const firedHH = fired.ios.hh;
   const firedMM = fired.ios.mm;
   const fireEpoch = Number(fired.firedEpoch ?? 0) || Number(entry.nextFireTime ?? 0) || now;
-
-  // Only proceed if the fired iOS alarm is uniquely identifiable
-  if (findIOSMatches(input.iosAlarms, name, firedHH, firedMM) !== 1) {
-    addError(`WARN: fired alarm not unique in iOS list; skipping fast-path for "${name}" @ ${firedHH}:${firedMM}`);
-    return { handled: false };
-  }
 
   // Always honor "taskSatisfied" latch: if it's satisfied, the next time it fires we should delete and stop
   // (should be rare, but safe).
@@ -1573,7 +1598,7 @@ async function tryFastPath(input, registryAfter) {
       entry.nextFireHHMM = epochToHHMMString(entry.nextFireTime);
       queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
 
-      if (hasQR && entry.qrActive === true) {
+      if (hasQR && allowQR && entry.qrActive === true) {
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
         updateQRBackupAlarm(entry, now, input.iosAlarms);
       }
@@ -1635,7 +1660,7 @@ async function tryFastPath(input, registryAfter) {
       const nextHHMM = epochToHHMM(entry.nextFireTime);
       nextScheduledAlarmPayload = { name, hh: nextHHMM.hh, mm: nextHHMM.mm };
 
-      if (hasQR) {
+      if (hasQR && allowQR) {
         output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
         updateQRBackupAlarm(entry, now, input.iosAlarms);
       }
@@ -1644,16 +1669,22 @@ async function tryFastPath(input, registryAfter) {
     const triggerActions = skipTaskCheckOnInitialFire
       ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
       : buildTriggerActionsForTaskLoop(entry, nextScheduledAlarmPayload);
-    queueTriggerShortcuts(triggerActions);
+    if (entry.qrPending !== true) queueTriggerShortcuts(triggerActions);
     entry.taskCheckFirstFireHandled = true;
     if (shouldDeleteFiredTaskAlarm) output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
     // For QR task loops, this fire still rings in QR mode; scanning only silences this active instance.
     if (hasQR) {
+      if (!allowQR) {
+        deferQRLoop(entry, now, input.iosAlarms);
+        return { handled: true };
+      }
       if (!(typeof entry.firstQRFireTime === "number" && Number.isFinite(entry.firstQRFireTime))) {
         entry.firstQRFireTime = now;
       }
       entry.qrActive = true;
+      entry.qrPending = false;
+      entry.qrPendingSince = 0;
       output.qrLoop = true;
     }
 
@@ -1723,8 +1754,7 @@ async function tryFastPath(input, registryAfter) {
         });
       }
       if (locationMode === "whitelist" && !insideAny && nearest !== null) {
-        const estimatedMin = estimateDriveMinutes(cur.lat, cur.lon, nearestLat, nearestLon);
-        if (estimatedMin <= reschedMax) gated = true;
+        gated = true;
       }
       if (locationMode === "blacklist" && insideAny) gated = true;
     } else {
@@ -1734,7 +1764,9 @@ async function tryFastPath(input, registryAfter) {
         insideAny: null,
         mode: locationMode,
         reason: "currentLocation unavailable",
+        decision: "failClosed",
       });
+      gated = true;
     }
   }
 
@@ -1764,7 +1796,7 @@ async function tryFastPath(input, registryAfter) {
 
   // Only run shortcutOnTrigger/silence behavior after this alarm has passed all gates.
   // If this fire was gated (driving/conflict/location), we returned earlier and did not queue shortcuts.
-  queueTriggerShortcuts(entry.shortcutsOnTrigger);
+  if (entry.qrPending !== true) queueTriggerShortcuts(entry.shortcutsOnTrigger);
 
   // silenceAlarm always deletes the just-fired alarm once it has reached trigger handling.
   // (Gated/rescheduled alarms are already deleted in the gated block above.)
@@ -1776,6 +1808,11 @@ async function tryFastPath(input, registryAfter) {
   if (hasQR) {
     // Always delete the just-fired instance (we own it)
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
+
+    if (!allowQR) {
+      deferQRLoop(entry, now, input.iosAlarms);
+      return { handled: true };
+    }
 
     // Determine whether the just-fired alarm corresponds to the *real* calendar fire.
     const firedEpoch = Number(entry.nextFireTime ?? 0);                  // "the one that should exist" == the one that fired
@@ -1789,7 +1826,7 @@ async function tryFastPath(input, registryAfter) {
     if (entry.qrActive !== true) {
       // If it's NOT the calendar fire, this is almost certainly a leftover minute-tick
       // that fired after the user already scanned. Do NOT re-arm and do NOT schedule another tick.
-      if (!isCalendarFire) {
+      if (!isCalendarFire && entry.qrPending !== true) {
         // Optional: clear scheduling pointers so verifier can cleanly re-establish later
         entry.prevFireTime = entry.nextFireTime;
         entry.prevFireHHMM = entry.nextFireHHMM;
@@ -1803,6 +1840,8 @@ async function tryFastPath(input, registryAfter) {
       // This IS the calendar fire: begin ringing loop
       entry.firstQRFireTime = now;
       entry.qrActive = true;
+      entry.qrPending = false;
+      entry.qrPendingSince = 0;
 
     }
 
@@ -1817,6 +1856,46 @@ async function tryFastPath(input, registryAfter) {
 
 
   return { handled: false };
+}
+
+async function tryFastPath(input, registryAfter) {
+  const firedAlarms = inferFiredOwnedAlarms(input.iosAlarms, registryAfter, nowEpoch());
+  if (!firedAlarms.length) return { handled: false };
+
+  let qrOwnerIndex = registryAfter.findIndex((entry) => entry?.qrActive === true);
+  if (qrOwnerIndex < 0) {
+    const qrCandidates = firedAlarms.filter(({ registryIndex }) =>
+      String(registryAfter[registryIndex]?.qrCodeID ?? "").trim() !== ""
+    );
+    qrCandidates.sort((a, b) => {
+      const ae = registryAfter[a.registryIndex];
+      const be = registryAfter[b.registryIndex];
+      const ap = Number(ae?.qrPendingSince ?? 0) || a.firedEpoch;
+      const bp = Number(be?.qrPendingSince ?? 0) || b.firedEpoch;
+      return ap - bp || a.registryIndex - b.registryIndex;
+    });
+    if (qrCandidates.length) qrOwnerIndex = qrCandidates[0].registryIndex;
+  }
+
+  for (const fired of firedAlarms) {
+    const deleteStart = output.alarmsToDelete.length;
+    const entry = registryAfter[fired.registryIndex];
+    const hasQR = String(entry?.qrCodeID ?? "").trim() !== "";
+    await processFiredAlarm(input, registryAfter, fired, !hasQR || fired.registryIndex === qrOwnerIndex);
+
+    if (!fired.iosUnique) {
+      output.alarmsToDelete.splice(
+        deleteStart,
+        output.alarmsToDelete.length - deleteStart,
+        ...output.alarmsToDelete.slice(deleteStart).filter((alarm) =>
+          !(alarm.name === fired.ios.name && alarm.hh === fired.ios.hh && alarm.mm === fired.ios.mm)
+        )
+      );
+      addError(`WARN: fired iOS alarm not unique; actions ran but deletion was skipped for "${fired.ios.name}" @ ${fired.ios.hh}:${fired.ios.mm}`);
+    }
+  }
+
+  return { handled: true };
 }
 
 // ---------- Verifier ----------
@@ -2178,6 +2257,7 @@ let registryAfter = deepClone(registryBefore);
 
 // Parse input
 const input = parseEngineInput(args.shortcutParameter);
+serializeExistingQRLoops(registryAfter, input.iosAlarms);
 
 // Phase B — Fast-path
 const fast = await tryFastPath(input, registryAfter);
