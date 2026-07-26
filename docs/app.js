@@ -8,27 +8,7 @@ const emptyState = document.getElementById('emptyState');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 
-const defaultAlarm = () => ({
-  alarmName: 'New Alarm',
-  status: 'ON',
-  offsetMin: 0,
-  reference: 'start',
-  qrCodeID: '',
-  qrSoundPath: '',
-  qrVol: 50,
-  qrShortcutsOnScan: [],
-  shortcutsOnTrigger: [],
-  silenceAlarm: false,
-  locationMode: 'off',
-  locations: [],
-  silenceIfDriving: 'OFF',
-  conflictingCalendars: [],
-  reschedMinutes: { min: 10, max: 45 },
-  maxReschedules: 2,
-  taskIDs: [],
-  taskLoopMin: 30,
-  checkTasksFirstTime: true,
-});
+const { defaultAlarm, normalizeAlarm, cleanAlarm, moveItem } = AlarmConfig;
 
 let alarms = [];
 let dragFromIndex = null;
@@ -84,114 +64,9 @@ function restoreHistoryAt(index) {
   updateHistoryButtons();
 }
 
-function normalizeShortcut(item) {
-  return {
-    name: typeof item?.name === 'string' ? item.name : '',
-    input: Array.isArray(item?.input)
-      ? item.input.map((value) => ({
-          type: typeof value === 'number' ? 'number' : 'text',
-          value: value ?? '',
-        }))
-      : [],
-  };
-}
-
-function normalizeAlarm(raw = {}) {
-  const alarm = { ...defaultAlarm(), ...raw };
-  alarm.qrShortcutsOnScan = Array.isArray(alarm.qrShortcutsOnScan)
-    ? alarm.qrShortcutsOnScan.map(normalizeShortcut)
-    : [];
-  alarm.shortcutsOnTrigger = Array.isArray(alarm.shortcutsOnTrigger)
-    ? alarm.shortcutsOnTrigger.map(normalizeShortcut)
-    : [];
-  alarm.locations = Array.isArray(alarm.locations)
-    ? alarm.locations.map((loc) => {
-        if (Array.isArray(loc)) {
-          return {
-            lat: Number(loc[0]) || 0,
-            lon: Number(loc[1]) || 0,
-            radius: Number(loc[2]) || 50,
-            name: typeof loc[3] === 'string' ? loc[3] : '',
-          };
-        }
-        return {
-          lat: Number(loc?.lat) || 0,
-          lon: Number(loc?.lon) || 0,
-          radius: Number(loc?.radius) || 50,
-          name: typeof loc?.name === 'string' ? loc.name : '',
-        };
-      })
-    : [];
-  alarm.conflictingCalendars = Array.isArray(alarm.conflictingCalendars)
-    ? alarm.conflictingCalendars.map((name) => String(name))
-    : [];
-  alarm.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id)) : [];
-  alarm.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
-  alarm.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
-  return alarm;
-}
-
-function cleanShortcut(shortcut) {
-  return {
-    name: String(shortcut.name || '').trim(),
-    input: shortcut.input
-      .filter((entry) => String(entry.value).trim() !== '')
-      .map((entry) => (entry.type === 'number' ? Number(entry.value) : String(entry.value))),
-  };
-}
-
-function cleanAlarm(alarm) {
-  const cleaned = {
-    alarmName: String(alarm.alarmName ?? '').trim() || 'Alarm',
-    status: String(alarm.status ?? 'ON').toUpperCase() === 'OFF' ? 'OFF' : 'ON',
-    offsetMin: /^[-+]?\d+$/.test(String(alarm.offsetMin)) ? Number(alarm.offsetMin) : String(alarm.offsetMin || '0'),
-    reference: String(alarm.reference ?? 'start').toLowerCase() === 'end' ? 'end' : 'start',
-  };
-
-  if (alarm.qrCodeID?.trim()) cleaned.qrCodeID = alarm.qrCodeID.trim();
-  if (alarm.qrSoundPath?.trim()) cleaned.qrSoundPath = alarm.qrSoundPath.trim();
-  if (Number.isFinite(Number(alarm.qrVol))) cleaned.qrVol = Number(alarm.qrVol);
-
-  const qrShortcuts = alarm.qrShortcutsOnScan.map(cleanShortcut).filter((item) => item.name);
-  if (qrShortcuts.length) cleaned.qrShortcutsOnScan = qrShortcuts;
-
-  const triggerShortcuts = alarm.shortcutsOnTrigger.map(cleanShortcut).filter((item) => item.name);
-  if (triggerShortcuts.length) cleaned.shortcutsOnTrigger = triggerShortcuts;
-
-  if (alarm.silenceAlarm) cleaned.silenceAlarm = true;
-  if (alarm.locationMode && alarm.locationMode !== 'off') cleaned.locationMode = alarm.locationMode;
-
-  const locations = alarm.locations
-    .filter((loc) => Number.isFinite(Number(loc.lat)) && Number.isFinite(Number(loc.lon)) && Number.isFinite(Number(loc.radius)))
-    .map((loc) => [Number(loc.lat), Number(loc.lon), Number(loc.radius), String(loc.name || '')]);
-  if (locations.length) cleaned.locations = locations;
-
-  if (alarm.silenceIfDriving === 'ON') cleaned.silenceIfDriving = 'ON';
-
-  const conflicting = alarm.conflictingCalendars.map((name) => name.trim()).filter(Boolean);
-  if (conflicting.length) cleaned.conflictingCalendars = conflicting;
-
-  if (alarm.reschedType === 'fixed') {
-    cleaned.reschedMinutes = Number(alarm.reschedFixed || 0);
-  } else {
-    cleaned.reschedMinutes = {
-      min: Number(alarm.reschedMin || 0),
-      max: Number(alarm.reschedMax || 45),
-    };
-  }
-
-  if (Number.isFinite(Number(alarm.maxReschedules))) cleaned.maxReschedules = Number(alarm.maxReschedules);
-  cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
-  cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
-  cleaned.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
-
-  return cleaned;
-}
-
-function moveItem(list, fromIndex, toIndex) {
-  if (toIndex < 0 || toIndex >= list.length) return;
-  const [item] = list.splice(fromIndex, 1);
-  list.splice(toIndex, 0, item);
+function renderAfterMutation() {
+  render();
+  updateOutput();
 }
 
 function renderShortcutList(container, alarm, key, alarmIndex) {
@@ -248,27 +123,27 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
       });
       row.querySelector('[data-action="delete-input"]').addEventListener('click', () => {
         alarm[key][listIndex].input.splice(inputIndex, 1);
-        render();
+        renderAfterMutation();
       });
       inputListContainer.appendChild(row);
     });
 
     block.querySelector('[data-action="add-input"]').addEventListener('click', () => {
       alarm[key][listIndex].input.push({ type: 'text', value: '' });
-      render();
+      renderAfterMutation();
     });
 
     block.querySelector('[data-action="up"]').addEventListener('click', () => {
       moveItem(alarm[key], listIndex, listIndex - 1);
-      render();
+      renderAfterMutation();
     });
     block.querySelector('[data-action="down"]').addEventListener('click', () => {
       moveItem(alarm[key], listIndex, listIndex + 1);
-      render();
+      renderAfterMutation();
     });
     block.querySelector('[data-action="delete"]').addEventListener('click', () => {
       alarm[key].splice(listIndex, 1);
-      render();
+      renderAfterMutation();
     });
 
     container.appendChild(block);
@@ -311,15 +186,15 @@ function renderLocations(container, alarm) {
 
     block.querySelector('[data-action="up"]').addEventListener('click', () => {
       moveItem(alarm.locations, idx, idx - 1);
-      render();
+      renderAfterMutation();
     });
     block.querySelector('[data-action="down"]').addEventListener('click', () => {
       moveItem(alarm.locations, idx, idx + 1);
-      render();
+      renderAfterMutation();
     });
     block.querySelector('[data-action="delete"]').addEventListener('click', () => {
       alarm.locations.splice(idx, 1);
-      render();
+      renderAfterMutation();
     });
 
     container.appendChild(block);
@@ -344,15 +219,15 @@ function renderTaskIDs(container, alarm) {
     });
     row.querySelector('[data-action="up"]').addEventListener('click', () => {
       moveItem(alarm.taskIDs, idx, idx - 1);
-      render();
+      renderAfterMutation();
     });
     row.querySelector('[data-action="down"]').addEventListener('click', () => {
       moveItem(alarm.taskIDs, idx, idx + 1);
-      render();
+      renderAfterMutation();
     });
     row.querySelector('[data-action="delete"]').addEventListener('click', () => {
       alarm.taskIDs.splice(idx, 1);
-      render();
+      renderAfterMutation();
     });
     container.appendChild(row);
   });
@@ -376,15 +251,15 @@ function renderConflictCalendars(container, alarm) {
     });
     row.querySelector('[data-action="up"]').addEventListener('click', () => {
       moveItem(alarm.conflictingCalendars, idx, idx - 1);
-      render();
+      renderAfterMutation();
     });
     row.querySelector('[data-action="down"]').addEventListener('click', () => {
       moveItem(alarm.conflictingCalendars, idx, idx + 1);
-      render();
+      renderAfterMutation();
     });
     row.querySelector('[data-action="delete"]').addEventListener('click', () => {
       alarm.conflictingCalendars.splice(idx, 1);
-      render();
+      renderAfterMutation();
     });
     container.appendChild(row);
   });
@@ -478,26 +353,22 @@ function render() {
         else if (listName === 'conflictingCalendars') alarm.conflictingCalendars.push('');
         else if (listName === 'taskIDs') alarm.taskIDs.push('task-id');
         else alarm[listName].push({ name: '', input: [] });
-        render();
-        updateOutput();
+        renderAfterMutation();
       });
     });
 
     fragment.querySelector('.delete-alarm-btn').addEventListener('click', () => {
       alarms.splice(index, 1);
-      render();
-      updateOutput();
+      renderAfterMutation();
     });
 
     fragment.querySelector('.move-up-btn').addEventListener('click', () => {
       moveItem(alarms, index, index - 1);
-      render();
-      updateOutput();
+      renderAfterMutation();
     });
     fragment.querySelector('.move-down-btn').addEventListener('click', () => {
       moveItem(alarms, index, index + 1);
-      render();
-      updateOutput();
+      renderAfterMutation();
     });
 
     card.addEventListener('dragstart', (event) => {
@@ -511,8 +382,7 @@ function render() {
       const fromIndex = Number(event.dataTransfer.getData('text/plain'));
       const toIndex = Number(card.dataset.index);
       moveItem(alarms, fromIndex, toIndex);
-      render();
-      updateOutput();
+      renderAfterMutation();
     });
 
     alarmsContainer.appendChild(fragment);
