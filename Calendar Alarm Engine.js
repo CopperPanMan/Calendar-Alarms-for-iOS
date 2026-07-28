@@ -1608,7 +1608,16 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
         entry.qrActive = false;
         clearQRBackupAlarm(entry, input.iosAlarms);
         entry.prevFireTime = entry.nextFireTime;
-        reportLocationFailureOutcome(input, entry, fireEpoch, null, "no valid reschedule time was available");
+        const rescheduleDisabled = normalizeReschedMinutesRange(entry.reschedMinutes).min <= 0;
+        reportLocationFailureOutcome(
+          input,
+          entry,
+          fireEpoch,
+          null,
+          rescheduleDisabled
+            ? "rescheduling is disabled because reschedMinutes is 0"
+            : "no valid reschedule time was available"
+        );
         return { handled: true };
       }
 
