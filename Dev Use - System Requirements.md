@@ -458,7 +458,7 @@ When rescheduling, compute candidate “readyAt” times depending on gating cau
 - `nextFireTime = max(readyAt candidates)`
 - Clamp so `nextFireTime <= now + 4 hours`
 
-If `reschedMinutes == 0`, then alarms silenced by a rule do not reschedule.
+If `reschedMinutes.min == 0` (including legacy `reschedMinutes: 0`), then alarms silenced by a rule do not use a baseline fallback reschedule. In particular, an unavailable current location cannot produce a distance-based ready time and therefore does not reschedule. `maxReschedules` limits the number of follow-ups but does not provide their delay, and `taskLoopMin` applies only after context gates pass and the task is found incomplete.
 
 ---
 

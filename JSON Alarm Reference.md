@@ -71,6 +71,8 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 - silenceIfDriving: "ON",
 - conflictingCalendars: if event from calendar here conflicts, reschedule alarm. eg: ["calendar name 1", "calendar name 2"],
 - reschedMinutes: number OR { "min": number, "max": number }. Number mode is backward-compatible and treated as { "min": number, "max": 45 }.
+  - `min` is the fallback delay for context gates such as driving, blacklist matches, or an unavailable current location. A value of `0` disables that fallback; `maxReschedules` does not supply a delay by itself.
+  - `taskLoopMin` is only used after an alarm passes its context gates and its task is found incomplete. It is not used as the fallback when location cannot be fetched.
 - maxReschedules: "max_number_of_reschedules"
 - taskIDs: list of metrics, like: ["metricID1","metricID2"]
 - taskLoopMin: the duration to loop at.
