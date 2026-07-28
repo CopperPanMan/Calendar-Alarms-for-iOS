@@ -258,27 +258,27 @@ This preserves concurrent edits to other fields (especially `qrActive`) unless *
 Engine calls Scriptable with the following text string input:
 
 ```
-labels:;:hours:;:minutes:;:currentFocus[:;:lat:;:lon]
+labels:;:hours:;:minutes:;:currentFocus:;:taskLogResponseJSON
 
 ```
 
-Example without location:
-
-```
-alarm1
-alarm2:;:7
-15:;:59
-0:;:
-
-```
-
-Example with location:
+Example without a task log response:
 
 ```
 alarm1
 alarm2:;:7
 15:;:59
-0:;:39.1039:;:-84.5120
+0:;::;:
+
+```
+
+Example with a task log response (shown compactly because it is one input field):
+
+```
+alarm1
+alarm2:;:7
+15:;:59
+0:;::;:{"ok":true,"metricsByID":[{"metricID":"meditationDuration","complete":true}]}
 
 ```
 
@@ -287,7 +287,9 @@ Notes:
 - labels/hours/minutes are newline-delimited and index-aligned.
 - labels may contain any characters except newline and the delimiter.
 - Scriptable must preserve index alignment and must not filter one list without filtering the others identically.
-- Location is only appended when Engine has explicitly fetched it for a run.
+- The fifth field is the complete JSON response returned by Google Apps Script after logging a task; pass an empty field when no task was logged.
+- Scriptable uses each `metricsByID[].metricID` whose `complete` value is `true` to reset matching registry task loops and delete their uniquely identifiable next scheduled alarms.
+- Location is acquired by Scriptable when an alarm configuration requires it; it is not part of this text input.
 
 ### Output JSON (Scriptable → Engine)
 

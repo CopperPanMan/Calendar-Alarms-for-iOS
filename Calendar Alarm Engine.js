@@ -28,7 +28,7 @@ const DISABLED_CALENDAR_NAMES = [];
 // - qrBackupFireTime (number): backup QR loop fire time (failsafe alarm).
 // - nextFireHHMM / prevFireHHMM / qrBackupHHMM (string): Clock-facing HH:mm mirrors used for safe iOS alarm cleanup across timezone changes.
 //
-// Input: args.shortcutParameter string: labels "\n" ... + ":;:" + hours "\n" ... + ":;:" + minutes "\n" ... + ":;:" + currentFocus
+// Input: args.shortcutParameter string: labels + ":;:" + hours + ":;:" + minutes + ":;:" + currentFocus + ":;:" + task log JSON
 // Output: JSON string set via Script.setShortcutOutput()
 
 const TASK_ALARM_RESETTER = "Task Alarm Resetter"
@@ -533,7 +533,7 @@ async function releaseLock(fm, lockPath) {
 
 // ---------- Input parsing (index-aligned) ----------
 // New input shape (still delimiter-based):
-// labels:;:hours:;:minutes:;:currentFocus
+// labels:;:hours:;:minutes:;:currentFocus:;:taskLogResponseJSON
 function parseEngineInput(inputStr) {
   const raw = String(inputStr ?? "");
   const parts = raw.split(DELIM);
@@ -542,6 +542,8 @@ function parseEngineInput(inputStr) {
   const hoursPart  = parts[1] ?? "";
   const minsPart   = parts[2] ?? "";
   const focusPart  = parts[3] ?? "";
+  // Rejoin in case a free-form message in the JSON happens to contain DELIM.
+  const taskLogResponsePart = parts.length > 4 ? parts.slice(4).join(DELIM) : "";
 
   const labels = labelsPart.split("\n");
   const hours  = hoursPart.split("\n");
@@ -569,9 +571,72 @@ function parseEngineInput(inputStr) {
   return {
     iosAlarms,
     currentFocus: String(focusPart ?? "").trim(),
+    taskLogResponseRaw: String(taskLogResponsePart ?? "").trim(),
     currentLocation: null,
     locationAttempted: false,
   };
+}
+
+function getCompletedTaskMetricIDs(taskLogResponseRaw) {
+  const raw = String(taskLogResponseRaw ?? "").trim();
+  if (!raw) return { ids: [], error: "" };
+
+  let response;
+  try {
+    response = JSON.parse(raw);
+  } catch (e) {
+    return { ids: [], error: `invalid task log response JSON (${String(e)})` };
+  }
+
+  if (!response || typeof response !== "object" || Array.isArray(response)) {
+    return { ids: [], error: "task log response must be a JSON object" };
+  }
+  if (!Array.isArray(response.metricsByID)) {
+    return { ids: [], error: "task log response missing metricsByID array" };
+  }
+
+  const ids = [];
+  const seen = new Set();
+  for (const metric of response.metricsByID) {
+    if (!metric || typeof metric !== "object" || metric.complete !== true) continue;
+    const metricID = String(metric.metricID ?? "").trim();
+    if (!metricID || seen.has(metricID)) continue;
+    seen.add(metricID);
+    ids.push(metricID);
+  }
+  return { ids, error: "" };
+}
+
+function applyTaskLogCompletions(input, registryAfter) {
+  const parsed = getCompletedTaskMetricIDs(input.taskLogResponseRaw);
+  if (parsed.error) {
+    addError(`WARN: ${parsed.error}; task loops were not reset.`);
+    return;
+  }
+  if (!parsed.ids.length) return;
+
+  const completedIDs = new Set(parsed.ids);
+  for (const entry of registryAfter) {
+    const taskIDs = Array.isArray(entry?.taskIDs)
+      ? entry.taskIDs.map((x) => String(x ?? "").trim()).filter((x) => x)
+      : [];
+    if (!taskIDs.some((taskID) => completedIDs.has(taskID))) continue;
+
+    // Delete only uniquely identifiable alarms that Shortcuts says currently exist.
+    // The latch prevents the verifier from recreating the task loop after deletion.
+    queueDeleteIOSByStoredHHMMIfUnique(
+      input.iosAlarms,
+      entry.alarmName,
+      entry.nextFireHHMM,
+      entry.nextFireTime
+    );
+    clearQRBackupAlarm(entry, input.iosAlarms);
+    entry.taskSatisfied = true;
+    entry.taskCheckFirstFireHandled = true;
+    entry.qrActive = false;
+    entry.qrPending = false;
+    entry.qrPendingSince = 0;
+  }
 }
 
 
@@ -2293,6 +2358,7 @@ let registryAfter = deepClone(registryBefore);
 
 // Parse input
 const input = parseEngineInput(args.shortcutParameter);
+applyTaskLogCompletions(input, registryAfter);
 serializeExistingQRLoops(registryAfter, input.iosAlarms);
 
 // Phase B — Fast-path
