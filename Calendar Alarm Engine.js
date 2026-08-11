@@ -1549,6 +1549,14 @@ function scheduleQRLoop(entry, baseEpoch, iosAlarms) {
   return next;
 }
 
+function continueActiveQRLoop(entry, baseEpoch, iosAlarms) {
+  entry.prevFireTime = entry.nextFireTime;
+  entry.prevFireHHMM = entry.nextFireHHMM;
+  entry.nextFireTime = scheduleQRLoop(entry, baseEpoch, iosAlarms);
+  output.qrLoop = true;
+  output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
+}
+
 function deferQRLoop(entry, baseEpoch, iosAlarms) {
   const next = floorToMinute(baseEpoch) + QR_LOOP_INTERVAL_SEC;
   output.alarmsToAdd = output.alarmsToAdd.filter((alarm) => alarm.name !== entry.alarmName);
@@ -1785,8 +1793,15 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     }
 
     if (loopsRemaining <= 0) {
-      if (!hasQR) entry.qrActive = false;
-      clearQRBackupAlarm(entry, input.iosAlarms);
+      if (hasQR) {
+        // Task reschedules are exhausted, but the currently active QR alarm must
+        // keep ringing until it is scanned. Its minute loop is independent of
+        // any future task-check reschedules.
+        continueActiveQRLoop(entry, now, input.iosAlarms);
+      } else {
+        entry.qrActive = false;
+        clearQRBackupAlarm(entry, input.iosAlarms);
+      }
       return { handled: true };
     }
 
@@ -1947,11 +1962,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     }
 
     // Continue ringing (minute tick)
-    entry.prevFireTime = entry.nextFireTime;
-    entry.prevFireHHMM = entry.nextFireHHMM;
-    entry.nextFireTime = scheduleQRLoop(entry, now, input.iosAlarms);
-    output.qrLoop = true;
-    output.nextLoopStart = epochToShortcutTimestamp(entry.nextFireTime);
+    continueActiveQRLoop(entry, now, input.iosAlarms);
     return { handled: true };
   }
 
