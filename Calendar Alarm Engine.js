@@ -1,6 +1,8 @@
 const DISABLED_CALENDAR_NAMES = [];
+const DELETE_DUPLICATE_ALARMS = true;
 
 //write out calendar names above that you want ignored by this system like ["name1","name2"]
+// Set DELETE_DUPLICATE_ALARMS to false to preserve same-name alarms at the same time.
 
 
 // Variables used by Scriptable.
@@ -662,7 +664,7 @@ function queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, name, storedHHMM, fallbac
   if (!hhmm) return false;
 
   const c = findIOSMatches(iosAlarms, name, hhmm.hh, hhmm.mm);
-  if (c === 1) {
+  if (c === 1 || (c > 1 && DELETE_DUPLICATE_ALARMS)) {
     output.alarmsToDelete.push({ name, hh: hhmm.hh, mm: hhmm.mm });
     return true;
   }
@@ -674,6 +676,13 @@ function queueAddIOSIfMissing(iosAlarms, name, epochSec) {
   const { hh, mm } = epochToHHMM(epochSec);
   const c = findIOSMatches(iosAlarms, name, hh, mm);
   if (c === 0) {
+    output.alarmsToAdd.push({ name, time: epochTo12HourTime(epochSec) });
+    return true;
+  }
+  if (c > 1 && DELETE_DUPLICATE_ALARMS) {
+    // Shortcuts deletes every alarm matching this name and time. Re-add one
+    // canonical occurrence after removing the duplicated set.
+    output.alarmsToDelete.push({ name, hh, mm });
     output.alarmsToAdd.push({ name, time: epochTo12HourTime(epochSec) });
     return true;
   }
@@ -1995,7 +2004,7 @@ async function tryFastPath(input, registryAfter) {
     const hasQR = String(entry?.qrCodeID ?? "").trim() !== "";
     await processFiredAlarm(input, registryAfter, fired, !hasQR || fired.registryIndex === qrOwnerIndex);
 
-    if (!fired.iosUnique) {
+    if (!fired.iosUnique && !DELETE_DUPLICATE_ALARMS) {
       output.alarmsToDelete.splice(
         deleteStart,
         output.alarmsToDelete.length - deleteStart,
