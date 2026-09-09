@@ -9,6 +9,7 @@ const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 
 const { defaultAlarm, normalizeAlarm, cleanAlarm, moveItem } = AlarmConfig;
+const { buildQrShortcutUrl, validateQrCodeID } = QrTools;
 
 let alarms = [];
 let dragFromIndex = null;
@@ -16,6 +17,108 @@ let openAdvancedByIndex = [];
 let history = [];
 let historyIndex = -1;
 let isNavigatingHistory = false;
+
+function downloadDataUrl(filename, url) {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = url;
+  link.click();
+}
+
+function qrFilename(id, extension) {
+  return `calendar-alarm-${id}.${extension}`;
+}
+
+function createQrCode(url) {
+  if (typeof qrcode !== 'function') throw new Error('The QR generator could not be loaded. Check your connection and try again.');
+  const code = qrcode(0, 'M');
+  code.addData(url);
+  code.make();
+  return code;
+}
+
+function setupQrGenerator(card, alarm) {
+  const toggle = card.querySelector('.qr-toggle-btn');
+  const panel = card.querySelector('.qr-preview-panel');
+  const preview = card.querySelector('.qr-preview');
+  const message = card.querySelector('.qr-message');
+  const urlInput = card.querySelector('.qr-url');
+  const sharedNote = card.querySelector('.qr-shared-note');
+  const actionButtons = card.querySelectorAll('.qr-preview-panel button');
+  let code = null;
+
+  const refresh = () => {
+    preview.innerHTML = '';
+    urlInput.value = '';
+    sharedNote.textContent = '';
+    code = null;
+    preview.hidden = true;
+    actionButtons.forEach((button) => { button.disabled = true; });
+    const error = validateQrCodeID(alarm.qrCodeID);
+    if (error) {
+      setStatus(message, error, 'error');
+      return;
+    }
+    try {
+      const url = buildQrShortcutUrl(alarm.qrCodeID);
+      code = createQrCode(url);
+      preview.innerHTML = code.createSvgTag({ cellSize: 6, margin: 4, scalable: true });
+      preview.hidden = false;
+      actionButtons.forEach((button) => { button.disabled = false; });
+      urlInput.value = url;
+      const matching = alarms.filter((item) => item.qrCodeID === alarm.qrCodeID).length;
+      sharedNote.textContent = matching > 1
+        ? `Shared by ${matching} alarms. Scanning this code silences every active alarm using this ID.`
+        : `Scanning this code silences any active alarm using “${alarm.qrCodeID}”.`;
+      setStatus(message, `QR code for “${alarm.qrCodeID}”.`, 'success');
+    } catch (error) {
+      setStatus(message, error.message, 'error');
+    }
+  };
+
+  toggle.addEventListener('click', () => {
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute('aria-expanded', String(!panel.hidden));
+    toggle.textContent = panel.hidden ? 'Show QR Code' : 'Hide QR Code';
+    if (!panel.hidden) refresh();
+  });
+
+  card.querySelector('[data-field="qrCodeID"]').addEventListener('input', () => {
+    if (!panel.hidden) refresh();
+  });
+  card.querySelector('.qr-download-png').addEventListener('click', () => {
+    if (code) downloadDataUrl(qrFilename(alarm.qrCodeID, 'png'), code.createDataURL(8, 32));
+  });
+  card.querySelector('.qr-download-svg').addEventListener('click', () => {
+    if (!code) return;
+    const blob = new Blob([code.createSvgTag({ cellSize: 8, margin: 4, scalable: true })], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    downloadDataUrl(qrFilename(alarm.qrCodeID, 'svg'), url);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  });
+  card.querySelector('.qr-copy-link').addEventListener('click', async () => {
+    if (!urlInput.value) return;
+    try {
+      await navigator.clipboard.writeText(urlInput.value);
+      setStatus(message, 'QR destination copied to clipboard.', 'success');
+    } catch {
+      urlInput.focus();
+      urlInput.select();
+      setStatus(message, 'Clipboard access failed. The destination is selected so you can copy it manually.', 'error');
+    }
+  });
+  card.querySelector('.qr-print').addEventListener('click', () => {
+    if (!code) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setStatus(message, 'Allow pop-ups to print this QR code.', 'error');
+      return;
+    }
+    printWindow.opener = null;
+    printWindow.document.write(`<!doctype html><title>Calendar Alarm QR — ${alarm.qrCodeID}</title><style>body{text-align:center;font:20px system-ui;padding:2rem}svg{width:min(80vw,600px);height:auto}</style><h1>${alarm.qrCodeID}</h1>${code.createSvgTag({ cellSize: 8, margin: 4, scalable: true })}<p>Scan to silence Calendar Alarms using this ID.</p><script>onload=()=>print()<\/script>`);
+    printWindow.document.close();
+  });
+}
 
 function preserveAdvancedState() {
   const cards = Array.from(alarmsContainer.querySelectorAll('.alarm-card'));
@@ -327,6 +430,7 @@ function render() {
     });
 
     setRescheduleForm(card, alarm);
+    setupQrGenerator(card, alarm);
     card.querySelector('[data-field="reschedFixed"]').addEventListener('input', (e) => {
       alarm.reschedFixed = Number(e.target.value);
       updateOutput();
