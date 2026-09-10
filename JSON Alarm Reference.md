@@ -65,6 +65,7 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
 - qrVol: for qr alarms, volume, 1 to 100,
 - qrShortcutsOnScan: for qr alarms, run shortcuts when you scan the QR code. eg: [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
 - shortcutsOnTrigger: run shortcuts when the alarm first goes off. eg: [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
+  - The Alarm Editor can also configure built-in notifications, timers, Focus settings, display settings, destinations, OpenHabits reminders, audio controls, and cues. These are serialized as calls to `Calendar Alarms Actions`; see [Calendar Alarms Actions JSON Schema](Calendar%20Alarms%20Actions%20Schema.md).
 - silenceAlarm: true or false, useful for silently running a shortcut on trigger.
 - locationMode: whitelist, blacklist, or off -> whitelist = ONLY run if at one of these locations (ie reschedule if not), blacklist = NEVER run if at one of these locations
 - locations: [[lat1, long1, radiusMeters1], [lat2, long2, radiusMeters2], ...],

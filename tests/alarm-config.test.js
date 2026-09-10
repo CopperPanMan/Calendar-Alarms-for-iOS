@@ -1,7 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { defaultAlarm, normalizeAlarm, cleanAlarm, moveItem } = require('../docs/alarm-config.js');
+const {
+  ACTIONS_SHORTCUT_NAME,
+  defaultAlarm,
+  newActionShortcut,
+  normalizeAlarm,
+  cleanAlarm,
+  moveItem,
+} = require('../docs/alarm-config.js');
 
 function renderReady(raw) {
   const alarm = normalizeAlarm(raw);
@@ -73,4 +80,53 @@ test('new alarms can be normalized and exported', () => {
   assert.equal(output.alarmName, 'New Alarm');
   assert.equal(output.status, 'ON');
   assert.deepEqual(output.reschedMinutes, { min: 10, max: 45 });
+});
+
+test('built-in actions serialize as one JSON string for Calendar Alarms Actions', () => {
+  const alarm = renderReady(defaultAlarm());
+  const shortcut = newActionShortcut('display');
+  shortcut.action = { action: 'display', operation: 'brightness', percent: 30 };
+  alarm.shortcutsOnTrigger.push(shortcut);
+
+  const [exported] = cleanAlarm(alarm).shortcutsOnTrigger;
+  assert.equal(exported.name, ACTIONS_SHORTCUT_NAME);
+  assert.equal(exported.input.length, 1);
+  assert.deepEqual(JSON.parse(exported.input[0]), {
+    action: 'display',
+    operation: 'brightness',
+    percent: 30,
+  });
+});
+
+test('new notifications default to show mode without a duplicate title', () => {
+  const shortcut = newActionShortcut('notification');
+  assert.deepEqual(shortcut.action, { action: 'notification', message: '', mode: 'show' });
+  assert.equal('title' in shortcut.action, false);
+});
+
+test('valid Calendar Alarms Actions payloads load into the typed editor model', () => {
+  const alarm = normalizeAlarm({
+    shortcutsOnTrigger: [{
+      name: ACTIONS_SHORTCUT_NAME,
+      input: [JSON.stringify({ action: 'notification', message: 'Leave now', mode: 'both' })],
+    }],
+  });
+
+  assert.equal(alarm.shortcutsOnTrigger[0].editorType, 'notification');
+  assert.deepEqual(alarm.shortcutsOnTrigger[0].action, {
+    action: 'notification',
+    message: 'Leave now',
+    mode: 'both',
+  });
+});
+
+test('malformed and internal Calendar Alarms Actions payloads remain raw custom shortcuts', () => {
+  const alarm = normalizeAlarm({
+    shortcutsOnTrigger: [
+      { name: ACTIONS_SHORTCUT_NAME, input: ['not json'] },
+      { name: ACTIONS_SHORTCUT_NAME, input: [JSON.stringify({ action: 'task_alarm_reset' })] },
+    ],
+  });
+
+  assert.deepEqual(alarm.shortcutsOnTrigger.map((item) => item.editorType), ['custom', 'custom']);
 });

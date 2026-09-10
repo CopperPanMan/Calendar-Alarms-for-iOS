@@ -19,8 +19,8 @@ You choose which events have alarms, configure those alarms with the [**Alarm Ed
 - **Set alarms months in advance, right on the event that matters**  
   Add multiple alarms to leave for a flight in 6 months, remind you to follow up on a meeting next week, or prepare for a doctor's appointment, directly inside that calendar event. On the day of the alarm, it will be automatically scheduled into the clock app, and deleted afterwards.
 
-- **Run your own shortcuts when alarms go off**  
-  Turn on lights with your wakeup alarm, start a 60 minute timer for your lunch break, have siri tell you verbally to take your medicine at 10AM, or more.
+- **Run actions or your own shortcuts when alarms go off**
+  Configure notifications, timers, Focus and display settings, apps, URLs, OpenHabits reminders, audio, and cues directly in the editor—or keep using any custom Apple Shortcut.
 
 - **Keep the Clock app clean automatically**  
   If an event is deleted or in the past, it's outdated alarms are automatically deleted. If the event is moved, or you change timezones, its alarms are updated to the new correct local time for you.

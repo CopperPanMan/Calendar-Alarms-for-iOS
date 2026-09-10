@@ -33,7 +33,7 @@ const DELETE_DUPLICATE_ALARMS = true;
 // Input: args.shortcutParameter string: labels + ":;:" + hours + ":;:" + minutes + ":;:" + currentFocus + ":;:" + task log JSON
 // Output: JSON string set via Script.setShortcutOutput()
 
-const TASK_ALARM_RESETTER = "Task Alarm Resetter"
+const CALENDAR_ALARMS_ACTIONS = "Calendar Alarms Actions";
 const DELIM = ":;:";
 
 // Path config
@@ -1285,6 +1285,7 @@ function makeTaskResetterAction(entry, nextAlarmPayload) {
     ? nextAlarmPayload
     : {};
   const payload = {
+    action: "task_alarm_reset",
     taskLoopMetricIDs: taskIDs,
     qrCodeID: String(entry?.qrCodeID ?? ""),
     alarmToDelete: {
@@ -1295,7 +1296,7 @@ function makeTaskResetterAction(entry, nextAlarmPayload) {
   };
 
   return {
-    name: TASK_ALARM_RESETTER,
+    name: CALENDAR_ALARMS_ACTIONS,
     input: [JSON.stringify(payload)],
     silenceAlarm: false,
   };

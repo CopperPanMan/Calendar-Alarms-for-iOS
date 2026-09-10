@@ -106,3 +106,22 @@ test('completed metrics delete and reset every matching task loop', () => {
   assert.equal(registry[0].qrPendingSince, 0);
   assert.equal(registry[1].taskSatisfied, false);
 });
+
+test('task alarm maintenance routes through Calendar Alarms Actions', () => {
+  const context = { String, JSON, CALENDAR_ALARMS_ACTIONS: 'Calendar Alarms Actions' };
+  vm.createContext(context);
+  vm.runInContext(functionSource('makeTaskResetterAction'), context);
+
+  const result = context.makeTaskResetterAction(
+    { taskIDs: [' floss ', ''], qrCodeID: 'morning' },
+    { name: 'Morning Tasks', hh: '07', mm: '30' },
+  );
+
+  assert.equal(result.name, 'Calendar Alarms Actions');
+  assert.deepEqual(JSON.parse(result.input[0]), {
+    action: 'task_alarm_reset',
+    taskLoopMetricIDs: ['floss'],
+    qrCodeID: 'morning',
+    alarmToDelete: { name: 'Morning Tasks', hh: '07', mm: '30' },
+  });
+});

@@ -1,5 +1,8 @@
 /* Pure alarm-model helpers shared by the editor and its automated tests. */
 (function exposeAlarmConfig(globalScope) {
+  const ACTIONS_SHORTCUT_NAME = 'Calendar Alarms Actions';
+  const PUBLIC_ACTIONS = ['notification', 'timer', 'focus', 'display', 'open', 'openhabits_reminder', 'audio', 'cue'];
+
   const defaultAlarm = () => ({
     alarmName: 'New Alarm',
     status: 'ON',
@@ -24,7 +27,7 @@
   });
 
   function normalizeShortcut(item) {
-    return {
+    const shortcut = {
       name: typeof item?.name === 'string' ? item.name : '',
       input: Array.isArray(item?.input)
         ? item.input.map((value) => ({
@@ -32,6 +35,42 @@
             value: value ?? '',
           }))
         : [],
+    };
+    if (shortcut.name === ACTIONS_SHORTCUT_NAME && shortcut.input.length === 1 && shortcut.input[0].type === 'text') {
+      try {
+        const action = JSON.parse(String(shortcut.input[0].value));
+        if (action && !Array.isArray(action) && PUBLIC_ACTIONS.includes(action.action)) {
+          shortcut.editorType = action.action;
+          shortcut.action = { ...defaultAction(action.action), ...action };
+        }
+      } catch (_) {
+        // Invalid action JSON remains editable as a custom Shortcut invocation.
+      }
+    }
+    shortcut.editorType ||= 'custom';
+    return shortcut;
+  }
+
+  function defaultAction(action) {
+    switch (action) {
+      case 'notification': return { action, message: '', mode: 'show' };
+      case 'timer': return { action, operation: 'start', minutes: 15 };
+      case 'focus': return { action, name: '', state: 'on' };
+      case 'display': return { action, operation: 'color_filters', state: 'on' };
+      case 'open': return { action, operation: 'app', appName: '' };
+      case 'openhabits_reminder': return { action, metricIDs: [''], mode: 'show' };
+      case 'audio': return { action, operation: 'volume', percent: 50 };
+      case 'cue': return { action, operation: 'haptic' };
+      default: return null;
+    }
+  }
+
+  function newActionShortcut(action = 'notification') {
+    return {
+      name: ACTIONS_SHORTCUT_NAME,
+      input: [],
+      editorType: action,
+      action: defaultAction(action),
     };
   }
 
@@ -70,6 +109,12 @@
   }
 
   function cleanShortcut(shortcut) {
+    if (PUBLIC_ACTIONS.includes(shortcut.editorType) && shortcut.action) {
+      return {
+        name: ACTIONS_SHORTCUT_NAME,
+        input: [JSON.stringify(shortcut.action)],
+      };
+    }
     return {
       name: String(shortcut.name || '').trim(),
       input: shortcut.input
@@ -123,7 +168,18 @@
     return true;
   }
 
-  const api = { defaultAlarm, normalizeShortcut, normalizeAlarm, cleanShortcut, cleanAlarm, moveItem };
+  const api = {
+    ACTIONS_SHORTCUT_NAME,
+    PUBLIC_ACTIONS,
+    defaultAlarm,
+    defaultAction,
+    newActionShortcut,
+    normalizeShortcut,
+    normalizeAlarm,
+    cleanShortcut,
+    cleanAlarm,
+    moveItem,
+  };
   globalScope.AlarmConfig = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

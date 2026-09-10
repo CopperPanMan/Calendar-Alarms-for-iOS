@@ -8,7 +8,7 @@ const emptyState = document.getElementById('emptyState');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 
-const { defaultAlarm, normalizeAlarm, cleanAlarm, moveItem } = AlarmConfig;
+const { PUBLIC_ACTIONS, defaultAlarm, defaultAction, newActionShortcut, normalizeAlarm, cleanAlarm, moveItem } = AlarmConfig;
 const { buildQrShortcutUrl, validateQrCodeID } = QrTools;
 
 let alarms = [];
@@ -172,6 +172,99 @@ function renderAfterMutation() {
   updateOutput();
 }
 
+const ACTION_LABELS = {
+  notification: 'Notification',
+  timer: 'Timer',
+  focus: 'Focus',
+  display: 'Display',
+  open: 'Open App / URL / Screen',
+  openhabits_reminder: 'OpenHabits Reminder',
+  audio: 'Volume / Audio',
+  cue: 'Cue',
+};
+
+function actionField(label, field, type = 'text', attributes = '') {
+  return `<label>${label}<input type="${type}" data-action-field="${field}" ${attributes} /></label>`;
+}
+
+function actionSelect(label, field, options) {
+  return `<label>${label}<select data-action-field="${field}">${options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('')}</select></label>`;
+}
+
+function renderActionEditor(container, item, rerender) {
+  const payload = item.action;
+  let fields = '';
+  switch (item.editorType) {
+    case 'notification':
+      fields = `${actionField('Message', 'message', 'text', 'required')}${actionSelect('Output', 'mode', [['show', 'Show'], ['speak', 'Speak'], ['both', 'Speak + Show']])}${actionField('Title (optional)', 'title')}`;
+      break;
+    case 'timer':
+      fields = `${actionSelect('Operation', 'operation', [['start', 'Start'], ['cancel', 'Cancel']])}${payload.operation === 'start' ? actionField('Minutes', 'minutes', 'number', 'min="0" step="any" required') : ''}`;
+      break;
+    case 'focus':
+      fields = `${actionField('Focus Name', 'name', 'text', 'required')}${actionSelect('State', 'state', [['on', 'On'], ['off', 'Off']])}`;
+      break;
+    case 'display':
+      fields = actionSelect('Operation', 'operation', [['color_filters', 'Color Filters'], ['brightness', 'Brightness'], ['appearance', 'Appearance']]);
+      if (payload.operation === 'color_filters') fields += actionSelect('State', 'state', [['on', 'On'], ['off', 'Off']]);
+      if (payload.operation === 'brightness') fields += actionField('Percent', 'percent', 'number', 'min="0" max="100" step="any" required');
+      if (payload.operation === 'appearance') fields += actionSelect('Mode', 'mode', [['light', 'Light'], ['dark', 'Dark']]);
+      break;
+    case 'open':
+      fields = actionSelect('Operation', 'operation', [['app', 'Open App'], ['url', 'Open URL / Deep Link'], ['home_screen', 'Go to Home Screen'], ['lock_screen', 'Lock Device']]);
+      if (payload.operation === 'app') fields += actionField('App Name', 'appName', 'text', 'required');
+      if (payload.operation === 'url') fields += actionField('URL / Deep Link', 'url', 'url', 'required');
+      break;
+    case 'openhabits_reminder':
+      fields = `${actionField('Metric IDs (comma-separated)', 'metricIDs', 'text', 'required')}${actionSelect('Output', 'mode', [['show', 'Show'], ['speak', 'Speak'], ['both', 'Speak + Show']])}`;
+      break;
+    case 'audio':
+      fields = actionSelect('Operation', 'operation', [['volume', 'Media Volume'], ['silent_mode', 'Silent Mode']]);
+      if (payload.operation === 'volume') fields += actionField('Percent', 'percent', 'number', 'min="0" max="100" step="any" required');
+      if (payload.operation === 'silent_mode') fields += actionSelect('State', 'state', [['on', 'On'], ['off', 'Off']]);
+      break;
+    case 'cue':
+      fields = actionSelect('Operation', 'operation', [['haptic', 'Haptic'], ['sound', 'Sound']]);
+      if (payload.operation === 'sound') fields += actionField('Sound File', 'file', 'text', 'required');
+      break;
+  }
+  container.innerHTML = `<div class="grid two-col action-fields">${fields}</div>`;
+  container.querySelectorAll('[data-action-field]').forEach((control) => {
+    const field = control.dataset.actionField;
+    control.value = field === 'metricIDs' ? (payload.metricIDs || []).join(', ') : (payload[field] ?? '');
+    const eventName = control.tagName === 'SELECT' ? 'change' : 'input';
+    control.addEventListener(eventName, () => {
+      if (field === 'operation') {
+        const next = defaultAction(item.editorType);
+        next.operation = control.value;
+        if (item.editorType === 'timer' && control.value === 'cancel') delete next.minutes;
+        if (item.editorType === 'display') {
+          if (control.value === 'brightness') next.percent = 50;
+          if (control.value === 'appearance') next.mode = 'light';
+          if (control.value !== 'color_filters') delete next.state;
+        }
+        if (item.editorType === 'open') {
+          delete next.appName;
+          if (control.value === 'app') next.appName = '';
+          if (control.value === 'url') next.url = '';
+        }
+        if (item.editorType === 'audio') {
+          if (control.value === 'silent_mode') { delete next.percent; next.state = 'on'; }
+        }
+        if (item.editorType === 'cue' && control.value === 'sound') next.file = '';
+        item.action = next;
+        rerender();
+        return;
+      }
+      if (field === 'metricIDs') payload.metricIDs = control.value.split(',').map((value) => value.trim()).filter(Boolean);
+      else if (control.type === 'number') payload[field] = control.value === '' ? '' : Number(control.value);
+      else if (field === 'title' && control.value === '') delete payload.title;
+      else payload[field] = control.value;
+      updateOutput();
+    });
+  });
+}
+
 function renderShortcutList(container, alarm, key, alarmIndex) {
   container.innerHTML = '';
   const list = alarm[key];
@@ -180,28 +273,48 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
     block.className = 'sub-card';
     block.innerHTML = `
       <div class="sub-card-header">
-        <strong>Shortcut ${listIndex + 1}</strong>
+        <strong>Action ${listIndex + 1}</strong>
         <div class="button-row">
           <button type="button" class="btn secondary small" data-action="up">↑</button>
           <button type="button" class="btn secondary small" data-action="down">↓</button>
           <button type="button" class="btn danger small" data-action="delete">Delete</button>
         </div>
       </div>
-      <label>Shortcut Name<input type="text" data-shortcut-field="name" required /></label>
-      <div class="list-block" data-input-list></div>
-      <button type="button" class="btn small" data-action="add-input">+ Add Input</button>
-      <span class="help helper-inline" data-tip="This input will be passed into this configured shortcut.">?</span>
+      <label>Action Type<select data-action-type></select></label>
+      <div data-action-editor></div>
     `;
 
-    const nameInput = block.querySelector('[data-shortcut-field="name"]');
-    nameInput.value = item.name;
-    nameInput.addEventListener('input', () => {
-      alarm[key][listIndex].name = nameInput.value;
-      updateOutput();
+    const typeSelect = block.querySelector('[data-action-type]');
+    PUBLIC_ACTIONS.forEach((action) => typeSelect.add(new Option(ACTION_LABELS[action], action)));
+    typeSelect.add(new Option('Run Custom Shortcut', 'custom'));
+    typeSelect.value = item.editorType;
+    typeSelect.addEventListener('change', () => {
+      item.editorType = typeSelect.value;
+      if (item.editorType === 'custom') {
+        item.name = '';
+        item.input = [];
+        delete item.action;
+      } else {
+        item.name = AlarmConfig.ACTIONS_SHORTCUT_NAME;
+        item.input = [];
+        item.action = defaultAction(item.editorType);
+      }
+      renderAfterMutation();
     });
 
-    const inputListContainer = block.querySelector('[data-input-list]');
-    item.input.forEach((entry, inputIndex) => {
+    const editor = block.querySelector('[data-action-editor]');
+    if (item.editorType !== 'custom') {
+      renderActionEditor(editor, item, renderAfterMutation);
+    } else {
+      editor.innerHTML = `<label>Shortcut Name<input type="text" data-shortcut-field="name" required /></label><div class="list-block" data-input-list></div><button type="button" class="btn small" data-action="add-input">+ Add Input</button><span class="help helper-inline" data-tip="This input will be passed into this configured shortcut.">?</span>`;
+      const nameInput = editor.querySelector('[data-shortcut-field="name"]');
+      nameInput.value = item.name;
+      nameInput.addEventListener('input', () => {
+        item.name = nameInput.value;
+        updateOutput();
+      });
+      const inputListContainer = editor.querySelector('[data-input-list]');
+      item.input.forEach((entry, inputIndex) => {
       const row = document.createElement('div');
       row.className = 'inline-row';
       row.innerHTML = `
@@ -216,25 +329,25 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
       valueInput.type = entry.type === 'number' ? 'number' : 'text';
 
       typeSelect.addEventListener('change', () => {
-        alarm[key][listIndex].input[inputIndex].type = typeSelect.value;
+        item.input[inputIndex].type = typeSelect.value;
         valueInput.type = typeSelect.value === 'number' ? 'number' : 'text';
         updateOutput();
       });
       valueInput.addEventListener('input', () => {
-        alarm[key][listIndex].input[inputIndex].value = valueInput.value;
+        item.input[inputIndex].value = valueInput.value;
         updateOutput();
       });
       row.querySelector('[data-action="delete-input"]').addEventListener('click', () => {
-        alarm[key][listIndex].input.splice(inputIndex, 1);
+        item.input.splice(inputIndex, 1);
         renderAfterMutation();
       });
       inputListContainer.appendChild(row);
-    });
-
-    block.querySelector('[data-action="add-input"]').addEventListener('click', () => {
-      alarm[key][listIndex].input.push({ type: 'text', value: '' });
-      renderAfterMutation();
-    });
+      });
+      editor.querySelector('[data-action="add-input"]').addEventListener('click', () => {
+        item.input.push({ type: 'text', value: '' });
+        renderAfterMutation();
+      });
+    }
 
     block.querySelector('[data-action="up"]').addEventListener('click', () => {
       moveItem(alarm[key], listIndex, listIndex - 1);
@@ -456,7 +569,7 @@ function render() {
         if (listName === 'locations') alarm.locations.push({ lat: 0, lon: 0, radius: 50, name: '' });
         else if (listName === 'conflictingCalendars') alarm.conflictingCalendars.push('');
         else if (listName === 'taskIDs') alarm.taskIDs.push('task-id');
-        else alarm[listName].push({ name: '', input: [] });
+        else alarm[listName].push(newActionShortcut());
         renderAfterMutation();
       });
     });
