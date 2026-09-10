@@ -67,6 +67,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
 .list-block { display: grid; gap: 0.6rem; margin-bottom: 0.5rem; }
 .sub-card { border: 1px solid var(--card-border); border-radius: 8px; padding: 0.6rem; }
 .sub-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.action-fields { margin-top: 0.6rem; }
 .inline-row { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto auto; gap: 0.45rem; align-items: center; }
 .checkbox-row { display: flex; align-items: center; gap: 0.3rem; }
 

@@ -112,9 +112,9 @@ Task controls:
     - example: `"taskIDs":["taskID1","taskID2"]`
 - `taskLoopMin` (default = `0`, integer `0..500`)
 - `ignoreTaskCheckFirstTime` (default `false`, boolean)
-    - if `false`, `Task Alarm Resetter` is added to trigger shortcuts on every task-alarm fire unless tasks are already complete
+    - if `false`, the internal `task_alarm_reset` action is sent to `Calendar Alarms Actions` on every task-alarm fire unless tasks are already complete
     - if `true`, the first task-alarm fire that is not deferred by other rescheduling gates is treated as incomplete even if the task metrics already look complete
-    - if `true`, the first task-alarm fire skips `Task Alarm Resetter`, and later fires include it unless tasks are already complete
+    - if `true`, the first task-alarm fire skips `task_alarm_reset`, and later fires include it unless tasks are already complete
 
 ### JSON recognition and parsing rules (IMPORTANT)
 
