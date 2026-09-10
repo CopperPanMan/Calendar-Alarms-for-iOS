@@ -8,8 +8,9 @@ const emptyState = document.getElementById('emptyState');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 
-const { PUBLIC_ACTIONS, defaultAlarm, defaultAction, newActionShortcut, normalizeAlarm, cleanAlarm, moveItem } = AlarmConfig;
+const { PUBLIC_ACTIONS, defaultAlarm, defaultAction, newActionShortcut, normalizeAlarm, cleanAlarm, moveItem, duplicateAlarm, extractAlarmArray, formatCalendarNotes } = AlarmConfig;
 const { buildQrShortcutUrl, validateQrCodeID } = QrTools;
+const EDITOR_URL = 'https://copperpanman.github.io/Calendar-Alarms-for-iOS/';
 
 let alarms = [];
 let dragFromIndex = null;
@@ -521,9 +522,13 @@ function render() {
   alarms.forEach((alarm, index) => {
     const fragment = alarmTemplate.content.cloneNode(true);
     const card = fragment.querySelector('.alarm-card');
-    const title = fragment.querySelector('.alarm-title');
+    const titleName = fragment.querySelector('.alarm-title-name');
     const advancedToggle = fragment.querySelector('details');
-    title.innerHTML = `Alarm ${index + 1} <span class="help" data-tip="One alarm on an event.">?</span>`;
+    fragment.querySelector('.alarm-number').textContent = `Alarm ${index + 1}`;
+    const updateTitleName = () => {
+      titleName.textContent = alarm.alarmName ? ` — ${alarm.alarmName}` : '';
+    };
+    updateTitleName();
 
     card.dataset.index = index;
     advancedToggle.open = !!openAdvancedByIndex[index];
@@ -538,6 +543,7 @@ function render() {
         if (input.type === 'checkbox') alarm[key] = input.checked;
         else if (input.type === 'number') alarm[key] = input.value === '' ? '' : Number(input.value);
         else alarm[key] = input.value;
+        if (key === 'alarmName') updateTitleName();
         updateOutput();
       });
     });
@@ -579,6 +585,11 @@ function render() {
       renderAfterMutation();
     });
 
+    fragment.querySelector('.duplicate-alarm-btn').addEventListener('click', () => {
+      alarms.splice(index + 1, 0, duplicateAlarm(alarm));
+      renderAfterMutation();
+    });
+
     fragment.querySelector('.move-up-btn').addEventListener('click', () => {
       moveItem(alarms, index, index - 1);
       renderAfterMutation();
@@ -612,7 +623,7 @@ alarmsContainer.addEventListener('dragover', (event) => {
 
 function updateOutput() {
   const cleaned = alarms.map(cleanAlarm);
-  jsonOutput.value = JSON.stringify(cleaned, null, 2);
+  jsonOutput.value = formatCalendarNotes(cleaned, EDITOR_URL);
   pushHistorySnapshot();
 }
 
@@ -624,9 +635,9 @@ function loadFromInput() {
       setStatus(loadStatus, 'Paste JSON first.', 'error');
       return;
     }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      setStatus(loadStatus, 'JSON must be an array of alarm objects.', 'error');
+    const parsed = extractAlarmArray(raw);
+    if (!parsed) {
+      setStatus(loadStatus, 'Could not find a valid alarm JSON array in the pasted notes.', 'error');
       return;
     }
     alarms = parsed.map((alarm) => normalizeAlarm(alarm));
@@ -634,7 +645,7 @@ function loadFromInput() {
     updateOutput();
     setStatus(loadStatus, `Loaded ${alarms.length} alarm(s).`, 'success');
   } catch (error) {
-    setStatus(loadStatus, `Could not parse JSON: ${error.message}`, 'error');
+    setStatus(loadStatus, `Could not load alarms: ${error.message}`, 'error');
   }
 }
 

@@ -168,6 +168,55 @@
     return true;
   }
 
+  function duplicateAlarm(alarm) {
+    const duplicate = normalizeAlarm(JSON.parse(JSON.stringify(alarm)));
+    if (duplicate.alarmName) duplicate.alarmName = `${duplicate.alarmName} Copy`;
+    return duplicate;
+  }
+
+  function extractAlarmArray(text) {
+    if (!text || typeof text !== 'string') return null;
+
+    let start = text.indexOf('[');
+    while (start !== -1) {
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+
+      for (let index = start; index < text.length; index += 1) {
+        const character = text[index];
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (character === '\\') escaped = true;
+          else if (character === '"') inString = false;
+          continue;
+        }
+        if (character === '"') inString = true;
+        else if (character === '[') depth += 1;
+        else if (character === ']') {
+          depth -= 1;
+          if (depth === 0) {
+            try {
+              const parsed = JSON.parse(text.slice(start, index + 1));
+              if (Array.isArray(parsed) && (parsed.length === 0 || parsed.some((item) => item && typeof item === 'object' && !Array.isArray(item)))) {
+                return parsed;
+              }
+            } catch {
+              // Keep looking for an alarm array later in the notes.
+            }
+            break;
+          }
+        }
+      }
+      start = text.indexOf('[', start + 1);
+    }
+    return null;
+  }
+
+  function formatCalendarNotes(alarms, editorUrl) {
+    return `${editorUrl}\n\n${JSON.stringify(alarms, null, 2)}\n\n${editorUrl}`;
+  }
+
   const api = {
     ACTIONS_SHORTCUT_NAME,
     PUBLIC_ACTIONS,
@@ -179,6 +228,9 @@
     cleanShortcut,
     cleanAlarm,
     moveItem,
+    duplicateAlarm,
+    extractAlarmArray,
+    formatCalendarNotes,
   };
   globalScope.AlarmConfig = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -4,6 +4,8 @@
   --bg: #0f172a;
   --card: #111827;
   --card-border: #334155;
+  --alarm-card: #1e293b;
+  --alarm-card-border: #475569;
   --text: #e5e7eb;
   --muted: #94a3b8;
   --primary: #3b82f6;
@@ -16,6 +18,8 @@
     --bg: #f8fafc;
     --card: #ffffff;
     --card-border: #dbeafe;
+    --alarm-card: #f1f5f9;
+    --alarm-card-border: #93c5fd;
     --text: #111827;
     --muted: #475569;
   }
@@ -44,9 +48,9 @@ input[type='checkbox'] { width: auto; transform: scale(1.2); margin-left: 0.4rem
 .three-col { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .four-col { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
-.alarm-card { border: 1px solid var(--card-border); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+.alarm-card { background: var(--alarm-card); border: 1px solid var(--alarm-card-border); border-left: 4px solid var(--primary); border-radius: 10px; box-shadow: 0 3px 10px rgb(15 23 42 / 12%); padding: 1rem; margin-bottom: 1.25rem; }
 .alarm-card.dragging { opacity: 0.6; }
-.alarm-card-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.6rem; margin-bottom: 0.8rem; }
+.alarm-card-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.6rem; border-bottom: 1px solid var(--alarm-card-border); padding-bottom: 0.8rem; margin-bottom: 0.9rem; }
 .drag-handle { cursor: grab; color: var(--muted); }
 .alarm-title { margin: 0; }
 
@@ -111,4 +115,6 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
 
 @media (max-width: 640px) {
   .section-header { flex-direction: column; align-items: flex-start; }
+  .alarm-card-header { grid-template-columns: auto 1fr; }
+  .alarm-card-header .button-row { grid-column: 1 / -1; }
 }

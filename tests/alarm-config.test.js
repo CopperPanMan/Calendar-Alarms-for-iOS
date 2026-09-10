@@ -8,7 +8,38 @@ const {
   normalizeAlarm,
   cleanAlarm,
   moveItem,
+  duplicateAlarm,
+  extractAlarmArray,
+  formatCalendarNotes,
 } = require('../docs/alarm-config.js');
+
+test('Calendar Notes output links to the editor above and below the JSON', () => {
+  const url = 'https://example.com/editor';
+  const alarms = [{ alarmName: 'Wake up', input: ['value with [brackets]'] }];
+  const output = formatCalendarNotes(alarms, url);
+
+  assert.equal(output, `${url}\n\n${JSON.stringify(alarms, null, 2)}\n\n${url}`);
+  assert.deepEqual(extractAlarmArray(output), alarms);
+});
+
+test('alarm arrays can be extracted from likely full Notes content', () => {
+  const alarms = [{ alarmName: 'Leave', shortcutsOnTrigger: [{ input: ['[nested]'] }] }];
+  const notes = `Meeting details [not JSON]\n${JSON.stringify(alarms)}\nhttps://example.com/editor`;
+
+  assert.deepEqual(extractAlarmArray(notes), alarms);
+  assert.deepEqual(extractAlarmArray('[]'), []);
+  assert.equal(extractAlarmArray('notes without alarms'), null);
+});
+
+test('duplicating an alarm creates an independently editable copy', () => {
+  const original = normalizeAlarm({ alarmName: 'Wake up', locations: [{ lat: 1, lon: 2, radius: 3, name: 'Home' }] });
+  const duplicate = duplicateAlarm(original);
+
+  assert.equal(duplicate.alarmName, 'Wake up Copy');
+  assert.deepEqual(duplicate.locations, original.locations);
+  duplicate.locations[0].name = 'Elsewhere';
+  assert.equal(original.locations[0].name, 'Home');
+});
 
 function renderReady(raw) {
   const alarm = normalizeAlarm(raw);
