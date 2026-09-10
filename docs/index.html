@@ -17,7 +17,7 @@
 
       <section class="card controls">
         <h2>1. Get Started</h2>
-        <label for="jsonInput" class="label">To edit existing alarms, paste the JSON for your event here and click <strong>Load Existing</strong>. Otherwise, continue to <strong>Edit Alarms</strong> below.</label>
+        <label for="jsonInput" class="label">To edit existing alarms, paste the event’s entire Notes field or its alarm JSON here and click <strong>Load Existing</strong>. Otherwise, continue to <strong>Edit Alarms</strong> below.</label>
         <textarea id="jsonInput" rows="10"></textarea>
         <p id="loadStatus" class="status" aria-live="polite"></p>
         <div class="button-row">
@@ -43,8 +43,8 @@
 
       <section class="card">
         <h2>3. Export</h2>
-        <p class="hint">Your new alarm JSON updates automatically as you edit. When you're ready, click <strong>Copy Output.</strong> Calendar Alarms uses the phone’s current local timezone when scheduling Clock alarms.</p>
-        <textarea id="jsonOutput" rows="14" readonly></textarea>
+        <p class="hint">Your Calendar Notes output updates automatically as you edit. It includes links back to this editor before and after the alarm JSON. When you're ready, click <strong>Copy Output.</strong> Calendar Alarms uses the phone’s current local timezone when scheduling Clock alarms.</p>
+        <textarea id="jsonOutput" rows="16" readonly></textarea>
         <div class="button-row">
           <button id="copyOutputBtn" class="btn success">Copy Output</button>
         </div>
@@ -57,10 +57,11 @@
       <article class="alarm-card" draggable="true">
         <div class="alarm-card-header">
           <div class="drag-handle" title="Drag to reorder alarm">⠿</div>
-          <h3 class="alarm-title">Alarm <span class="help" data-tip="One alarm on an event.">?</span></h3>
+          <h3 class="alarm-title"><span class="alarm-number">Alarm</span><span class="alarm-title-name"></span> <span class="help" data-tip="One alarm on an event.">?</span></h3>
           <div class="button-row">
             <button type="button" class="btn secondary small move-up-btn">↑</button>
             <button type="button" class="btn secondary small move-down-btn">↓</button>
+            <button type="button" class="btn secondary small duplicate-alarm-btn">Duplicate</button>
             <button type="button" class="btn danger small delete-alarm-btn">Delete</button>
           </div>
         </div>
