@@ -59,7 +59,7 @@ Go to **Scriptable → Settings → File Bookmarks → Add (+)**, select the bas
 - `Calendar Alarm QR Scanner.js`
 
 **Instructions:** Copy/paste the code from this repository for Calendar Alarm Engine.js into a new blank Scriptable script, and then name that script "Calendar Alarm Engine.js". Do the same for Calendar Alarm QR Scanner.js.
-- at the top of the script, you can optionally fill in DISABLED_CALENDAR_NAMES = ["name1","name2"...] with a list of calendars that you want the code to ignore completely. This is useful if somebody with alarms (like a spouse) shares a calendar event with you, so their alarms are not scheduled on your phone.
+- in `Shortcuts/OpenHabits/Calendar Alarms/settings.json`, the `disabledCalendars` list contains calendar names that the engine should ignore completely. This is useful if somebody with alarms (like a spouse) shares a calendar event with you, so their alarms are not scheduled on your phone.
   
 ## D) Shortcuts setup
 
@@ -359,4 +359,3 @@ For most users, the best approach is to start simple, test it once, and then add
    - same reason as above - iOS sometimes doesn't run shortcuts from automations even when it should. This second alarm is a backup trigger in case that happens.
 - What if I can't scan the code to turn my QR alarm off?
    - If you ever find yourself with no ability to scan the code, turn your phone off and back on, then open the clock app and turn off the next scheduled QR alarm before the clock app closes. The alarm will be automatically marked as complete after an hour. This is intentionally annoying to do, because otherwise it doesn't enforce behavior.
-

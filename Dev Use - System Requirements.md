@@ -40,7 +40,7 @@ Any time an alarm is added/deleted in one domain, attempt the paired action in t
 - `scannerLastOpened.txt` — timestamp used to mute QR sound for a short window after scanner/menu open
 - `menuLastOpened.txt` — timestamp used to prevent duplicate menu overlays
 - `menuOpenStatus.txt` — boolean-ish flag indicating a QR menu is currently open
-- `settings.json` — Calendar Alarms Shortcut settings (maintained outside these Scriptable scripts)
+- `settings.json` — Calendar Alarms Shortcut settings (maintained outside these Scriptable scripts); its `disabledCalendars` key is a list of calendar names the engine excludes
 - `Alarm Tones/` — user-managed QR alarm audio files
 
 ### Scriptable storage rule (no fallback)
