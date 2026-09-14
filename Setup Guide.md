@@ -53,6 +53,11 @@ Scriptable must be able to resolve a File Bookmark named **“Shortcuts”** poi
 To do this:  
 Go to **Scriptable → Settings → File Bookmarks → Add (+)**, select the base **Shortcuts** folder, and name the bookmark **Shortcuts**.
 
+> **Note:** Internally, iOS may expose this folder to Scriptable with a path ending in
+> `Documents`. This is the physical name of the Shortcuts iCloud container and does
+> not mean you selected the wrong folder. The scripts use the folder attached to the
+> bookmark named **Shortcuts**.
+
 ### 2. Add 2 scripts to Scriptable (from this repo):
 
 - `Calendar Alarm Engine.js`

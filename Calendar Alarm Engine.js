@@ -419,13 +419,11 @@ function resolveShortcutsRootOrThrow(fm) {
     );
   }
 
-  const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
-  if (dirName !== SHORTCUTS_BOOKMARK_NAME.toLowerCase()) {
-    throw new Error(
-      `Bookmark "${SHORTCUTS_BOOKMARK_NAME}" must point to iCloud Drive/Shortcuts, not "${fm.fileName(p, false)}".`
-    );
-  }
-
+  // Trust the folder selected for the bookmark instead of checking its path's
+  // last component. iOS exposes app-owned iCloud folders by their physical
+  // container path, where the Files folder shown as "Shortcuts" can end in
+  // "Documents". The bookmark name is therefore the stable identifier; the
+  // basename of the security-scoped path is not.
   return p;
 }
 

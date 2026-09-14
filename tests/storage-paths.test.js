@@ -19,6 +19,33 @@ function functionSource(source, name) {
 
 const joinPath = (parent, child) => `${parent}/${child}`;
 
+function loadBookmarkResolver(scriptPath, bookmarkConstant, bookmarkName) {
+  const source = fs.readFileSync(require.resolve(scriptPath), 'utf8');
+  const context = {
+    FileManager: {},
+    [bookmarkConstant]: bookmarkName,
+  };
+  vm.createContext(context);
+  vm.runInContext(functionSource(source, 'resolveShortcutsRootOrThrow'), context);
+  return context.resolveShortcutsRootOrThrow;
+}
+
+for (const [label, scriptPath, bookmarkConstant] of [
+  ['engine', '../Calendar Alarm Engine.js', 'SHORTCUTS_BOOKMARK_NAME'],
+  ['QR scanner', '../Calendar Alarm QR Scanner.js', 'BOOKMARK_NAME'],
+]) {
+  test(`${label} accepts the physical Documents path returned for a Shortcuts bookmark`, () => {
+    const resolveBookmark = loadBookmarkResolver(scriptPath, bookmarkConstant, 'Shortcuts');
+    const physicalPath = '/private/var/mobile/Library/Mobile Documents/iCloud~is~workflow~my~workflows/Documents';
+    const fm = {
+      bookmarkedPath: (name) => name === 'Shortcuts' ? physicalPath : null,
+      fileName: () => 'Documents',
+    };
+
+    assert.equal(resolveBookmark(fm), physicalPath);
+  });
+}
+
 test('engine derives Calendar Alarms and tracker folders from the Shortcuts root', () => {
   const source = fs.readFileSync(require.resolve('../Calendar Alarm Engine.js'), 'utf8');
   const context = {
