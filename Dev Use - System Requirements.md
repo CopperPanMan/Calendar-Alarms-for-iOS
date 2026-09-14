@@ -33,17 +33,22 @@ Any time an alarm is added/deleted in one domain, attempt the paired action in t
 - Apple Shortcuts
 - Scriptable
 
-### Files (Shortcuts folder)
+### Files (`Shortcuts/OpenHabits/Calendar Alarms` folder)
 
 - `registry.txt` — JSON list of registry alarm objects
 - `registryLock.txt` — lock to prevent concurrent writes
 - `scannerLastOpened.txt` — timestamp used to mute QR sound for a short window after scanner/menu open
 - `menuLastOpened.txt` — timestamp used to prevent duplicate menu overlays
 - `menuOpenStatus.txt` — boolean-ish flag indicating a QR menu is currently open
+- `settings.json` — Calendar Alarms Shortcut settings (maintained outside these Scriptable scripts)
+- `Alarm Tones/` — user-managed QR alarm audio files
 
 ### Scriptable storage rule (no fallback)
 
-Scriptable must use the iCloud Drive **Shortcuts** folder for all files.
+Scriptable must resolve a bookmark named **Shortcuts** that points to the iCloud Drive
+`Shortcuts` folder. Calendar Alarms runtime files live under
+`Shortcuts/OpenHabits/Calendar Alarms`; OpenHabits task state is read from
+`Shortcuts/OpenHabits/OpenHabits Tracker/lockoutCache.json`.
 
 If that folder cannot be resolved (bookmark missing / iCloud unavailable), Scriptable must:
 
@@ -82,7 +87,7 @@ General scheduling:
 QR alarm keys:
 
 - `qrCodeID` (default `""`, if non-empty: must not contain spaces)
-- `qrSoundPath` (default `"/shortcuts/ringtone.mp3"`, valid path)
+- `qrSoundPath` (default `"ringtone.mp3"`, a filename in `Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones`)
 - `qrSoundLen` (default `2.13`, number > 0)
 - `qrVol` (default `40`, integer `1..100`)
 - `qrShortcutsOnScan` (default `[]`, array of objects: `name` string + `input` string array)
