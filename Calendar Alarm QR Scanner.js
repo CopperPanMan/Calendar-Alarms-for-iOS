@@ -11,7 +11,9 @@
 // - This script NEVER writes scannerLastOpened.txt.
 //   Only Shortcuts should update scannerLastOpened.txt when the user presses "silence" or opens the scanner.
 
-const BOOKMARK_NAME = "Calendar Alarms";
+const BOOKMARK_NAME = "Shortcuts";
+const OPENHABITS_DIRNAME = "OpenHabits";
+const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
 
 const LOCK_STALE_SEC = 30;
 const LOCK_RETRY_DELAY_MS = 500;
@@ -106,7 +108,7 @@ function getFileManager() {
   return FileManager.iCloud();
 }
 
-function resolveShortcutsDirOrThrow(fm) {
+function resolveShortcutsRootOrThrow(fm) {
   let p = null;
   try {
     if (typeof fm.bookmarkedPath === "function") p = fm.bookmarkedPath(BOOKMARK_NAME);
@@ -117,10 +119,23 @@ function resolveShortcutsDirOrThrow(fm) {
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create a bookmark pointing to iCloud Drive/Shortcuts/Calendar Alarms.`
+      `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create it pointing to iCloud Drive/Shortcuts.`
+    );
+  }
+  const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
+  if (dirName !== BOOKMARK_NAME.toLowerCase()) {
+    throw new Error(
+      `Bookmark "${BOOKMARK_NAME}" must point to iCloud Drive/Shortcuts, not "${fm.fileName(p, false)}".`
     );
   }
   return p;
+}
+
+function resolveCalendarAlarmsDir(fm, shortcutsRoot) {
+  return fm.joinPath(
+    fm.joinPath(shortcutsRoot, OPENHABITS_DIRNAME),
+    CALENDAR_ALARMS_DIRNAME
+  );
 }
 
 async function ensureFile(fm, path, defaultContent) {
@@ -437,7 +452,8 @@ const result = {};
 const fm = getFileManager();
 
 try {
-  const baseDir = resolveShortcutsDirOrThrow(fm);
+  const shortcutsRoot = resolveShortcutsRootOrThrow(fm);
+  const baseDir = resolveCalendarAlarmsDir(fm, shortcutsRoot);
 
   const paths = {
     registry: fm.joinPath(baseDir, FILES.registry),

@@ -11,7 +11,7 @@ const DELETE_DUPLICATE_ALARMS = true;
 // Calendar Alarms Engine — Scriptable (UPDATED per your notes)
 //
 // Key changes integrated:
-// 1) No fallback path: if Scriptable cannot resolve the iCloud Drive/Shortcuts/Calendar Alarms bookmark, we STOP and return an error.
+// 1) No fallback path: if Scriptable cannot resolve the iCloud Drive/Shortcuts bookmark, we STOP and return an error.
 // 2) Input parsing preserves index alignment (no per-section filtering).
 // 3) Lock staleness uses real-time "now" each retry (not a frozen timestamp).
 // 4) Verifier no longer deletes “not expected” registry entries just because they’re in-window.
@@ -37,11 +37,12 @@ const CALENDAR_ALARMS_ACTIONS = "Calendar Alarms Actions";
 const DELIM = ":;:";
 
 // Path config
-// This expects Scriptable file bookmarks named exactly:
-// - "Calendar Alarms" -> iCloud Drive/Shortcuts/Calendar Alarms
-// - "App Locker"      -> iCloud Drive/Shortcuts/App Locker
+// This expects one Scriptable file bookmark:
+// - "Shortcuts" -> iCloud Drive/Shortcuts
+const SHORTCUTS_BOOKMARK_NAME = "Shortcuts";
+const OPENHABITS_DIRNAME = "OpenHabits";
 const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
-const APP_LOCKER_DIRNAME = "App Locker";
+const OPENHABITS_TRACKER_DIRNAME = "OpenHabits Tracker";
 
 const LOCKOUT_CACHE_FILENAME = "lockoutCache.json";
 
@@ -96,9 +97,8 @@ const output = {
   errorRegistry: "",
 };
 
-let appLockerDir = "";
 let lockoutCachePath = "";
-let appLockerBookmarkAttempted = false;
+let lockoutCachePathAttempted = false;
 
 function normalizeShortcutInputArray(raw) {
   if (Array.isArray(raw)) {
@@ -400,50 +400,53 @@ function getFileManager() {
   return FileManager.iCloud();
 }
 
-function resolveBookmarkedDirOrThrow(fm, bookmarkName, expectedDirName) {
+function resolveShortcutsRootOrThrow(fm) {
   let p = null;
   try {
     if (typeof fm.bookmarkedPath === "function") {
-      p = fm.bookmarkedPath(bookmarkName);
+      p = fm.bookmarkedPath(SHORTCUTS_BOOKMARK_NAME);
     }
   } catch (_) {}
   try {
     if (!p && typeof FileManager.bookmarkedPath === "function") {
-      p = FileManager.bookmarkedPath(bookmarkName);
+      p = FileManager.bookmarkedPath(SHORTCUTS_BOOKMARK_NAME);
     }
   } catch (_) {}
 
   if (!p || typeof p !== "string" || !p.trim()) {
     throw new Error(
-      `Missing Scriptable File Bookmark "${bookmarkName}". Create a bookmark named "${bookmarkName}" pointing to iCloud Drive/Shortcuts/${expectedDirName}.`
+      `Missing Scriptable File Bookmark "${SHORTCUTS_BOOKMARK_NAME}". Create it pointing to iCloud Drive/Shortcuts.`
     );
   }
 
   const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
-  if (dirName !== String(expectedDirName).trim().toLowerCase()) {
+  if (dirName !== SHORTCUTS_BOOKMARK_NAME.toLowerCase()) {
     throw new Error(
-      `Bookmark "${bookmarkName}" must point to iCloud Drive/Shortcuts/${expectedDirName}, not "${fm.fileName(p, false)}".`
+      `Bookmark "${SHORTCUTS_BOOKMARK_NAME}" must point to iCloud Drive/Shortcuts, not "${fm.fileName(p, false)}".`
     );
   }
 
   return p;
 }
 
-function resolveLockoutCachePath(fm, appLockerDir) {
-  const base = String(appLockerDir ?? "").trim();
-  if (!base) return "";
-  return fm.joinPath(base, LOCKOUT_CACHE_FILENAME);
+function resolveOpenHabitsDirs(fm, shortcutsRoot) {
+  const openHabitsDir = fm.joinPath(shortcutsRoot, OPENHABITS_DIRNAME);
+  return {
+    calendarAlarms: fm.joinPath(openHabitsDir, CALENDAR_ALARMS_DIRNAME),
+    tracker: fm.joinPath(openHabitsDir, OPENHABITS_TRACKER_DIRNAME),
+  };
 }
 
 function ensureLockoutCachePathInitialized() {
   if (lockoutCachePath) return lockoutCachePath;
-  if (appLockerBookmarkAttempted) return "";
+  if (lockoutCachePathAttempted) return "";
 
-  appLockerBookmarkAttempted = true;
+  lockoutCachePathAttempted = true;
 
   try {
-    appLockerDir = resolveBookmarkedDirOrThrow(fm, APP_LOCKER_DIRNAME, APP_LOCKER_DIRNAME);
-    lockoutCachePath = resolveLockoutCachePath(fm, appLockerDir);
+    const shortcutsRoot = resolveShortcutsRootOrThrow(fm);
+    const dirs = resolveOpenHabitsDirs(fm, shortcutsRoot);
+    lockoutCachePath = fm.joinPath(dirs.tracker, LOCKOUT_CACHE_FILENAME);
     return lockoutCachePath;
   } catch (e) {
     addError(`ERR: ${String(e)}`);
@@ -790,7 +793,7 @@ function normalizeCalendarAlarmObject(rawObj) {
   const qrCodeID = typeof rawObj.qrCodeID === "string" ? rawObj.qrCodeID.trim() : "";
   if (qrCodeID.includes(" ")) return { ok: false, err: `${errPrefix}qrCodeID must not contain spaces` };
 
-  const qrSoundPath = typeof rawObj.qrSoundPath === "string" ? rawObj.qrSoundPath : "/shortcuts/ringtone.mp3";
+  const qrSoundPath = typeof rawObj.qrSoundPath === "string" ? rawObj.qrSoundPath : "ringtone.mp3";
   const qrSoundLen = num(rawObj.qrSoundLen, 2.13);
   const qrVol = intInRange(rawObj.qrVol, 40, 1, 100);
 
@@ -950,7 +953,7 @@ function ensureRegistryEntryShape(entry) {
   if (!Number.isFinite(Number(entry.offsetMin))) entry.offsetMin = 0;
 
   if (typeof entry.qrCodeID !== "string") entry.qrCodeID = "";
-  if (typeof entry.qrSoundPath !== "string") entry.qrSoundPath = "/shortcuts/ringtone.mp3";
+  if (typeof entry.qrSoundPath !== "string") entry.qrSoundPath = "ringtone.mp3";
   if (!Number.isFinite(Number(entry.qrSoundLen))) entry.qrSoundLen = 2.13;
   if (!Number.isFinite(Number(entry.qrVol))) entry.qrVol = 40;
   entry.qrShortcutsOnScan = normalizeShortcutActionList(entry.qrShortcutsOnScan ?? entry.qrShortcutOnScan);
@@ -2351,7 +2354,8 @@ const fm = getFileManager();
 
 let baseDir;
 try {
-  baseDir = resolveBookmarkedDirOrThrow(fm, CALENDAR_ALARMS_DIRNAME, CALENDAR_ALARMS_DIRNAME);
+  const shortcutsRoot = resolveShortcutsRootOrThrow(fm);
+  baseDir = resolveOpenHabitsDirs(fm, shortcutsRoot).calendarAlarms;
 } catch (e) {
   addError(`ERR: ${String(e)}`);
   output.errorRegistry = errors.join("\n");

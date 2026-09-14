@@ -13,29 +13,45 @@
 
 ## B) Create the iCloud “Shortcuts” folder + required files
 
-1. In the **Files** app → **iCloud Drive** → make sure a folder named **Shortcuts** exists.  
-   Inside it, create a new folder called **Calendar Alarms**.  
-   If either do not exist, create them.
+1. In the **Files** app → **iCloud Drive** → make sure this folder structure exists:
+
+   ```text
+   Shortcuts/
+   └── OpenHabits/
+       ├── OpenHabits Tracker/
+       │   ├── settings.json
+       │   ├── timerStates.json
+       │   ├── lockoutCache.json
+       │   └── lockouts.json
+       └── Calendar Alarms/
+           ├── registry.txt
+           ├── registryLock.txt
+           ├── scannerLastOpened.txt
+           ├── menuLastOpened.txt
+           ├── menuOpenStatus.txt
+           ├── settings.json
+           └── Alarm Tones/
+   ```
    
 <img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/58f12814-71cb-4d39-9b42-5794b483c82b" /><img width="173" height="374" alt="image" src="https://github.com/user-attachments/assets/b81003dd-1bdd-4f57-a489-9141e58a64dc" />
 
-2. The system will create/maintain these several files that store runtime data inside:
+2. Calendar Alarms will create and maintain its five `.txt` runtime files inside:
 
-`iCloud Drive/Shortcuts/Calendar Alarms`
+`iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms`
 
-3. If you intend on using QR functionality, you will need to put at least one alarm tone `.mp3` file in this folder.
+3. If you intend on using QR functionality, put at least one alarm tone `.mp3` file in the `Alarm Tones` folder.
    [*(Here are some to get started with. I like marimba.mp3 and ocean.mp3 → these are needed for one of the demos below)*](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/tree/main/qr%20alarm%20ringtones)
 
 ## C) Scriptable setup
 
-### 1. Create a File Bookmark to the “Calendar Alarms” folder
+### 1. Create a File Bookmark to the base “Shortcuts” folder
 
 Scriptable must be able to resolve a File Bookmark named **“Shortcuts”** pointing to:
 
-`iCloud Drive/Shortcuts/Calendar Alarms`
+`iCloud Drive/Shortcuts`
 
 To do this:  
-Go to **Scriptable → Settings → File Bookmarks → Add (+)** and select the **Calendar Alarms** folder.
+Go to **Scriptable → Settings → File Bookmarks → Add (+)**, select the base **Shortcuts** folder, and name the bookmark **Shortcuts**.
 
 ### 2. Add 2 scripts to Scriptable (from this repo):
 
