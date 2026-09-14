@@ -122,12 +122,9 @@ function resolveShortcutsRootOrThrow(fm) {
       `Missing Scriptable File Bookmark "${BOOKMARK_NAME}". Create it pointing to iCloud Drive/Shortcuts.`
     );
   }
-  const dirName = String(fm.fileName(p, false) ?? "").trim().toLowerCase();
-  if (dirName !== BOOKMARK_NAME.toLowerCase()) {
-    throw new Error(
-      `Bookmark "${BOOKMARK_NAME}" must point to iCloud Drive/Shortcuts, not "${fm.fileName(p, false)}".`
-    );
-  }
+  // A folder displayed as "Shortcuts" in Files can be backed by an iCloud app
+  // container whose security-scoped path ends in "Documents". Trust the
+  // selected bookmark rather than rejecting it based on that internal name.
   return p;
 }
 
