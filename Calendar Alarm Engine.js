@@ -1,7 +1,5 @@
-const DISABLED_CALENDAR_NAMES = [];
 const DELETE_DUPLICATE_ALARMS = true;
 
-//write out calendar names above that you want ignored by this system like ["name1","name2"]
 // Set DELETE_DUPLICATE_ALARMS to false to preserve same-name alarms at the same time.
 
 
@@ -45,6 +43,7 @@ const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
 const OPENHABITS_TRACKER_DIRNAME = "OpenHabits Tracker";
 
 const LOCKOUT_CACHE_FILENAME = "lockoutCache.json";
+const SETTINGS_FILENAME = "settings.json";
 
 // Constants
 const CONFLICT_BUFFER_MIN = 10;
@@ -99,6 +98,7 @@ const output = {
 
 let lockoutCachePath = "";
 let lockoutCachePathAttempted = false;
+let disabledCalendarNames = [];
 
 function normalizeShortcutInputArray(raw) {
   if (Array.isArray(raw)) {
@@ -302,8 +302,8 @@ function safeJSONParse(str) {
 }
 
 async function getEnabledAlarmSourceCalendars() {
-  const disabled = Array.isArray(DISABLED_CALENDAR_NAMES)
-    ? DISABLED_CALENDAR_NAMES
+  const disabled = Array.isArray(disabledCalendarNames)
+    ? disabledCalendarNames
       .map((name) => String(name ?? "").trim())
       .filter((name) => name.length > 0)
     : [];
@@ -317,14 +317,14 @@ async function getEnabledAlarmSourceCalendars() {
 
     for (const title of disabled) {
       if (!allTitles.has(title)) {
-        addError(`WARN: DISABLED_CALENDAR_NAMES calendar not found: "${title}"`);
+        addError(`WARN: settings.json disabledCalendars calendar not found: "${title}"`);
       }
     }
 
     const selected = allCals.filter((cal) => !disabledSet.has(String(cal.title ?? "")));
 
     if (!selected.length) {
-      addError("WARN: DISABLED_CALENDAR_NAMES excludes all calendars; no calendar alarms will be scheduled.");
+      addError("WARN: settings.json disabledCalendars excludes all calendars; no calendar alarms will be scheduled.");
     }
 
     return selected;
@@ -477,6 +477,24 @@ async function safeReadString(fm, path, fallback) {
     addError(`ERR: read failed (${path}): ${String(e)}`);
     return fallback;
   }
+}
+
+async function loadDisabledCalendarNames(fm, settingsPath) {
+  const raw = await safeReadString(fm, settingsPath, "{}");
+  const parsed = safeJSONParse(raw);
+
+  if (!parsed.ok || !parsed.val || typeof parsed.val !== "object" || Array.isArray(parsed.val)) {
+    addError(`WARN: settings.json is not a valid JSON dictionary; all calendars will be included. (${parsed.err ?? "invalid root value"})`);
+    return [];
+  }
+
+  if (typeof parsed.val.disabledCalendars === "undefined") return [];
+  if (!Array.isArray(parsed.val.disabledCalendars)) {
+    addError("WARN: settings.json disabledCalendars must be a list; all calendars will be included.");
+    return [];
+  }
+
+  return parsed.val.disabledCalendars;
 }
 
 async function safeWriteString(fm, path, content) {
@@ -2368,6 +2386,7 @@ const lockPath = fm.joinPath(baseDir, FILES.lock);
 const scannerLastOpenedPath = fm.joinPath(baseDir, FILES.scannerLastOpened);
 const menuLastOpenedPath = fm.joinPath(baseDir, FILES.menuLastOpened);
 const menuOpenStatusPath = fm.joinPath(baseDir, FILES.menuOpenStatus);
+const settingsPath = fm.joinPath(baseDir, SETTINGS_FILENAME);
 
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
@@ -2375,6 +2394,9 @@ await ensureFile(fm, lockPath, "");
 await ensureFile(fm, scannerLastOpenedPath, new Date(0).toISOString());
 await ensureFile(fm, menuLastOpenedPath, new Date(0).toISOString());
 await ensureFile(fm, menuOpenStatusPath, "false");
+
+// Settings are maintained by the Calendar Alarms Shortcut, so read but do not create the file.
+disabledCalendarNames = await loadDisabledCalendarNames(fm, settingsPath);
 
 // Load registry
 let registryBefore = await loadRegistry(fm, registryPath);
