@@ -84,7 +84,18 @@
               <h4>QR Alarm Properties <span class="help" data-tip="Fill these properties in for an alarm that you want to require a QR scan to turn off.">?</span></h4>
               <div class="grid two-col">
                 <label>QR Code ID <span class="help" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
-                <label>QR Sound File <span class="help" data-tip="MP3 filename in iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones. Example: marimba.mp3.">?</span><input data-field="qrSoundPath" type="text" /></label>
+                <label>Built-in QR Sound <span class="help" tabindex="0" data-tip="Choose one of the included alarm tones, or choose Custom to enter your own sound file below.">?</span>
+                  <select class="qr-built-in-sound">
+                    <option value="">Custom</option>
+                    <option value="marimba">Marimba</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="siren">Siren</option>
+                    <option value="sonar">Sonar</option>
+                    <option value="marimba electric">Marimba Electric</option>
+                    <option value="spring forest">Spring Forest</option>
+                  </select>
+                </label>
+                <label>QR Sound File <span class="help" tabindex="0" data-tip="Path from iCloud Drive/Shortcuts/OpenHabits. Alarm tones belong in Calendar Alarms/Alarm Tones (for example, Alarm Tones/marimba.mp3 is exported with Calendar Alarms/ automatically added).">?</span><input data-field="qrSoundPath" type="text" placeholder="Alarm Tones/marimba.mp3" /></label>
                 <label>QR Sound Length <span class="help" data-tip="Length of the sound file in seconds; used to time the playback loop.">?</span><input data-field="qrSoundLen" type="number" min="0.01" step="any" /></label>
                 <label>QR Volume (1-100) <span class="help" data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
               </div>
@@ -111,7 +122,7 @@
             </section>
 
             <section class="advanced-group">
-              <h4>Trigger & Silence Properties <span class="help" data-tip="Choose built-in actions or custom Apple Shortcuts to run when this alarm goes off.">?</span></h4>
+              <h4>Trigger & Silence Properties <span class="help" tabindex="0" data-tip="Choose built-in actions or custom Apple Shortcuts to run when this alarm goes off. Do Not Disturb silences every spoken notification; those notifications are shown as text instead.">?</span></h4>
               <label class="checkbox-row">Silence Alarm <span class="help" data-tip="If true, alarm can silence itself in order to only run a shortcut.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
               <div data-list="shortcutsOnTrigger" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Action on Trigger</button>

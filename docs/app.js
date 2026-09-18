@@ -184,8 +184,21 @@ const ACTION_LABELS = {
   cue: 'Cue',
 };
 
-function actionField(label, field, type = 'text', attributes = '') {
-  return `<label>${label}<input type="${type}" data-action-field="${field}" ${attributes} /></label>`;
+const ACTION_HELP = {
+  notification: 'Shows or speaks a custom notification. Do Not Disturb silences speaking and shows it as text instead.',
+  timer: 'Starts a timer for the selected number of minutes, or cancels the current timer.',
+  focus: 'Turns a named iOS Focus mode on or off.',
+  display: 'Changes Color Filters, screen brightness, or light/dark appearance.',
+  open: 'Opens an app or URL, goes to the Home Screen, or locks the device.',
+  openhabits_reminder: 'Shows or speaks the latest values for the specified OpenHabits metric IDs.',
+  audio: 'Changes media volume or turns Silent Mode on or off.',
+  cue: 'Plays a haptic cue or a sound file from iCloud Drive/Shortcuts/OpenHabits. Use Calendar Alarms/Alarm Tones/filename.mp3 for alarm tones.',
+  custom: 'Runs an Apple Shortcut by name and passes the configured text or number inputs to it.',
+};
+
+function actionField(label, field, type = 'text', attributes = '', help = '') {
+  const helpIcon = help ? ` <span class="help" tabindex="0" data-tip="${help}">?</span>` : '';
+  return `<label>${label}${helpIcon}<input type="${type}" data-action-field="${field}" ${attributes} /></label>`;
 }
 
 function actionSelect(label, field, options) {
@@ -226,7 +239,7 @@ function renderActionEditor(container, item, rerender) {
       break;
     case 'cue':
       fields = actionSelect('Operation', 'operation', [['haptic', 'Haptic'], ['sound', 'Sound']]);
-      if (payload.operation === 'sound') fields += actionField('Sound File', 'file', 'text', 'required');
+      if (payload.operation === 'sound') fields += actionField('Sound File', 'file', 'text', 'required', 'Path from iCloud Drive/Shortcuts/OpenHabits. Alarm tones are stored in Calendar Alarms/Alarm Tones.');
       break;
   }
   container.innerHTML = `<div class="grid two-col action-fields">${fields}</div>`;
@@ -281,7 +294,7 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
           <button type="button" class="btn danger small" data-action="delete">Delete</button>
         </div>
       </div>
-      <label>Action Type<select data-action-type></select></label>
+      <label>Action Type <span class="help action-help" tabindex="0">?</span><select data-action-type></select></label>
       <div data-action-editor></div>
     `;
 
@@ -289,6 +302,8 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
     PUBLIC_ACTIONS.forEach((action) => typeSelect.add(new Option(ACTION_LABELS[action], action)));
     typeSelect.add(new Option('Run Custom Shortcut', 'custom'));
     typeSelect.value = item.editorType;
+    const actionHelp = block.querySelector('.action-help');
+    actionHelp.dataset.tip = ACTION_HELP[item.editorType] || ACTION_HELP.custom;
     typeSelect.addEventListener('change', () => {
       item.editorType = typeSelect.value;
       if (item.editorType === 'custom') {
@@ -546,6 +561,25 @@ function render() {
         if (key === 'alarmName') updateTitleName();
         updateOutput();
       });
+    });
+
+    const builtInSound = card.querySelector('.qr-built-in-sound');
+    const soundPath = card.querySelector('[data-field="qrSoundPath"]');
+    const builtInNames = Array.from(builtInSound.options).map((option) => option.value).filter(Boolean);
+    const currentFile = String(alarm.qrSoundPath || '').split('/').pop().replace(/\.mp3$/i, '');
+    builtInSound.value = builtInNames.includes(currentFile) ? currentFile : '';
+    builtInSound.addEventListener('change', () => {
+      if (!builtInSound.value) {
+        soundPath.focus();
+        return;
+      }
+      alarm.qrSoundPath = `Alarm Tones/${builtInSound.value}.mp3`;
+      soundPath.value = alarm.qrSoundPath;
+      updateOutput();
+    });
+    soundPath.addEventListener('input', () => {
+      const filename = soundPath.value.split('/').pop().replace(/\.mp3$/i, '');
+      builtInSound.value = builtInNames.includes(filename) ? filename : '';
     });
 
     setRescheduleForm(card, alarm);

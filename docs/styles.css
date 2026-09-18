@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   --bg: #0f172a;
   --card: #111827;
@@ -8,6 +8,9 @@
   --alarm-card-border: #475569;
   --text: #e5e7eb;
   --muted: #94a3b8;
+  --field-bg: #0f172a;
+  --field-border: #64748b;
+  --field-text: #f8fafc;
   --primary: #3b82f6;
   --success: #16a34a;
   --danger: #dc2626;
@@ -15,6 +18,7 @@
 
 @media (prefers-color-scheme: light) {
   :root {
+    color-scheme: light;
     --bg: #f8fafc;
     --card: #ffffff;
     --card-border: #dbeafe;
@@ -22,6 +26,9 @@
     --alarm-card-border: #93c5fd;
     --text: #111827;
     --muted: #475569;
+    --field-bg: #ffffff;
+    --field-border: #64748b;
+    --field-text: #111827;
   }
 }
 
@@ -34,7 +41,8 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .section-header h2 { margin: 0; }
 .label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
 textarea, input, select, button { font: inherit; }
-textarea, input, select { width: 100%; margin-top: 0.35rem; border-radius: 8px; border: 1px solid #64748b; background: transparent; color: inherit; padding: 0.55rem; }
+textarea, input, select { width: 100%; margin-top: 0.35rem; border-radius: 8px; border: 1px solid var(--field-border); background: var(--field-bg); color: var(--field-text); padding: 0.55rem; }
+select option { background: var(--field-bg); color: var(--field-text); }
 input[type='checkbox'] { width: auto; transform: scale(1.2); margin-left: 0.4rem; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .btn { border: none; border-radius: 8px; padding: 0.55rem 0.85rem; cursor: pointer; color: white; background: var(--primary); }
@@ -89,7 +97,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   cursor: help;
   position: relative;
 }
-.help:hover::after {
+.help:hover::after, .help:focus::after {
   content: attr(data-tip);
   position: absolute;
   top: 1.2rem;
@@ -104,6 +112,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   font-size: 0.75rem;
   line-height: 1.35;
 }
+.help:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
 .helper-inline {
   vertical-align: middle;
   margin-left: 0.4rem;
