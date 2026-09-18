@@ -11,6 +11,7 @@ const redoBtn = document.getElementById('redoBtn');
 const { PUBLIC_ACTIONS, defaultAlarm, defaultAction, newActionShortcut, normalizeAlarm, cleanAlarm, moveItem, duplicateAlarm, extractAlarmArray, formatCalendarNotes } = AlarmConfig;
 const { buildQrShortcutUrl, validateQrCodeID } = QrTools;
 const EDITOR_URL = 'https://copperpanman.github.io/Calendar-Alarms-for-iOS/';
+const SOUND_PREVIEW_URL = 'https://raw.githubusercontent.com/CopperPanMan/Calendar-Alarms-for-iOS/main/qr%20alarm%20ringtones/';
 
 let alarms = [];
 let dragFromIndex = null;
@@ -18,6 +19,73 @@ let openAdvancedByIndex = [];
 let history = [];
 let historyIndex = -1;
 let isNavigatingHistory = false;
+let soundPreviewAudio = null;
+let soundPreviewButton = null;
+
+function stopSoundPreview() {
+  if (soundPreviewAudio) {
+    soundPreviewAudio.pause();
+    soundPreviewAudio.currentTime = 0;
+  }
+  if (soundPreviewButton) {
+    soundPreviewButton.textContent = '▶';
+    soundPreviewButton.setAttribute('aria-label', 'Play QR sound preview');
+    soundPreviewButton.title = 'Play sound preview';
+  }
+  soundPreviewAudio = null;
+  soundPreviewButton = null;
+}
+
+function setupSoundPreview(card) {
+  const input = card.querySelector('[data-field="qrSoundPath"]');
+  const button = card.querySelector('.sound-preview-btn');
+  const status = card.querySelector('.sound-preview-status');
+  const builtInSounds = new Set(Array.from(document.querySelectorAll('#qrBuiltInSounds option'), (option) => option.value));
+
+  const updateAvailability = () => {
+    const isBuiltIn = builtInSounds.has(input.value.trim());
+    button.disabled = !isBuiltIn;
+    button.title = isBuiltIn ? 'Play sound preview' : 'Preview is available for built-in sounds';
+    status.textContent = '';
+    if (soundPreviewButton === button) stopSoundPreview();
+  };
+
+  input.addEventListener('input', updateAvailability);
+  button.addEventListener('click', async () => {
+    if (soundPreviewButton === button) {
+      stopSoundPreview();
+      return;
+    }
+
+    stopSoundPreview();
+    const filename = input.value.trim();
+    const audio = new Audio(`${SOUND_PREVIEW_URL}${encodeURIComponent(filename)}`);
+    soundPreviewAudio = audio;
+    soundPreviewButton = button;
+    button.textContent = '■';
+    button.setAttribute('aria-label', 'Stop QR sound preview');
+    button.title = 'Stop sound preview';
+    status.textContent = '';
+    const stopIfCurrent = () => {
+      if (soundPreviewAudio === audio) stopSoundPreview();
+    };
+    audio.addEventListener('ended', stopIfCurrent, { once: true });
+    audio.addEventListener('error', () => {
+      if (soundPreviewAudio !== audio) return;
+      status.textContent = 'The sound preview could not be played.';
+      stopSoundPreview();
+    }, { once: true });
+    try {
+      await audio.play();
+    } catch {
+      if (soundPreviewAudio !== audio) return;
+      status.textContent = 'The sound preview could not be played.';
+      stopSoundPreview();
+    }
+  });
+
+  updateAvailability();
+}
 
 function downloadDataUrl(filename, url) {
   const link = document.createElement('a');
@@ -536,6 +604,7 @@ function setRescheduleForm(card, alarm) {
 }
 
 function render() {
+  stopSoundPreview();
   preserveAdvancedState();
   alarmsContainer.innerHTML = '';
   emptyState.style.display = alarms.length ? 'none' : 'block';
@@ -571,6 +640,7 @@ function render() {
 
     setRescheduleForm(card, alarm);
     setupQrGenerator(card, alarm);
+    setupSoundPreview(card);
     card.querySelector('[data-field="reschedFixed"]').addEventListener('input', (e) => {
       alarm.reschedFixed = Number(e.target.value);
       updateOutput();

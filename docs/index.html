@@ -85,7 +85,11 @@
               <div class="grid two-col">
                 <label>QR Code ID <span class="help" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
                 <label>QR Sound File <span class="help" tabindex="0" data-tip="Choose a built-in sound or enter an MP3 filename. Files live in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones.">?</span>
-                  <input data-field="qrSoundPath" type="text" list="qrBuiltInSounds" placeholder="Choose or enter an MP3 filename" />
+                  <span class="sound-picker">
+                    <input data-field="qrSoundPath" type="text" list="qrBuiltInSounds" placeholder="Choose or enter an MP3 filename" />
+                    <button type="button" class="sound-preview-btn" aria-label="Play QR sound preview" title="Play sound preview">▶</button>
+                  </span>
+                  <span class="sound-preview-status" aria-live="polite"></span>
                 </label>
                 <label>QR Sound Length <span class="help" data-tip="Length of the sound file in seconds; used to time the playback loop.">?</span><input data-field="qrSoundLen" type="number" min="0.01" step="any" /></label>
                 <label>QR Volume (1-100) <span class="help" data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
