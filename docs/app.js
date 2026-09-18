@@ -245,7 +245,7 @@ function renderActionEditor(container, item, rerender) {
       if (payload.operation === 'sound') fields += actionField(`Sound File ${helpIcon('Enter a filename stored in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones. The editor adds Alarm Tones/ when exporting.')}`, 'file', 'text', 'required placeholder="Example: marimba.mp3"');
       break;
   }
-  const dndNote = item.editorType === 'notification'
+  const dndNote = ['notification', 'openhabits_reminder'].includes(item.editorType)
     ? '<p class="notice">Do Not Disturb silences spoken notifications and shows their messages as text instead.</p>'
     : '';
   container.innerHTML = `<div class="grid two-col action-fields">${fields}</div>${dndNote}`;
