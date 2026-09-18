@@ -192,7 +192,7 @@ const ACTION_HELP = {
   open: 'Opens an app or URL, goes to the Home Screen, or locks the device.',
   openhabits_reminder: 'Shows or speaks an OpenHabits reminder for the listed metric IDs.',
   audio: 'Changes media volume or turns Silent Mode on or off.',
-  cue: 'Plays a haptic or a sound file from Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones. Alarm Tones/ is added to exported file paths automatically.',
+  cue: 'Plays a haptic or a sound file from Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones.',
   custom: 'Runs the named Apple Shortcut and passes the configured text or number inputs to it.',
 };
 
@@ -242,10 +242,10 @@ function renderActionEditor(container, item, rerender) {
       break;
     case 'cue':
       fields = actionSelect('Operation', 'operation', [['haptic', 'Haptic'], ['sound', 'Sound']]);
-      if (payload.operation === 'sound') fields += actionField(`Sound File ${helpIcon('Enter a filename stored in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones. The editor adds Alarm Tones/ when exporting.')}`, 'file', 'text', 'required placeholder="Example: marimba.mp3"');
+      if (payload.operation === 'sound') fields += actionField(`Sound File ${helpIcon('Enter a filename stored in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones.')}`, 'file', 'text', 'required placeholder="Example: marimba.mp3"');
       break;
   }
-  const dndNote = item.editorType === 'notification'
+  const dndNote = ['notification', 'openhabits_reminder'].includes(item.editorType)
     ? '<p class="notice">Do Not Disturb silences spoken notifications and shows their messages as text instead.</p>'
     : '';
   container.innerHTML = `<div class="grid two-col action-fields">${fields}</div>${dndNote}`;
