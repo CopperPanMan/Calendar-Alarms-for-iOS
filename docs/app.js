@@ -184,6 +184,22 @@ const ACTION_LABELS = {
   cue: 'Cue',
 };
 
+const ACTION_HELP = {
+  notification: 'Shows a notification, speaks its message, or does both. Do Not Disturb silences speech and shows the message as text instead.',
+  timer: 'Starts a timer for the chosen number of minutes, or cancels the current timer.',
+  focus: 'Turns a named Focus mode on or off.',
+  display: 'Changes Color Filters, screen brightness, or light/dark appearance.',
+  open: 'Opens an app or URL, goes to the Home Screen, or locks the device.',
+  openhabits_reminder: 'Shows or speaks an OpenHabits reminder for the listed metric IDs.',
+  audio: 'Changes media volume or turns Silent Mode on or off.',
+  cue: 'Plays a haptic or a sound file from Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones. Alarm Tones/ is added to exported file paths automatically.',
+  custom: 'Runs the named Apple Shortcut and passes the configured text or number inputs to it.',
+};
+
+function helpIcon(description) {
+  return `<span class="help" tabindex="0" data-tip="${description}">?</span>`;
+}
+
 function actionField(label, field, type = 'text', attributes = '') {
   return `<label>${label}<input type="${type}" data-action-field="${field}" ${attributes} /></label>`;
 }
@@ -226,10 +242,13 @@ function renderActionEditor(container, item, rerender) {
       break;
     case 'cue':
       fields = actionSelect('Operation', 'operation', [['haptic', 'Haptic'], ['sound', 'Sound']]);
-      if (payload.operation === 'sound') fields += actionField('Sound File', 'file', 'text', 'required');
+      if (payload.operation === 'sound') fields += actionField(`Sound File ${helpIcon('Enter a filename stored in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones. The editor adds Alarm Tones/ when exporting.')}`, 'file', 'text', 'required placeholder="Example: marimba.mp3"');
       break;
   }
-  container.innerHTML = `<div class="grid two-col action-fields">${fields}</div>`;
+  const dndNote = item.editorType === 'notification'
+    ? '<p class="notice">Do Not Disturb silences spoken notifications and shows their messages as text instead.</p>'
+    : '';
+  container.innerHTML = `<div class="grid two-col action-fields">${fields}</div>${dndNote}`;
   container.querySelectorAll('[data-action-field]').forEach((control) => {
     const field = control.dataset.actionField;
     control.value = field === 'metricIDs' ? (payload.metricIDs || []).join(', ') : (payload[field] ?? '');
@@ -274,14 +293,14 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
     block.className = 'sub-card';
     block.innerHTML = `
       <div class="sub-card-header">
-        <strong>Action ${listIndex + 1}</strong>
+        <strong>Action ${listIndex + 1} <span class="action-help"></span></strong>
         <div class="button-row">
           <button type="button" class="btn secondary small" data-action="up">↑</button>
           <button type="button" class="btn secondary small" data-action="down">↓</button>
           <button type="button" class="btn danger small" data-action="delete">Delete</button>
         </div>
       </div>
-      <label>Action Type<select data-action-type></select></label>
+      <label>Action Type <span class="help" tabindex="0" data-tip="Select an action to run and use its ? icon for details.">?</span><select data-action-type></select></label>
       <div data-action-editor></div>
     `;
 
@@ -289,6 +308,8 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
     PUBLIC_ACTIONS.forEach((action) => typeSelect.add(new Option(ACTION_LABELS[action], action)));
     typeSelect.add(new Option('Run Custom Shortcut', 'custom'));
     typeSelect.value = item.editorType;
+    const actionHelp = block.querySelector('.action-help');
+    actionHelp.innerHTML = helpIcon(ACTION_HELP[item.editorType] || ACTION_HELP.custom);
     typeSelect.addEventListener('change', () => {
       item.editorType = typeSelect.value;
       if (item.editorType === 'custom') {

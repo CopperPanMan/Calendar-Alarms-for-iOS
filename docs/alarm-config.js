@@ -2,6 +2,7 @@
 (function exposeAlarmConfig(globalScope) {
   const ACTIONS_SHORTCUT_NAME = 'Calendar Alarms Actions';
   const PUBLIC_ACTIONS = ['notification', 'timer', 'focus', 'display', 'open', 'openhabits_reminder', 'audio', 'cue'];
+  const SOUND_FOLDER = 'Alarm Tones/';
 
   const defaultAlarm = () => ({
     alarmName: 'New Alarm',
@@ -78,6 +79,15 @@
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   }
 
+  function normalizeSoundPath(value) {
+    const path = String(value ?? '').trim().replace(/\\/g, '/');
+    if (!path) return '';
+    const marker = path.toLowerCase().lastIndexOf('/alarm tones/');
+    if (marker >= 0) return `${SOUND_FOLDER}${path.slice(marker + '/alarm tones/'.length)}`;
+    if (path.toLowerCase().startsWith(SOUND_FOLDER.toLowerCase())) return `${SOUND_FOLDER}${path.slice(SOUND_FOLDER.length)}`;
+    return `${SOUND_FOLDER}${path.replace(/^\/+/, '')}`;
+  }
+
   function normalizeAlarm(raw = {}) {
     const alarm = { ...defaultAlarm(), ...(raw && typeof raw === 'object' ? raw : {}) };
     alarm.qrShortcutsOnScan = Array.isArray(alarm.qrShortcutsOnScan)
@@ -110,9 +120,13 @@
 
   function cleanShortcut(shortcut) {
     if (PUBLIC_ACTIONS.includes(shortcut.editorType) && shortcut.action) {
+      const action = { ...shortcut.action };
+      if (action.action === 'cue' && action.operation === 'sound' && action.file) {
+        action.file = normalizeSoundPath(action.file);
+      }
       return {
         name: ACTIONS_SHORTCUT_NAME,
-        input: [JSON.stringify(shortcut.action)],
+        input: [JSON.stringify(action)],
       };
     }
     return {
@@ -132,7 +146,7 @@
     };
 
     if (alarm.qrCodeID?.trim()) cleaned.qrCodeID = alarm.qrCodeID.trim();
-    if (alarm.qrSoundPath?.trim()) cleaned.qrSoundPath = alarm.qrSoundPath.trim();
+    if (alarm.qrSoundPath?.trim()) cleaned.qrSoundPath = normalizeSoundPath(alarm.qrSoundPath);
     if (Number.isFinite(Number(alarm.qrSoundLen)) && Number(alarm.qrSoundLen) > 0) cleaned.qrSoundLen = Number(alarm.qrSoundLen);
     if (Number.isFinite(Number(alarm.qrVol))) cleaned.qrVol = Number(alarm.qrVol);
 
@@ -231,6 +245,7 @@
     duplicateAlarm,
     extractAlarmArray,
     formatCalendarNotes,
+    normalizeSoundPath,
   };
   globalScope.AlarmConfig = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -11,7 +11,27 @@ const {
   duplicateAlarm,
   extractAlarmArray,
   formatCalendarNotes,
+  normalizeSoundPath,
 } = require('../docs/alarm-config.js');
+
+test('sound paths export relative to the Calendar Alarms root', () => {
+  assert.equal(normalizeSoundPath('marimba.mp3'), 'Alarm Tones/marimba.mp3');
+  assert.equal(normalizeSoundPath('Alarm Tones/ocean.mp3'), 'Alarm Tones/ocean.mp3');
+  assert.equal(
+    normalizeSoundPath('Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones/sonar.mp3'),
+    'Alarm Tones/sonar.mp3',
+  );
+
+  const alarm = renderReady({
+    qrSoundPath: 'siren.mp3',
+  });
+  const cue = newActionShortcut('cue');
+  cue.action = { action: 'cue', operation: 'sound', file: 'spring forest.mp3' };
+  alarm.shortcutsOnTrigger.push(cue);
+  const output = cleanAlarm(alarm);
+  assert.equal(output.qrSoundPath, 'Alarm Tones/siren.mp3');
+  assert.equal(JSON.parse(output.shortcutsOnTrigger[0].input[0]).file, 'Alarm Tones/spring forest.mp3');
+});
 
 test('Calendar Notes output links to the editor above and below the JSON', () => {
   const url = 'https://example.com/editor';
