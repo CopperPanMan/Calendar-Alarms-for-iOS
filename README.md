@@ -75,9 +75,9 @@ The guide walks through each installation step, followed by an optional 10–15 
 
 ## Want the Full OpenHabits System?
 
-If you want one comprehensive productivity "OS," I recommend you use this with its sibling, [OpenHabits Tracker](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector).
+If you want one comprehensive productivity "OS," I recommend you use this with its sibling, [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Metrics).
 
-OpenHabits Tracker is a task and data tracker (and optional screen-time manager) that lets you log and read data from a Google Sheet using your iPhone, Notion, and much more.
+OpenHabits Metrics is a task and data tracker (and optional screen-time manager) that lets you log and read data from a Google Sheet using your iPhone, Notion, and much more.
 
 When integrated, Calendar Alarms can check whether OpenHabits tasks have been completed. An alarm can keep reminding you until a task is done, or skip itself entirely if you've already completed it. OpenHabits can also use the same data to control app and website access across your devices.
 
@@ -85,7 +85,7 @@ When integrated, Calendar Alarms can check whether OpenHabits tasks have been co
 
 Hi, I’m Mike, founder of [Sierra Mille](https://www.sierramille.com/). I struggled to control my attention and wanted a way to build my own personal “Jarvis”—a system that could passively help keep me on track and let me make decisions for my future self while I was thinking clearly, instead of relying on willpower in the moment.
 
-OpenHabits Tracker and Calendar Alarms both live under the OpenHabits umbrella. Development grew out of a broader interest in designing environments, digital and physical, that make the right behavior easier than the wrong one.
+OpenHabits Metrics and Calendar Alarms both live under the OpenHabits umbrella. Development grew out of a broader interest in designing environments, digital and physical, that make the right behavior easier than the wrong one.
 
 ## Future Development, Android Support, and Licensing
 

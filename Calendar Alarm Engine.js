@@ -40,7 +40,7 @@ const DELIM = ":;:";
 const SHORTCUTS_BOOKMARK_NAME = "Shortcuts";
 const OPENHABITS_DIRNAME = "OpenHabits";
 const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
-const OPENHABITS_TRACKER_DIRNAME = "OpenHabits Tracker";
+const OPENHABITS_METRICS_DIRNAME = "OpenHabits Metrics";
 
 const LOCKOUT_CACHE_FILENAME = "lockoutCache.json";
 const SETTINGS_FILENAME = "settings.json";
@@ -431,7 +431,7 @@ function resolveOpenHabitsDirs(fm, shortcutsRoot) {
   const openHabitsDir = fm.joinPath(shortcutsRoot, OPENHABITS_DIRNAME);
   return {
     calendarAlarms: fm.joinPath(openHabitsDir, CALENDAR_ALARMS_DIRNAME),
-    tracker: fm.joinPath(openHabitsDir, OPENHABITS_TRACKER_DIRNAME),
+    metrics: fm.joinPath(openHabitsDir, OPENHABITS_METRICS_DIRNAME),
   };
 }
 
@@ -444,7 +444,7 @@ function ensureLockoutCachePathInitialized() {
   try {
     const shortcutsRoot = resolveShortcutsRootOrThrow(fm);
     const dirs = resolveOpenHabitsDirs(fm, shortcutsRoot);
-    lockoutCachePath = fm.joinPath(dirs.tracker, LOCKOUT_CACHE_FILENAME);
+    lockoutCachePath = fm.joinPath(dirs.metrics, LOCKOUT_CACHE_FILENAME);
     return lockoutCachePath;
   } catch (e) {
     addError(`ERR: ${String(e)}`);
