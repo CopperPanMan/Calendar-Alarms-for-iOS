@@ -84,7 +84,9 @@
               <h4>QR Alarm Properties <span class="help" data-tip="Fill these properties in for an alarm that you want to require a QR scan to turn off.">?</span></h4>
               <div class="grid two-col">
                 <label>QR Code ID <span class="help" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
-                <label>QR Sound File <span class="help" data-tip="MP3 filename in iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones. Example: marimba.mp3.">?</span><input data-field="qrSoundPath" type="text" /></label>
+                <label>QR Sound File <span class="help" tabindex="0" data-tip="Choose a built-in sound or enter an MP3 filename. Files live in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones; the editor adds Alarm Tones/ to exported paths automatically.">?</span>
+                  <input data-field="qrSoundPath" type="text" list="qrBuiltInSounds" placeholder="Choose or enter an MP3 filename" />
+                </label>
                 <label>QR Sound Length <span class="help" data-tip="Length of the sound file in seconds; used to time the playback loop.">?</span><input data-field="qrSoundLen" type="number" min="0.01" step="any" /></label>
                 <label>QR Volume (1-100) <span class="help" data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
               </div>
@@ -112,7 +114,8 @@
 
             <section class="advanced-group">
               <h4>Trigger & Silence Properties <span class="help" data-tip="Choose built-in actions or custom Apple Shortcuts to run when this alarm goes off.">?</span></h4>
-              <label class="checkbox-row">Silence Alarm <span class="help" data-tip="If true, alarm can silence itself in order to only run a shortcut.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
+              <label class="checkbox-row">Silence Alarm <span class="help" tabindex="0" data-tip="If true, alarm can silence itself in order to only run a shortcut.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
+              <p class="notice">Do Not Disturb silences all spoken notifications; their messages are shown as text instead.</p>
               <div data-list="shortcutsOnTrigger" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Action on Trigger</button>
             </section>
@@ -155,6 +158,15 @@
         </details>
       </article>
     </template>
+
+    <datalist id="qrBuiltInSounds">
+      <option value="marimba.mp3">marimba</option>
+      <option value="ocean.mp3">ocean</option>
+      <option value="siren.mp3">siren</option>
+      <option value="sonar.mp3">sonar</option>
+      <option value="marimba electric.mp3">marimba electric</option>
+      <option value="spring forest.mp3">spring forest</option>
+    </datalist>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="qr-tools.js"></script>

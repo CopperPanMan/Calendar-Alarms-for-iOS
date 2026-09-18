@@ -11,6 +11,12 @@
   --primary: #3b82f6;
   --success: #16a34a;
   --danger: #dc2626;
+  --control-bg: #172033;
+  --control-border: #64748b;
+  --control-text: #f8fafc;
+  --option-bg: #172033;
+  --notice-bg: #172554;
+  --notice-border: #3b82f6;
 }
 
 @media (prefers-color-scheme: light) {
@@ -22,6 +28,12 @@
     --alarm-card-border: #93c5fd;
     --text: #111827;
     --muted: #475569;
+    --control-bg: #ffffff;
+    --control-border: #64748b;
+    --control-text: #111827;
+    --option-bg: #ffffff;
+    --notice-bg: #eff6ff;
+    --notice-border: #2563eb;
   }
 }
 
@@ -34,7 +46,10 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .section-header h2 { margin: 0; }
 .label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
 textarea, input, select, button { font: inherit; }
-textarea, input, select { width: 100%; margin-top: 0.35rem; border-radius: 8px; border: 1px solid #64748b; background: transparent; color: inherit; padding: 0.55rem; }
+textarea, input, select { width: 100%; margin-top: 0.35rem; border-radius: 8px; border: 1px solid var(--control-border); background: var(--control-bg); color: var(--control-text); padding: 0.55rem; }
+select option { background: var(--option-bg); color: var(--control-text); }
+textarea:focus, input:focus, select:focus, button:focus-visible, .help:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 2px; }
+::placeholder { color: var(--muted); opacity: 1; }
 input[type='checkbox'] { width: auto; transform: scale(1.2); margin-left: 0.4rem; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .btn { border: none; border-radius: 8px; padding: 0.55rem 0.85rem; cursor: pointer; color: white; background: var(--primary); }
@@ -89,7 +104,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   cursor: help;
   position: relative;
 }
-.help:hover::after {
+.help:hover::after, .help:focus::after {
   content: attr(data-tip);
   position: absolute;
   top: 1.2rem;
@@ -104,6 +119,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   font-size: 0.75rem;
   line-height: 1.35;
 }
+.notice { margin: 0.7rem 0; padding: 0.65rem 0.75rem; border-left: 4px solid var(--notice-border); border-radius: 4px; background: var(--notice-bg); color: var(--text); font-size: 0.9rem; }
 .helper-inline {
   vertical-align: middle;
   margin-left: 0.4rem;
