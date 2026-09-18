@@ -132,7 +132,7 @@ To see how the system works and finish granting permissions, create a demo event
 1. **Alarm 1:** A regular alarm like one you would create in the Clock app.
 2. **Alarm 2:** An alarm that starts a timer and displays a custom notification.
 3. **Alarm 3:** A silent alarm that cancels the previous timer and speaks text.
-4. **Alarm 4:** A QR alarm that loops `marimba.mp3` until the QR code below is scanned. If `marimba.mp3` does not exist in the Calendar Alarms folder, the alarm uses a generic notification sound.
+4. **Alarm 4:** A QR alarm that loops `marimba.mp3` until the QR code below is scanned. If `marimba.mp3` does not exist in the Calendar Alarms `Alarm Tones` folder, the alarm uses a generic notification sound.
    1. When this alarm goes off, a menu should appear so you can scan the code below. If it does not appear, you can *always* scan the QR code with the Camera app.
    2. Feel free to observe what happens if you don’t interact with your phone for a minute or two. Another alarm will trigger and extend the loop until you scan the code. Without user interaction, this cycle stops automatically after one hour.
 
@@ -192,7 +192,7 @@ To see how the system works and finish granting permissions, create a demo event
     "reference": "start",
 
     "qrCodeID": "wakeup",
-    "qrSoundPath": "marimba.mp3",
+    "qrSoundPath": "Alarm Tones/marimba.mp3",
     "qrVol": 50
   }
 ]
