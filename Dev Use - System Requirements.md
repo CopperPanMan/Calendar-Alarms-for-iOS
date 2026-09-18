@@ -48,7 +48,7 @@ Any time an alarm is added/deleted in one domain, attempt the paired action in t
 Scriptable must resolve a bookmark named **Shortcuts** that points to the iCloud Drive
 `Shortcuts` folder. Calendar Alarms runtime files live under
 `Shortcuts/OpenHabits/Calendar Alarms`; OpenHabits task state is read from
-`Shortcuts/OpenHabits/OpenHabits Tracker/lockoutCache.json`.
+`Shortcuts/OpenHabits/OpenHabits Metrics/lockoutCache.json`.
 
 If that folder cannot be resolved (bookmark missing / iCloud unavailable), Scriptable must:
 

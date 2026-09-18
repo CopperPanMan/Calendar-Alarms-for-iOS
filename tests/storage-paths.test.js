@@ -46,19 +46,19 @@ for (const [label, scriptPath, bookmarkConstant] of [
   });
 }
 
-test('engine derives Calendar Alarms and tracker folders from the Shortcuts root', () => {
+test('engine derives Calendar Alarms and Metrics folders from the Shortcuts root', () => {
   const source = fs.readFileSync(require.resolve('../Calendar Alarm Engine.js'), 'utf8');
   const context = {
     OPENHABITS_DIRNAME: 'OpenHabits',
     CALENDAR_ALARMS_DIRNAME: 'Calendar Alarms',
-    OPENHABITS_TRACKER_DIRNAME: 'OpenHabits Tracker',
+    OPENHABITS_METRICS_DIRNAME: 'OpenHabits Metrics',
   };
   vm.createContext(context);
   vm.runInContext(functionSource(source, 'resolveOpenHabitsDirs'), context);
 
   const dirs = context.resolveOpenHabitsDirs({ joinPath }, '/iCloud Drive/Shortcuts');
   assert.equal(dirs.calendarAlarms, '/iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms');
-  assert.equal(dirs.tracker, '/iCloud Drive/Shortcuts/OpenHabits/OpenHabits Tracker');
+  assert.equal(dirs.metrics, '/iCloud Drive/Shortcuts/OpenHabits/OpenHabits Metrics');
 });
 
 test('QR scanner derives its data folder from the Shortcuts root', () => {
