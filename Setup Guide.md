@@ -129,10 +129,9 @@ To see how the system works and finish granting permissions, create a demo event
 <details>
 <summary><strong>Demo Event Alarm Explanations and Configuration</strong></summary>
 
-1. **Alarm 1:** A regular alarm like one you would create in the Clock app.
-2. **Alarm 2:** An alarm that starts a timer and displays a custom notification.
-3. **Alarm 3:** A silent alarm that cancels the previous timer and speaks text.
-4. **Alarm 4:** A QR alarm that loops `marimba.mp3` (auto installed) until the QR code below is scanned. If `marimba.mp3` does not exist in the Calendar Alarms `Alarm Tones` folder, the alarm uses a generic notification sound.
+1. **Alarm 1:** A regular alarm like one you would create in the Clock app. Dismiss it normally.
+2. **Alarm 2:** A self-silencing alarm that starts a timer, displays a notification, and speaks a short explanation. This demonstrates how an alarm can act as a scheduled automation without requiring you to dismiss a ringing alarm.
+3. **Alarm 3:** A QR alarm that cancels the timer, then loops `marimba.mp3` (auto installed) until the QR code below is scanned. Scanning the code speaks a final confirmation. If `marimba.mp3` does not exist in the Calendar Alarms `Alarm Tones` folder, the alarm uses a generic notification sound.
    1. When this alarm goes off, a menu should appear so you can scan the code below. If it does not appear, you can *always* scan the QR code with the Camera app.
    2. Feel free to observe what happens if you don’t interact with your phone for a minute or two. Another alarm will trigger and extend the loop until you scan the code. Without user interaction, this cycle stops automatically after one hour.
 
@@ -151,7 +150,7 @@ To see how the system works and finish granting permissions, create a demo event
     "reference": "start"
   },
   {
-    "alarmName": "Demo 2: This alarm starts a 1.1 minute timer and sends a notification.",
+    "alarmName": "Demo 2: This alarm silently runs scheduled actions.",
     "status": "ON",
     "offsetMin": 1,
     "reference": "start",
@@ -163,12 +162,13 @@ To see how the system works and finish granting permissions, create a demo event
       },
       {
         "name": "Calendar Alarms Actions",
-        "input": ["{\"action\":\"notification\",\"message\":\"Demo: Leave for Work in 1 minute\",\"mode\":\"show\"}"]
+        "input": ["{\"action\":\"notification\",\"message\":\"This alarm silenced itself and started a timer. The next alarm will stop it.\",\"mode\":\"both\"}"]
       }
-    ]
+    ],
+    "silenceAlarm": true
   },
   {
-    "alarmName": "Demo 3: This alarm silences itself in order to silently stop the current timer and speak text.",
+    "alarmName": "Demo 3: Scan the QR code to complete the demo.",
     "status": "ON",
     "offsetMin": 2,
     "reference": "start",
@@ -177,20 +177,14 @@ To see how the system works and finish granting permissions, create a demo event
       {
         "name": "Calendar Alarms Actions",
         "input": ["{\"action\":\"timer\",\"operation\":\"cancel\"}"]
-      },
-      {
-        "name": "Calendar Alarms Actions",
-        "input": ["{\"action\":\"notification\",\"message\":\"Remember to do that task\",\"mode\":\"speak\"}"]
       }
     ],
-    "silenceAlarm": true
-  },
-  {
-    "alarmName": "Demo 4: QR Alarm - scan code: wakeup to turn off.",
-    "status": "ON",
-    "offsetMin": 3,
-    "reference": "start",
-
+    "qrShortcutsOnScan": [
+      {
+        "name": "Calendar Alarms Actions",
+        "input": ["{\"action\":\"notification\",\"message\":\"Calendar Alarms demo complete\",\"mode\":\"speak\"}"]
+      }
+    ],
     "qrCodeID": "wakeup",
     "qrSoundPath": "marimba.mp3",
     "qrVol": 50
@@ -231,15 +225,15 @@ Learn more in Stack Overflow’s [beginner’s guide to JSON](https://stackoverf
 1. In your calendar app, create an event named **Demo** that starts at any time today.
 2. Copy and paste the demo alarm configuration block above into the event’s notes. You can add other notes as usual, as long as you don’t write inside the configuration’s outer square brackets (`[ ]`). You can also load the block into the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to better understand each alarm’s settings.
 3. Set the event’s start time to two minutes from now. For example, if it is currently 3:07 p.m., set it to 3:09 p.m. If you created the event on another device, make sure it has synced to your iPhone.
-4. Swipe to your Home Screen—that is, close the calendar app—to schedule the alarms. Approve any permission requests by choosing options such as **Always Allow**, **Always Delete**, and **Allow Access**. Then open the Clock app. You should see four new alarms, each one minute apart, with the first scheduled for the event’s start time.
-5. Let the alarms run over the next five minutes and approve every permission request that appears.
+4. Swipe to your Home Screen—that is, close the calendar app—to schedule the alarms. Approve any permission requests by choosing options such as **Always Allow**, **Always Delete**, and **Allow Access**. Then open the Clock app. You should see three new alarms, each one minute apart, with the first scheduled for the event’s start time.
+5. Let the alarms run over the next few minutes and approve every permission request that appears.
 6. When they finish, repeat steps 3–5. The second run should be smoother and more representative of normal use.
 7. *(Optional)* Experiment with the alarms in the Alarm Editor to learn what the settings do.
 
 That finishes the demo! You’re now ready to create alarms for your own events.
 
 > [!NOTE]
-> The demo does not use every feature. Depending on the alarms you configure, you may receive additional permission requests in the future.
+> The demo covers the permissions used by standard Calendar Alarms features. **OpenHabits reminders and task-based alarms** also access files and send data off-device, so they may request additional permissions the first time they run. Before relying on either feature while your iPhone is locked, test that type of alarm once with the device unlocked and approve every request.
 
 ## Learn More
 
