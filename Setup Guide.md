@@ -117,7 +117,7 @@ You have finished the installation! Next, test how it works.
 
 ---
 
-## 2) Test It Out (10–15 Minutes)
+## 2) Test It Out (10 Minutes)
 
 ### Demo Time!
 
