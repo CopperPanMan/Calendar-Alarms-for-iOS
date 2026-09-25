@@ -2,7 +2,7 @@
 
 **Calendar Alarms for iOS lets you place real iOS Clock alarms onto your calendar events.**
 
-You can add multiple alarms to any event, and each alarm can be made to go off at any time before, at, or after the start or end of the event. Move the event, and its alarms move with it. Delete the event, and its alarms are deleted, too. It works with any calendar, as long as it’s shared with your Apple Calendar app.
+You can add multiple alarms to any event, and each alarm can be made to go off at any time before, at, or after the start or end of the event. Move the event, and its alarms move with it. Delete the event, and its alarms are deleted, too. It works with any calendar available in Apple Calendar, including shared calendars.
 
 Alarms can also do things ordinary Clock alarms can't: require a QR code to turn off, intelligently reschedule if you're driving, at the wrong location, or in a meeting, show notifications, start timers, change settings, or even run your own Apple Shortcuts.
 
@@ -53,6 +53,10 @@ It takes about 5–10 minutes to install, and another optional 10–15 minutes a
 - **Get notified only when it makes sense**
 
   Using rescheduling features, you can make alarms automatically reschedule themselves if you’re driving, in a conflicting meeting, or not yet at the right location. With an OpenHabits integration, alarms can even repeat on a cadence until you have logged that you completed a task.
+
+- **Set alarms for other people through shared calendars**
+
+  Share a calendar with another Calendar Alarms user and either person can add or edit alarm-configured events on it. That means you can schedule alarms for a partner, coordinate reminders with a coworker, or have someone else place an alarm directly onto your calendar. Each person can   choose which shared calendars Calendar Alarms should pay attention to.
 
 ## You Can Go Much Further Than the Editor
 
