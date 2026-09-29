@@ -6,7 +6,7 @@ You can add multiple alarms to any event, and each alarm can be made to go off a
 
 Alarms can also do things ordinary Clock alarms can't: require a QR code to turn off, intelligently reschedule if you're driving, at the wrong location, or in a meeting, show notifications, start timers, change settings, or even run your own Apple Shortcuts.
 
-Calendar Alarms is totally free and combines capabilities that are spread across multiple subscription-based iOS alarm apps (and several that aren't available in them at all) in one system. This doesn’t change your ability to use your Clock or Calendar apps like you normally do.
+Calendar Alarms is free, open source, and combines capabilities that are spread across multiple subscription-based iOS alarm apps (and several that aren't available in them at all) in one system. This doesn’t change your ability to use your Clock or Calendar apps like you normally do.
 
 ## How Does This Work?
 
@@ -103,9 +103,7 @@ There is currently no Android version. If a community member wants to build one,
 
 ### Licensing
 
-Calendar Alarms is licensed under the **PolyForm Perimeter 1.0.1** license. The source is publicly available and may be used, modified, and shared subject to that license. Calendar Alarms is free and source-available, rather than OSI-defined open source.
-
-**Paid services around Calendar Alarms are welcome.** Consulting, installation, configuration, training, and support are all encouraged. The restriction is intended to prevent Calendar Alarms itself (or a derivative of it) from being repackaged and offered as a competing product without separate permission.
+Calendar Alarms is open source under the **Apache 2.0** license. The source is publicly available and may be used, modified, and shared subject to that license.
 
 Third-party services should make clear that they are independent and should not imply that they are official Calendar Alarms products or services.
 
