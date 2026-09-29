@@ -103,7 +103,7 @@ There is currently no Android version. If a community member wants to build one,
 
 ### Licensing
 
-Calendar Alarms is open source under the **Apache 2.0** license. The source is publicly available and may be used, modified, and shared subject to that license.
+Calendar Alarms is open source under the [**Apache License 2.0**](LICENSE). The source is publicly available and may be used, modified, and shared subject to that license.
 
 Third-party services should make clear that they are independent and should not imply that they are official Calendar Alarms products or services.
 
