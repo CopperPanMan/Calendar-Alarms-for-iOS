@@ -1,5 +1,7 @@
 # Calendar Alarms for iOS
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 **Calendar Alarms for iOS lets you place real iOS Clock alarms onto your calendar events.**
 
 You can add multiple alarms to any event, and each alarm can be made to go off at any time before, at, or after the start or end of the event. Move the event, and its alarms move with it. Delete the event, and its alarms are deleted, too. It works with any calendar available in Apple Calendar, including shared calendars.
@@ -99,11 +101,13 @@ Calendar Alarms currently does everything I built it to do, so I don't have a ro
 
 ### Android support
 
-There is currently no Android version. If a community member wants to build one, I'd be happy to link to it here!
+There is currently no Android version. Contributions toward Android support are welcome, whether as part of this project or as a linked repo.
 
 ### Licensing
 
 Calendar Alarms is open source under the [**Apache License 2.0**](LICENSE). The source is publicly available and may be used, modified, and shared subject to that license.
+
+Bug fixes, improvements, integrations, documentation, and other contributions are welcome. If you build something useful around OpenHabits, feel free to open an issue or pull request.
 
 Third-party services should make clear that they are independent and should not imply that they are official Calendar Alarms products or services.
 
