@@ -2,7 +2,7 @@
 
 This file records the earlier checkpoint. The subsequent [QR scheduling fixes](QR%20Scheduling%20Fixes.md) implement the Engine scheduling changes and update playback coordination. Scanner menu behavior remains as recorded here.
 
-This is a development checkpoint of the runtime and manual Shortcut rebuild work. It is not a release or a claim that QR playback is reliable. The Engine and QR Scanner core scripts are unchanged. The proposed scheduling and menu-state redesigns below are not implemented.
+This records the runtime and manual Shortcut rebuild work **at that earlier checkpoint**, before the QR scheduling fixes. It is not a release or a claim that QR playback is reliable. At that point, the Engine and QR Scanner core scripts were unchanged. Scheduling proposals below have since been implemented or superseded; the menu-state redesign remains unimplemented.
 
 ## Files
 
@@ -92,6 +92,6 @@ TZ=America/New_York node --test tests/*.test.js tests/*.test.cjs
 
 The runtime test contains 80 mocked behavior assertions. These tests cannot exercise native audio decoding/duration, Play Sound, automation launches, menu dismissal, Shortcuts type coercion, permissions, or recurring-event editing.
 
-The installer defaults to `VERSION = "main"`. Before this checkpoint is merged, set VERSION to `checkpoint/calendar-alarms-runtime-2026-10-05` when testing the inline installer, or install the runtime manually. Main does not contain the new runtime yet. Existing scripts are skipped; manually replace an existing runtime when testing an update. Do not delete a user's existing scripts merely to force an update.
+The installer defaults to `VERSION = "main"`. The runtime checkpoint and subsequent QR scheduling fixes are now merged into main; the earlier branch override is no longer needed. Existing scripts are skipped, so replace an existing runtime manually when updating. Do not delete a user's existing scripts merely to force an update. See [updating the QR components together](QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
 
-Scriptable core output JSON conversion, remaining Boolean comparisons, named cache updates, audio durations in seconds, and recurring Sleep event edits still require on-phone verification. No new shared Shortcut links or updated production installation guide are supplied by this checkpoint.
+Scriptable core output JSON conversion, remaining Boolean comparisons, named cache updates, audio durations in seconds, and recurring Sleep event edits require on-phone verification. This historical checkpoint did not supply new shared Shortcut links; the current Setup Guide lists downloads, but their contents must be verified separately against the readouts. See [Development](README.md) for the Wake Times version mismatch.

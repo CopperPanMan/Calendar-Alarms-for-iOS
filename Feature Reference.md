@@ -2,6 +2,21 @@
 
 Use this reference after completing the [Setup Guide](Setup%20Guide.md) to explore alarm options, set up wake times, and troubleshoot common questions.
 
+## Choose What You Want to Do
+
+| I want to… | Read |
+| --- | --- |
+| Create, edit, disable, or delete an ordinary alarm | [Basic Alarms](#basic-alarms) |
+| Require a QR scan or use my own tone | [QR Alarms guide](Guides/QR%20Alarms.md) |
+| Run notifications, timers, settings, or my own Shortcut | [Actions guide](Guides/Actions.md) |
+| Wait until I stop driving, finish a meeting, or reach a location | [Rescheduling guide](Guides/Rescheduling.md) |
+| Repeat until a task is complete or announce habit reminders | [OpenHabits Integration guide](Guides/OpenHabits%20Integration.md) |
+| Move my next sleep and wake alarms together | [Wake Times](#wake-times) |
+| Choose calendars or share alarms | [Calendar Settings and Sharing](#calendar-settings-and-sharing) |
+| Fix a problem, update, or uninstall | [Troubleshooting and Maintenance](Guides/Troubleshooting%20and%20Maintenance.md) |
+
+For hand-written configurations, use [JSON Alarm Reference](JSON%20Alarm%20Reference.md) and [Actions JSON Schema](Calendar%20Alarms%20Actions%20Schema.md). You do not need those references to use the Editor.
+
 ## Basic Alarms
 
 Basic alarms are the default alarm type. In the Editor, select **Add Alarm** and complete the top row:
@@ -19,13 +34,24 @@ Use basic alarms for simple reminders such as:
 - Join a meeting.
 - Wake up at the end of a **Sleep** event.
 
+For example, reference **start** with an offset of `-15` to ring fifteen minutes before an event. Reference **end** with offset `0` to ring when it ends. **ON/OFF** controls that alarm's status; an event can contain several alarms.
+
+### Everyday Changes
+
+- **Create:** Copy the Editor's output into your event's notes, then close Calendar or run **Calendar Alarm Engine**. Keep one configuration block per event; ordinary notes can sit outside it.
+- **Edit:** Load the event's existing notes or configuration in the Editor. Replace the old block with the revised one rather than appending another block.
+- **Disable:** Set an alarm to **OFF**, copy the revised block back, and sync.
+- **Delete:** Remove the alarm in the Editor and replace the block. To remove every alarm for an event, remove its block or delete the event, then sync.
+
+The Engine schedules the next 24 hours of alarms. If an edit was made on another device, wait until it reaches Apple Calendar on your phone and run Engine to sync it. An already-active QR instance keeps separate runtime state; scan it to stop its current prompt.
+
 ---
 
 ## QR Alarms
 
 Use a QR alarm when you want to require physical action to turn off an alarm.
 
-In the Editor, open **Advanced Settings** and complete **QR Alarm Properties**. Once enabled, the alarm will keep looping until you scan the correct QR code with the iPhone Camera app or the on-screen prompt displayed during a QR alarm.
+In the Editor, open **Advanced Settings** and complete **QR Alarm Properties**. Once enabled, the alarm prompts you to scan the correct QR code with the iPhone Camera app or the on-screen prompt displayed during a QR alarm. Playback can pause or miss restarts when iOS delays an automation.
 
 - Each QR alarm has a matching QR code that turns it off. In the Editor, enter the alarm’s `qrCodeID` and select **Show QR Code** to preview, download, or print the matching code. Multiple alarms can share a code.
 - QR codes store text in image form. Here, that text is a Shortcuts URL that launches **Calendar Alarms QR Scanner** with the `qrCodeID` as input.
@@ -42,9 +68,11 @@ QR alarms create a repeating sequence of iOS Clock alarms until you scan the cor
 
 When a QR alarm goes off, Calendar Alarms schedules another alarm shortly in the future. If you don’t scan the code, that alarm triggers and another is scheduled, keeping the QR alarm active until you complete it.
 
-Manually disabling the upcoming alarm in the Clock app would break the QR loop without a scan. While a QR alarm is active, Calendar Alarms therefore prevents the Clock app from being used to bypass it.
+Manually disabling upcoming retries in Clock can interrupt the loop. The separate **CA qrClockCloser** automation sends you Home while a QR alarm is active, discouraging this on both iOS versions.
 
-Once you scan the correct QR code, the loop ends and the remaining QR alarm is removed automatically.
+The current Engine schedules a restart at **+2 minutes** and a backup at **+4 minutes**. Scanning stops the current QR instance and initiates retry cleanup. An incomplete task's independent follow-up remains scheduled. Active QR instances expire after one hour when the system next processes them.
+
+See the [QR Alarms guide](Guides/QR%20Alarms.md) for complete setup, custom sounds and subfolders, scan actions, and testing.
 
 ---
 
@@ -58,6 +86,8 @@ This feature lets you:
 - Make the alarm silence itself while still running those actions.
 
 It is useful for spoken reminders, notifications, timers, lights, and custom automations.
+
+Choose built-in actions or **Run Custom Shortcut** from the Editor's action list. See the [Actions guide](Guides/Actions.md) for available actions, inputs, ordering, and an example. You can also run actions after a QR scan.
 
 ---
 
@@ -74,18 +104,22 @@ Depending on your configuration, the alarm can wait and try again later if:
 
 This is useful for context-dependent reminders such as “Review my day plan once I get to work.”
 
+See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, retry limits, and tests. Range Min/Max are context settings; they do not select a random delay.
+
 ---
 
 ## Task Looping
 
 Use **Task Looping** when an alarm should keep returning until you complete one or more tasks.
 
-- This feature uses [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Metrics), a habit-tracking and app-lockout system that lets you log metrics and habits to Google Sheets. You must install OpenHabits Metrics to use this feature.
+- This feature uses [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector), a habit-tracking system with optional app protection that lets you log metrics and habits to Google Sheets. You must connect OpenHabits Metrics to use this feature.
 - Any alarm type can loop when a task (that is, a metric) has not been completed, up to the configured `maxReschedules` limit.
   - **Example 1:** Remind me every 30 minutes to feed the dog until I log that I fed it.
   - **Example 2:** Loop a QR alarm that makes me go to my computer until I log that I planned my workday.
   - **Example 3:** Remind me to go to bed until I log that I flossed.
-- If you log metric completion in your OpenHabits Google Sheet from anywhere other than iOS Shortcuts—such as Notion or the Sheet itself—**Calendar Alarms Actions** refreshes the OpenHabits state and resets the next task-loop alarm. A separate **Task Alarm Resetter** shortcut is not required.
+- **Calendar Alarms Actions** refreshes task state when handling a task fire. An iOS recording hook can also notify Engine promptly; editing the Sheet or Notion does not launch an iPhone Shortcut by itself. A separate **Task Alarm Resetter** Shortcut is not required.
+
+See [OpenHabits Integration](Guides/OpenHabits%20Integration.md) for connection steps, metric IDs, completion behavior, and tests. The same guide covers **OpenHabits Reminder** actions, which report task status without enabling a loop.
 
 ---
 
@@ -104,7 +138,7 @@ For most users, the best approach is to start simply, test the alarm once, and t
 
 ## Wake Times
 
-**CA Wake Times** lets you change your next wake time without manually moving every alarm. It finds the **Sleep** event that ends the following day, asks you to choose a suggested wake time or enter a custom one, and then shifts the entire event so that it ends at your chosen time. Because the event’s start and end move together, Calendar Alarms also moves every alarm attached to it.
+**CA Wake Times** lets you change your next wake time without manually moving every alarm. It finds your nearby **Sleep** event, asks you to choose a suggested wake time or enter a custom one, and then shifts the entire event so that it ends at your chosen time. Because the event’s start and end move together, Calendar Alarms also moves every alarm attached to it.
 
 ### Set Up Your Sleep Event
 
@@ -116,14 +150,26 @@ For most users, the best approach is to start simply, test the alarm once, and t
 4. Paste the generated alarm configuration into the **Sleep** event’s notes.
 5. Run **CA Wake Times** and follow its setup prompts.
 
+Keep only one matching **Sleep** event in the nearby search period and use a calendar Calendar Alarms is allowed to read. The current repository helper looks for event starts between nine hours ago and fourteen hours ahead.
+
 ### Change Your Next Wake Time
 
-Run **CA Wake Times** and select one of the suggested wake times or enter a custom time. The shortcut finds the **Sleep** event that ends the following day and shifts both its start and end so that the event ends at your selected wake time. This preserves the event’s duration and keeps its bedtime and wake-up alarms in the same positions relative to the event. Calendar Alarms then syncs the updated alarms with the Clock app.
+Run **CA Wake Times** and select one of the suggested wake times or enter a custom time. The shortcut shifts both the **Sleep** event's start and end so that it ends at your selected wake time. This preserves the event’s duration and keeps its bedtime and wake-up alarms in the same positions relative to the event. Calendar Alarms then syncs the updated alarms with the Clock app.
 
 For faster access, add **CA Wake Times** to your Home Screen or use it as a widget. You can then move your next sleep and wake alarms together without opening Calendar or editing each alarm individually.
 
 > [!TIP]
 > You can attach several alarms to the same **Sleep** event—for example, a bedtime reminder, a wake-up alarm, and a follow-up alarm. Because their times are relative to the event’s start or end, they all move together when you change your wake time.
+
+---
+
+## Calendar Settings and Sharing
+
+Run **Calendar Alarms Actions** without input to change which calendars it ignores. Choose **Input Calendars to Ignore**, enter their exact Apple Calendar names separated by commas, or submit a blank value to include all calendars. **Skip** keeps existing settings. Run Engine after changing them to reconcile scheduled alarms.
+
+To share alarms, share a calendar using your calendar provider's sharing controls. Each person who wants alarms needs their own Calendar Alarms installation, access to that calendar in Apple Calendar, and settings that include it. Anyone with edit access can add or change alarm-configured events. Edits reach each phone after calendar sync and its next Engine run; sharing does not directly create a remote Clock alarm.
+
+For QR alarms, each recipient needs the configured sound file and access to the code. Any referenced custom Shortcut must exist on their phone too. Use exclusions if a shared calendar's configured alarms are intended for someone else.
 
 ---
 
@@ -138,12 +184,12 @@ For faster access, add **CA Wake Times** to your Home Screen or use it as a widg
 
 ### Why Was an Alarm Action Delayed or Skipped?
 
-This is an iOS limitation rather than a Calendar Alarms scheduling limitation. Native apps have substantially more control over their execution than Apple provides to personal Shortcuts automations. iOS may not run an automation and does not always report that it skipped it. As a result, an alarm may occasionally run late, a configured action may not execute, or a QR loop may need its backup trigger. Calendar Alarms includes redundancy and cleanup logic to mitigate this behavior, but it cannot eliminate the underlying limitation.
+Check the alarm's conditions, permissions, and automation first. iOS can also delay, skip, or terminate Shortcut execution, so actions can run late and QR playback can pause. Backup triggers improve recovery but cannot guarantee it. See [Troubleshooting](Guides/Troubleshooting%20and%20Maintenance.md#an-alarm-is-delayed-or-does-not-run).
 
 ### Why Do I Sometimes See Two Alarms for an Active QR Alarm?
 
-iOS sometimes doesn’t run Shortcuts automations when expected. The second alarm is a backup trigger in case that happens.
+The current Engine schedules a two-minute restart and a four-minute backup. A QR task alarm can also have an independent task check; coincident purposes share one Clock alarm. See [QR behavior](Guides/QR%20Alarms.md#what-happens-while-it-is-active).
 
 ### What If I Can’t Scan the Code to Turn Off My QR Alarm?
 
-If you cannot scan the code, turn your phone off and back on. Then open the Clock app and disable the next scheduled QR alarm before the Clock app closes. The alarm will be marked as complete automatically after one hour. This process is intentionally inconvenient; otherwise, the QR alarm would not enforce the intended behavior.
+Use the [recovery instructions](Guides/Troubleshooting%20and%20Maintenance.md#i-cannot-reach-the-code) to temporarily disable Clock protection and stop identified retries. Task follow-ups are separate from QR instance expiration.

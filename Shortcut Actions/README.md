@@ -1,6 +1,6 @@
 # Shortcut action readouts
 
-Development checkpoint, 2026-10-05. These manual rebuild instructions accompany [Calendar Alarms Runtime.js](../Calendar%20Alarms%20Runtime.js). Read the [checkpoint notes and unresolved issues](../Development/Runtime%20Checkpoint.md) before testing. They are not an installation-ready release or exported Shortcut files.
+These manual rebuild instructions accompany [Calendar Alarms Runtime.js](../Calendar%20Alarms%20Runtime.js). The Engine readout includes the subsequent [QR scheduling update](../Development/QR%20Scheduling%20Fixes.md); other readouts retain their checkpoint status. Read [Development](../Development/README.md) for version notes and unresolved native wiring. These are not exported Shortcut files or a verified dump of the current shared links. Normal users should start with the [Setup Guide](../Setup%20Guide.md).
 
 | Shortcut | Readout |
 | --- | --- |
@@ -12,6 +12,6 @@ Development checkpoint, 2026-10-05. These manual rebuild instructions accompany 
 
 Keep the established Shortcut names. Retain a separate qrClockCloser automation on iOS 26 and iOS 27. No new Shortcut sharing links are included.
 
-The Engine readout uses cached native audio files and the runtime's numeric QR flags. The Scanner readout preserves the earlier flow and explicitly identifies its JSON/Boolean wiring and cancellation-state problems. Proposed Scanner cooldown and Engine scheduling redesigns are documented separately and have not been applied.
+The Engine readout uses cached native audio, numeric QR flags, and the QR scheduling update's stop/deletion block. The Scanner readout preserves its earlier JSON/Boolean wiring and cancellation-state caveats; the proposed menu cooldown has not been applied. The older Wake Times readout does not yet capture the owner's on-phone duration-preservation fix; see its [version note](../Development/README.md#wake-times-version-note).
 
-The inline setup source is [Calendar Alarms Installer.js](../Inline%20Scriptable/Calendar%20Alarms%20Installer.js). It downloads missing files only. Before merging, choose this branch in its VERSION constant to test the new runtime.
+The inline setup source is [Calendar Alarms Installer.js](../Inline%20Scriptable/Calendar%20Alarms%20Installer.js). Its `VERSION = "main"` includes the merged runtime and QR fixes. It downloads missing files only; follow [existing-installation updates](../Guides/Troubleshooting%20and%20Maintenance.md#update-an-existing-installation) to replace older scripts and native actions.
