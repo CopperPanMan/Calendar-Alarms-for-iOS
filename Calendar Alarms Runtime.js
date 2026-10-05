@@ -90,7 +90,7 @@ function owns(session) {
 }
 function stopped(session, reason) {
   const deadline = Number(session && session.deadline);
-  return {stop: true, play: false, reason,
+  return {stop: true, play: false, reason, alarmsToDelete: [],
     receivedSessionType: Array.isArray(session) ? 'list' : typeof session,
     receivedSession: session == null ? null : session,
     ownerID: owner().id || '',
@@ -124,17 +124,57 @@ async function soundFile(name) {
   for (const p of candidates) if (fm.fileExists(p)) return ready(p);
   throw new Error('Alarm sound not found: ' + relative);
 }
+function qrAlarmKey(alarm) {
+  return JSON.stringify([alarm.alarmName, alarm.calcFireTime || 0,
+    alarm.firstQRFireTime, alarm.qrGeneration || 0, alarm.qrCodeID]);
+}
+function qrCleanup(rows) {
+  const protectedTimes = new Set();
+  const hhmm = (entry, time, mirror) => {
+    if (!(Number(entry[time]) > 0)) return '';
+    if (/^\d{2}:\d{2}$/.test(entry[mirror] || '')) return entry[mirror];
+    const date = new Date(Number(entry[time]) * 1000);
+    return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+  };
+  for (const entry of rows) {
+    const task = Array.isArray(entry.taskIDs) && entry.taskIDs.length > 0;
+    const fields = [];
+    if (!entry.taskSatisfied && (task || !Number(entry.firstQRFireTime))) fields.push(['nextFireTime', 'nextFireHHMM']);
+    if (!entry.taskSatisfied && task) fields.push(['taskCheckFireTime', 'taskCheckHHMM']);
+    if (entry.qrActive || entry.qrPending) fields.push(['qrRestartFireTime', 'qrRestartHHMM'], ['qrFallbackFireTime', 'qrFallbackHHMM']);
+    for (const [time, mirror] of fields) {
+      const clock = hhmm(entry, time, mirror);
+      if (clock) protectedTimes.add(entry.alarmName + '|||' + clock);
+    }
+  }
+  const result = new Map();
+  for (const entry of rows) {
+    if (entry.qrActive || entry.qrPending || !(Number(entry.firstQRFireTime) > 0)) continue;
+    const fields = [['qrRestartFireTime', 'qrRestartHHMM'], ['qrFallbackFireTime', 'qrFallbackHHMM'], ['qrBackupFireTime', 'qrBackupHHMM']];
+    if (!Array.isArray(entry.taskIDs) || !entry.taskIDs.length) fields.push(['nextFireTime', 'nextFireHHMM']);
+    for (const [time, mirror] of fields) {
+      const clock = hhmm(entry, time, mirror), key = entry.alarmName + '|||' + clock;
+      if (!clock || protectedTimes.has(key)) continue;
+      const [hh, mm] = clock.split(':');
+      result.set(key, {name: entry.alarmName, hh, mm});
+    }
+  }
+  return Array.from(result.values());
+}
 async function qrState(session) {
   const reason = sessionStopReason(session);
   if (reason) return stopped(session, reason);
-  const rows = await active();
-  if (!rows.length) return stopped(session, 'no_active_qr_alarm');
+  // Read mute state first, then the registry last. A scan during an awaited
+  // mute-file read must be visible in the final playback eligibility check.
   const opened = Date.parse(await read(path('scannerLastOpened.txt'), new Date(0).toISOString()));
-  const age = Date.now() - opened;
+  const rows = await json(path('registry.txt'), []);
+  const alarms = rows.filter(x => x.qrActive === true).sort((a,b) =>
+    (Number(a.firstQRFireTime) || 0) - (Number(b.firstQRFireTime) || 0));
   const changed = sessionStopReason(session);
   if (changed) return stopped(session, changed);
-  return {stop: false,
-    play: !(age >= 0 && age < 13000) && !playbackBusy(), alarm: rows[0]};
+  if (!alarms.length) return {...stopped(session, 'no_active_qr_alarm'), alarmsToDelete: qrCleanup(rows)};
+  const age = Date.now() - opened;
+  return {stop: false, play: !(age >= 0 && age < 13000) && !playbackBusy(), alarm: alarms[0]};
 }
 function qrSoundRelativePath(name) {
   let relative = String(name || 'ringtone.mp3').replace(/\\/g, '/');
@@ -162,7 +202,7 @@ async function qrPoll(session) {
   const reason = sessionStopReason(session);
   if (reason) return stopped(session, reason);
   return {stop: false, play: true, fileName,
-    alarmKey: JSON.stringify([a.alarmName, a.firstQRFireTime, a.qrCodeID]),
+    alarmKey: qrAlarmKey(a),
     volume: Math.min(1, Math.max(0, Number(a.qrVol ?? 40) / 100))};
 }
 async function qrPermit(r) {
@@ -176,7 +216,7 @@ async function qrPermit(r) {
   if (Date.now() + duration * 1000 + PLAYBACK_ALLOWANCE_MS >= r.session.deadline)
     return stopped(r.session, 'clip_exceeds_remaining_time');
   const a = state.alarm;
-  const key = JSON.stringify([a.alarmName, a.firstQRFireTime, a.qrCodeID]);
+  const key = qrAlarmKey(a);
   const reason = sessionStopReason(r.session);
   if (reason) return stopped(r.session, reason);
   if (!state.play || key !== r.alarmKey || playbackBusy())

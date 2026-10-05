@@ -24,6 +24,7 @@ test('continuing an active QR loop always supplies its next start time', () => {
   const scheduled = [];
   const context = {
     output,
+    hasTaskLoop: () => false,
     scheduleQRLoop: (entry, baseEpoch, iosAlarms) => {
       scheduled.push({ entry, baseEpoch, iosAlarms });
       return 1_800;

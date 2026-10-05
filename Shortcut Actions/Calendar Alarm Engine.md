@@ -1,8 +1,10 @@
 # Calendar Alarm Engine
 
-Checkpoint readout, 2026-10-05. See [checkpoint status and known issues](../Development/Runtime%20Checkpoint.md) before rebuilding.
+Updated QR scheduling readout, 2026-10-05. See [update instructions and QR scheduling behavior](../Development/QR%20Scheduling%20Fixes.md) before rebuilding.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
+
+Install the matching Engine and Runtime scripts when rebuilding this readout. The QR Scanner remains unchanged. The playback stop path removes QR retries while preserving task checks. Set Volume now precedes Permit so permission is followed immediately by Play Sound.
 
 The QR section includes the latest cached-file update. `fileName` is a subfolder-preserving path relative to Alarm Tones. Load file/duration on the first playable Poll and only when this path changes. There are no Base64 actions. QR stop/play outputs are actual Numbers (0/1); other Boolean-to-Number mappings remain part of the experimental readouts. The core returns JSON text; verify output conversion on the Run Script action.
 
@@ -164,71 +166,99 @@ REPEAT: 180 times
         Dictionary: Poll
         Key: stop
         → PollStop (Number)
-    IF: PollStop is 1
-        STOP THIS SHORTCUT
-    END IF
-    GET DICTIONARY VALUE:
-        Dictionary: Poll
-        Key: play
-        → PollPlay (Number)
-    IF: PollPlay is 1
+    SET VARIABLE: LoopState to Poll
+    IF: PollStop is 0
         GET DICTIONARY VALUE:
             Dictionary: Poll
-            Key: fileName
-            → PollSoundPath (Text)
-        IF: PollSoundPath is not CachedSoundPath
-            GET FILE FROM FOLDER:
-                Folder: Shortcuts
-                Path: OpenHabits/Calendar Alarms/Alarm Tones/[PollSoundPath]
-                Error If Not Found: On
-                → LoadedAudioFile (File)
-            SET VARIABLE:
-                Name: CachedAudioFile
-                Value: LoadedAudioFile
-            GET DETAILS OF MUSIC:
-                Detail: Duration
-                Input: CachedAudioFile
-                → LoadedDuration
-            SET VARIABLE:
-                Name: CachedDuration
-                Value: LoadedDuration (Number; seconds)
-            SET VARIABLE:
-                Name: CachedSoundPath
-                Value: PollSoundPath
-        END IF
-        GET DICTIONARY VALUE:
-            Dictionary: Poll
-            Key: alarmKey
-            → PollAlarmKey (Text)
-        DICTIONARY:
-            op: qr_permit (Text)
-            alarmKey: PollAlarmKey (Text)
-            duration: CachedDuration (Number)
-            session: BeginSession (Dictionary)
-            → PermitRequest
-        RUN SCRIPT: Calendar Alarms Runtime
-            Parameter: PermitRequest
-            → Permit
-        GET DICTIONARY VALUE:
-            Dictionary: Permit
-            Key: stop
-            → PermitStop (Number)
-        IF: PermitStop is 1
-            STOP THIS SHORTCUT
-        END IF
-        GET DICTIONARY VALUE:
-            Dictionary: Permit
             Key: play
-            → PermitPlay (Number)
-        IF: PermitPlay is 1
+            → PollPlay (Number)
+        IF: PollPlay is 1
+            GET DICTIONARY VALUE:
+                Dictionary: Poll
+                Key: fileName
+                → PollSoundPath (Text)
+            IF: PollSoundPath is not CachedSoundPath
+                GET FILE FROM FOLDER:
+                    Folder: Shortcuts
+                    Path: OpenHabits/Calendar Alarms/Alarm Tones/[PollSoundPath]
+                    Error If Not Found: On
+                    → LoadedAudioFile (File)
+                SET VARIABLE:
+                    Name: CachedAudioFile
+                    Value: LoadedAudioFile
+                GET DETAILS OF MUSIC:
+                    Detail: Duration
+                    Input: CachedAudioFile
+                    → LoadedDuration
+                SET VARIABLE:
+                    Name: CachedDuration
+                    Value: LoadedDuration (Number; seconds)
+                SET VARIABLE:
+                    Name: CachedSoundPath
+                    Value: PollSoundPath
+            END IF
+            GET DICTIONARY VALUE:
+                Dictionary: Poll
+                Key: alarmKey
+                → PollAlarmKey (Text)
             GET DICTIONARY VALUE:
                 Dictionary: Poll
                 Key: volume
                 → PollVolume (Number)
             SET VOLUME:
                 Media volume: PollVolume
-            PLAY SOUND: CachedAudioFile
+            DICTIONARY:
+                op: qr_permit (Text)
+                alarmKey: PollAlarmKey (Text)
+                duration: CachedDuration (Number)
+                session: BeginSession (Dictionary)
+                → PermitRequest
+            RUN SCRIPT: Calendar Alarms Runtime
+                Parameter: PermitRequest
+                → Permit
+            SET VARIABLE: LoopState to Permit
+            GET DICTIONARY VALUE:
+                Dictionary: Permit
+                Key: play
+                → PermitPlay (Number)
+            IF: PermitPlay is 1
+                PLAY SOUND: CachedAudioFile
+            END IF
         END IF
+    END IF
+    GET DICTIONARY VALUE:
+        Dictionary: LoopState
+        Key: stop
+        → LoopStop (Number)
+    IF: LoopStop is 1
+        GET DICTIONARY VALUE:
+            Dictionary: LoopState
+            Key: alarmsToDelete
+            → LoopAlarmsToDelete (List)
+        REPEAT WITH EACH: LoopAlarmsToDelete
+            GET DICTIONARY VALUE:
+                Dictionary: Repeat Item
+                Key: name
+                → CleanupName (Text)
+            GET DICTIONARY VALUE:
+                Dictionary: Repeat Item
+                Key: hh
+                → CleanupHh (Number)
+            GET DICTIONARY VALUE:
+                Dictionary: Repeat Item
+                Key: mm
+                → CleanupMm (Number)
+            FIND ALARMS:
+                All true:
+                    Label is CleanupName
+                    Hours is CleanupHh
+                    Minutes is CleanupMm
+                → CleanupAlarms
+            IF: CleanupAlarms has any value
+                DELETE ALARMS: CleanupAlarms
+            END IF
+        END REPEAT
+        STOP THIS SHORTCUT
     END IF
     WAIT: 1 second
 END REPEAT

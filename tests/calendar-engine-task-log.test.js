@@ -6,7 +6,8 @@ const vm = require('node:vm');
 const engineSource = fs.readFileSync(require.resolve('../Calendar Alarm Engine.js'), 'utf8');
 
 function functionSource(name) {
-  const start = engineSource.indexOf(`function ${name}(`);
+  let start = engineSource.indexOf(`function ${name}(`);
+  if (engineSource.slice(start - 6, start) === 'async ') start -= 6;
   assert.notEqual(start, -1, `missing function ${name}`);
 
   const bodyStart = engineSource.indexOf('{', start);
@@ -51,7 +52,7 @@ test('task log parsing returns unique completed metric IDs only', () => {
   assert.equal(result.error, '');
 });
 
-test('malformed task log input is non-destructive and reports a warning', () => {
+test('malformed task log input is non-destructive and reports a warning', async () => {
   const warnings = [];
   const deletions = [];
   const context = loadTaskLogFunctions({
@@ -61,20 +62,26 @@ test('malformed task log input is non-destructive and reports a warning', () => 
   });
   const registry = [{ alarmName: 'Meditate', taskIDs: ['meditationDuration'], taskSatisfied: false }];
 
-  context.applyTaskLogCompletions({ taskLogResponseRaw: '{bad', iosAlarms: [] }, registry);
+  await context.applyTaskLogCompletions({ taskLogResponseRaw: '{bad', iosAlarms: [] }, registry);
 
   assert.equal(registry[0].taskSatisfied, false);
   assert.equal(deletions.length, 0);
   assert.match(warnings[0], /invalid task log response JSON/);
 });
 
-test('completed metrics delete and reset every matching task loop', () => {
+test('completed metrics delete and reset every matching task loop', async () => {
   const deletions = [];
   const backupsCleared = [];
   const context = loadTaskLogFunctions({
     addError: () => {},
     queueDeleteIOSByStoredHHMMIfUnique: (...args) => deletions.push(args),
-    clearQRBackupAlarm: (...args) => backupsCleared.push(args),
+    ownedAlarmSlots: (entry) => [entry.nextFireTime],
+    setTaskCheck: () => {},
+    cancelQRLoop: (entry) => {
+      entry.qrActive = false; entry.qrPending = false; entry.qrPendingSince = 0;
+      backupsCleared.push(entry);
+    },
+    retireReplacedAlarms: (entry, previous, ios) => deletions.push([ios, entry.alarmName, entry.nextFireHHMM, previous[0]]),
   });
   const iosAlarms = [{ name: 'Meditate', hh: '07', mm: '30' }];
   const registry = [
@@ -95,7 +102,7 @@ test('completed metrics delete and reset every matching task loop', () => {
     metricsByID: [{ metricID: 'meditationDuration', complete: true }],
   });
 
-  context.applyTaskLogCompletions({ taskLogResponseRaw: response, iosAlarms }, registry);
+  await context.applyTaskLogCompletions({ taskLogResponseRaw: response, iosAlarms }, registry);
 
   assert.deepEqual(deletions, [[iosAlarms, 'Meditate', '07:30', 123]]);
   assert.equal(backupsCleared.length, 1);
