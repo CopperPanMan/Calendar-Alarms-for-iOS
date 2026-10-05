@@ -1,5 +1,7 @@
 # Calendar Alarms runtime checkpoint — 2026-10-05
 
+This file records the earlier checkpoint. The subsequent [QR scheduling fixes](QR%20Scheduling%20Fixes.md) implement the Engine scheduling changes and update playback coordination. Scanner menu behavior remains as recorded here.
+
 This is a development checkpoint of the runtime and manual Shortcut rebuild work. It is not a release or a claim that QR playback is reliable. The Engine and QR Scanner core scripts are unchanged. The proposed scheduling and menu-state redesigns below are not implemented.
 
 ## Files
