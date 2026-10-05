@@ -2,6 +2,8 @@
 
 Checkpoint readout, 2026-10-05. See [checkpoint status and known issues](../Development/Runtime%20Checkpoint.md) before rebuilding.
 
+**Version note:** The owner has since corrected the on-phone Shortcut to preserve the original Sleep event's duration. This older readout still takes dates from the runtime's eight-hour plan and does not capture that correction. See [Wake Times version note](../Development/README.md#wake-times-version-note); do not replace a corrected Shortcut with this older flow.
+
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
 ```jsx

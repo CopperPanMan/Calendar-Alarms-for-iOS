@@ -1,3 +1,5 @@
+> **Historical specification.** This describes a superseded implementation, including task endpoints and sound-loop requirements. Use [current development notes](../README.md), [JSON Alarm Reference](../../JSON%20Alarm%20Reference.md), and [QR Scheduling Fixes](../QR%20Scheduling%20Fixes.md) for the current system.
+
 # Calendar Alarms — Requirements & Spec (Markdown)
 
 ## 0) Purpose and operating model

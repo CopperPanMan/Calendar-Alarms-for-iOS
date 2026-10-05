@@ -24,7 +24,7 @@ Once installed, it’s dead simple to use.
 
 ## What Am I Installing?
 
-Calendar Alarms is not an app. Instead, it's a set of four Apple Shortcuts, a few paired automations, and a free helper app called Scriptable that lets the Shortcuts handle the more complex logic. Everything runs on your own iPhone and iCloud account.
+Calendar Alarms is not an app. Instead, it's a set of five Apple Shortcuts (including optional tools), a few paired automations, and a free helper app called Scriptable that lets the Shortcuts handle the more complex logic. Core alarm behavior runs on your own iPhone and iCloud account.
 
 You don't need to understand or write any code. Once installed, the system is your copy: you can inspect it, modify it, build on it, or ignore the technical parts entirely.
 
@@ -58,7 +58,7 @@ It takes about 5–10 minutes to install, and another optional 10–15 minutes a
 
 - **Set alarms for other people through shared calendars**
 
-  Share a calendar with another Calendar Alarms user and either person can add or edit alarm-configured events on it. That means you can schedule alarms for a partner, coordinate reminders with a coworker, or have someone else place an alarm directly onto your calendar. Each person can   choose which shared calendars Calendar Alarms should pay attention to.
+  Share a calendar with another Calendar Alarms user and either person can add or edit alarm-configured events on it. That means you can schedule alarms for a partner, coordinate reminders with a coworker, or have someone else place an alarm directly onto your calendar. Each person can choose which shared calendars Calendar Alarms should pay attention to.
 
 ## You Can Go Much Further Than the Editor
 
@@ -75,6 +75,8 @@ Installation takes approximately 5–10 minutes, and you do not need to understa
 The guide walks through each installation step, followed by an optional 10–15 minute tutorial and test event so you can learn the basic workflow and verify that everything is working correctly before relying on it.
 
 ### [**→ Setup Guide**](Setup%20Guide.md)
+
+Already installed? Choose what you want to do in the [Feature Reference](Feature%20Reference.md).
 
 <details>
 <summary><strong>Read more about Calendar Alarms</strong></summary>

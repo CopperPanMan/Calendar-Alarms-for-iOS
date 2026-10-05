@@ -1,17 +1,24 @@
 # JSON Alarm Reference
 
-Advanced users may wish to directly create and edit alarms from raw JSON. This reference document is made for that.
+Use the [Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) for visual configuration. This reference is for writing JSON directly, generating configurations with AI, or understanding exported fields. For user instructions, start with [Feature Reference](Feature%20Reference.md).
 
-For our purposes, an alarm looks like the blank template below. This JSON block includes **one alarm** with every available setting shown. Any number of alarms is possible by copy/pasting the inner alarm object {} - ie everything inside of the outer brackets[], and adding commas between each object.
+## Structure and formatting
 
-## Setup a Blank Alarm Template
-- To make new alarm setup easier, create an event that recurs daily. Copy and paste the blank template below into the notes section of that event. Then, under the JSON you just pasted, copy and paste the key explanations as well.
-- Now, just copy/paste the JSON block from that event any time you want to create a new alarm. If an alarm already exists, just copy/paste everything but the outer brackets.
-- You now have everything you need to get started with this system!
+Put one JSON array in a calendar event's **Notes**. Each object in it is one alarm; use several objects for several alarms. Ordinary notes can go above or below the array. Do not put comments inside it or paste a second alarm block into the same event.
 
----
+```json
+[
+  { "alarmName": "Prepare for meeting", "offsetMin": -15, "reference": "start" },
+  { "alarmName": "Meeting ends", "offsetMin": 0, "reference": "end" }
+]
+```
 
-## Blank Alarm Template
+Use straight double quotes for keys and text, unquoted numbers and Booleans, and commas between entries. Do not use trailing commas. **alarmName** is required; other fields can be omitted. Avoid an unrelated Clock alarm with the same name and time, because identical alarms cannot be distinguished reliably.
+
+## Full editable template
+
+This is valid JSON, with the alarm initially **OFF**. Remove unused fields; fill the relevant lists when enabling optional behavior. Choose an installed sound when using QR.
+
 ```json
 [
   {
@@ -19,179 +26,147 @@ For our purposes, an alarm looks like the blank template below. This JSON block 
     "status": "OFF",
     "offsetMin": 0,
     "reference": "start",
-
     "qrCodeID": "",
-    "qrSoundPath": "",
-    "qrVol": 50,
-    "qrShortcutsOnScan": [
-      {
-        "name": "",
-        "input": [""]
-      }
-    ],
-
-    "shortcutsOnTrigger": [
-      {
-        "name": "",
-        "input": [""]
-      }
-    ],
+    "qrSoundPath": "marimba.mp3",
+    "qrVol": 40,
+    "qrShortcutsOnScan": [],
+    "shortcutsOnTrigger": [],
     "silenceAlarm": false,
-
     "locationMode": "off",
-    "locations": [
-      [0, 0, 50]
-    ],
-
+    "locations": [],
     "silenceIfDriving": "OFF",
     "conflictingCalendars": [],
     "reschedMinutes": { "min": 10, "max": 45 },
-    "maxReschedules": 2
-
-    "taskIDs": "",
+    "maxReschedules": 2,
+    "taskIDs": [],
     "taskLoopMin": 30,
-    "checkTasksFirstTime": true,
+    "checkTasksFirstTime": true
   }
 ]
 ```
 
-### Key explanations (JSON cheat-sheet: text goes in quotes, numbers and true/false do not, and the outermost '{}' are one alarm)
-- alarmName: the name of your alarm
-- status: ON or OFF
-- offsetMin: number of minutes from the start or end of the event. Neg=before, Pos=after. Also accepts a string like “2h”, “-6d”, “+15m” (no decimals)
-- reference: START or END
-- qrCodeID: for qr alarms, this is the unique ID you place in CA qrCodeMaker. eg: your_ID_here (no spaces. Allowed characters: A–Z a–z 0–9 - . _ ~)
-- qrSoundPath: for qr alarms, filename.mp3
-- qrVol: for qr alarms, volume, 1 to 100,
-- qrShortcutsOnScan: for qr alarms, run shortcuts when you scan the QR code. eg: [{"name": "optional shortcut name here", "input": ["optional input 1", "optional input 2"]}],
-- shortcutsOnTrigger: run shortcuts when the alarm first goes off. eg: [{"name": "optional shortcut name here", "input": ["optional input 1"]}],
-  - The Alarm Editor can also configure built-in notifications, timers, Focus settings, display settings, destinations, OpenHabits reminders, audio controls, and cues. These are serialized as calls to `Calendar Alarms Actions`; see [Calendar Alarms Actions JSON Schema](Calendar%20Alarms%20Actions%20Schema.md).
-- silenceAlarm: true or false, useful for silently running a shortcut on trigger.
-- locationMode: whitelist, blacklist, or off -> whitelist = ONLY run if at one of these locations (ie reschedule if not), blacklist = NEVER run if at one of these locations
-- locations: [[lat1, long1, radiusMeters1], [lat2, long2, radiusMeters2], ...],
-- silenceIfDriving: "ON",
-- conflictingCalendars: if event from calendar here conflicts, reschedule alarm. eg: ["calendar name 1", "calendar name 2"],
-- reschedMinutes: number OR { "min": number, "max": number }. Number mode is backward-compatible and treated as { "min": number, "max": 45 }.
-  - `min` is the fallback delay for context gates such as driving, blacklist matches, or an unavailable current location. A value of `0` disables that fallback; `maxReschedules` does not supply a delay by itself.
-  - `taskLoopMin` is only used after an alarm passes its context gates and its task is found incomplete. It is not used as the fallback when location cannot be fetched.
-- maxReschedules: "max_number_of_reschedules"
-- taskIDs: list of metrics, like: ["metricID1","metricID2"]
-- taskLoopMin: the duration to loop at.
-- checkTasksFirstTime: if false, the first non-rescheduled task-loop fire skips the task-completion check and is treated as incomplete; all other rescheduling logic still applies.
+## Scheduling fields
 
----
+These are defaults used by the Engine when a field is absent. The Editor and the template deliberately supply some different starting values, such as two reschedules and a 30-minute task interval.
 
-# Examples and Further Context
+| Field | Meaning | Engine default / limits |
+| --- | --- | --- |
+| `alarmName` | Label of the Clock alarm | Required nonempty text |
+| `status` | Enable or disable the definition | `"ON"`; `"ON"` or `"OFF"` |
+| `offsetMin` | Offset from the selected event boundary | `0`; integer minutes or integer unit text, such as `"-2h"`, `"+15m"`, or `"-6d"`; within ±7 days |
+| `reference` | Event boundary used for the offset | `"start"`; `"start"` or `"end"` |
 
-## What are the Formatting Rules?
-- General Rules
-  - You can delete unwanted settings: alarmName is required, but you can delete any other "key": "value" pair (setting) you don’t want. Missing keys are filled with safe defaults (usually equivalent to “off” for optional features). Just don’t change the names of any keys.
+Calendar source events are searched around the current date to account for offsets. New Clock alarms are normally scheduled within the next 24 hours; future definitions remain in their events until relevant. After an edit has reached Apple Calendar, run **Calendar Alarm Engine** for an immediate sync, including after a timezone change.
 
-  - Unlimited lists: If a value is shown in brackets[] (like locations) or braces{} (like alarms, shortcutsOnTrigger, etc), you can include as many of those objects as you want, separated by commas. Useful for multiple locations, multiple shortcuts, multiple alarms, etc.
-  - You can also have as many alarms as you want on one event by copying/pasting the outer {} alarm object, with commas between each, as shown in an example below.
+## QR fields
 
-  - Avoid duplicates: Where possible, avoid creating a Calendar Alarm with the exact same name + time as any other alarm, calendar alarm or regular. Failure to do so can lead to old alarms not being properly deleted due to ambiguity over what is “owned” by Calendar Alarms, and can cause QR alarms to not loop correctly.
+See [QR Alarms](Guides/QR%20Alarms.md) for printing codes, testing, and custom sounds.
 
-- JSON Punctuation Rules
-  - Keys and text values are in quotes, but number values are not. Use regular quotes (" ") NOT smart quotes (“ ”).
+| Field | Meaning | Engine default / limits |
+| --- | --- | --- |
+| `qrCodeID` | Nonempty ID enables QR prompting | Empty; use URL-safe letters, numbers, `- . _ ~`, without spaces. IDs are case-sensitive. Generate the link/code in the Editor. |
+| `qrSoundPath` | Sound inside Alarm Tones; subfolders supported | Legacy default `"ringtone.mp3"`, which is **not installed**. Supply an installed tone such as `"marimba.mp3"`. `"Nature/ocean.mp3"` and `"Alarm Tones/Nature/ocean.mp3"` identify a subfolder sound. |
+| `qrVol` | QR media volume percentage | `40`; integer 1–100 |
+| `qrShortcutsOnScan` | Ordered action/Shortcut entries after a matching active scan | `[]`; transport format below |
+| `qrSoundLen` | Legacy duration in seconds | `2.13`; current cached-audio readouts measure the actual duration and do not rely on this value |
 
-  - Commas separate all key/value pairs, all items in arrays [], and all objects {}. Watch out for missing or trailing commas. Extra spaces don’t matter.
+The current Engine uses a +2-minute restart and +4-minute backup. These are implementation settings, not calendar JSON keys. A scan stops the QR instance; an independent task follow-up can remain. Continuous playback is subject to Shortcut execution limits.
 
-  - You can write notes above and below the JSON block, but do not write comments or notes inside of the JSON block itself (ie inside the outer brackets []).
+## Actions and silent alarms
 
-  - The shortcut will notify you of an error if any of these are wrong. When in doubt, no matter what the error says, your problem is commas or quotes (missing, misplaced, or extra).
-    
+| Field | Meaning | Default |
+| --- | --- | --- |
+| `shortcutsOnTrigger` | Ordered action/Shortcut entries after context checks pass | `[]` |
+| `silenceAlarm` | Silence the native fire while its actions run | `false` |
 
-## Example Single Alarm for Completing a task called “Plan Workday” on an event called “Work” (includes all possible keys)
+Each Shortcut entry has an exact `name` and optional `input` list. Inputs are transported as text; a receiving Shortcut should convert numeric values if needed. For example:
+
 ```json
 [
   {
-    "alarmName": "Scan Plan Workday At Computer",
-    "status": "ON",
-    "offsetMin": 30,
+    "alarmName": "Begin work",
+    "shortcutsOnTrigger": [
+      { "name": "Turn Desk Lights On", "input": ["work"] },
+      {
+        "name": "Calendar Alarms Actions",
+        "input": ["{\"action\":\"timer\",\"operation\":\"start\",\"minutes\":25}"]
+      }
+    ],
+    "silenceAlarm": true
+  }
+]
+```
+
+The built-in action payload is one serialized JSON object in one input string. The Editor handles escaping automatically. Use the same entry format in `qrShortcutsOnScan`. For action payloads, see [Actions JSON Schema](Calendar%20Alarms%20Actions%20Schema.md); for practical examples, see [Actions](Guides/Actions.md).
+
+## Context and retry fields
+
+See [Rescheduling](Guides/Rescheduling.md) for examples and the meaning of the Editor's Range/Fixed controls.
+
+| Field | Meaning | Engine default / limits |
+| --- | --- | --- |
+| `locationMode` | `"whitelist"` runs only inside a listed location; `"blacklist"` blocks inside it | `"off"` |
+| `locations` | Coordinate triples: `[[latitude, longitude, radiusMeters], ...]` | `[]`; radius 1–500 meters, default 50 when omitted |
+| `silenceIfDriving` | Block the fire while Driving Focus is active | `"OFF"`; `"ON"` enables it |
+| `conflictingCalendars` | Exact Apple Calendar names whose overlapping events can postpone the alarm | `[]` |
+| `reschedMinutes` | Context fallback and maximum considered conflict/travel delay | Missing: `{ "min": 0, "max": 45 }`; values 0–500, with max at least min |
+| `maxReschedules` | Shared allowance for future task/context follow-ups | `1`; integer 0–10 |
+
+For example, `"reschedMinutes": { "min": 10, "max": 45 }` uses ten minutes for driving, blacklist matches, or unavailable location, and considers conflict/travel candidates within 45 minutes. The latest applicable candidate wins. This is **not a random range**. A calendar conflict candidate is the latest overlapping event's end plus ten minutes.
+
+The legacy number form `"reschedMinutes": 30` is treated as `{ "min": 30, "max": 45 }`; its effective max is raised if min is greater. It is not a strict fixed delay for every condition. A zero fallback disables fallback retries. QR-only restarts do not spend `maxReschedules`. A blocked ordinary alarm with no available follow-up is silenced rather than forced to run.
+
+## Task fields
+
+Requires the [OpenHabits integration](Guides/OpenHabits%20Integration.md), including its cache refresh Shortcut.
+
+| Field | Meaning | Engine default / limits |
+| --- | --- | --- |
+| `taskIDs` | Exact metric IDs; all must be complete to stop the chain | `[]`; array of strings, not a display name or row number |
+| `taskLoopMin` | Minutes between task checks after context gates pass | `0`; supply a positive integer, up to 500, when task IDs are used |
+| `checkTasksFirstTime` | Check completion at the initial eligible fire | `true`; `false` skips that first check only |
+
+A missing metric, stale cache, or failed refresh does not prove completion. Current task checks use explicit completion flags in `reminderState.byID`. The runtime refreshes task state through **Calendar Alarms Actions**; do not configure a `TASK_WEBAPP_ID` in the Engine.
+
+```json
+[
+  {
+    "alarmName": "Plan my workday",
+    "offsetMin": 0,
     "reference": "start",
-
-    "qrCodeID": "plan_workday",
-    "qrSoundPath": "wakeup_alarm_ringtone.mp3",
-    "qrVol": 40,
-    "qrShortcutsOnScan": [{"name": "Show Tasks", "input": ["plan_workday", "computer"]}],
-
-    "shortcutsOnTrigger": [{"name": "Open Notion", "input": ["work"]}],
-    "silenceAlarm": false,
-
-    "locationMode": "whitelist",
-    "locations": [[40.0907, -82.8767, 200]],
-
-    "silenceIfDriving": "ON",
-    "conflictingCalendars": ["work meetings", "vacation", "travel"],
-    "reschedMinutes": { "min": 30, "max": 90 },
-    "maxReschedules": 3
+    "taskIDs": ["started_day"],
+    "taskLoopMin": 30,
+    "maxReschedules": 2,
+    "checkTasksFirstTime": true,
+    "qrCodeID": "desk",
+    "qrSoundPath": "marimba.mp3",
+    "qrVol": 40
   }
 ]
 ```
-### What does this Alarm Do?
-- General scheduling and QR settings
 
-  - This alarm is turned on and will go off 30 minutes after the start of the event it’s on.
+This example requires `started_day` to exist in Metrics. If incomplete, it can prompt initially and schedule two task follow-ups. Scanning `desk` stops the current QR prompt without marking the metric complete or removing its independent task check.
 
-  - It will play the alarm tone "wakeup_alarm_ringtone.mp3" on loop until a QR code is scanned that contains the qrCodeID "plan_workday".
+## Sleep event example
 
-  - It will run the shortcut “Open Notion” when it triggers and pass the input array `["work"]`.
+Put this on a recurring timed event named **Sleep**. The corrected **CA Wake Times** Shortcut shifts the event while preserving its original duration.
 
-  - Optional: set `"silenceAlarm": true` for silent one-shot behavior (the alarm is deleted at trigger and only `shortcutsOnTrigger` runs).
-
-  - It will run the shortcut “Show Tasks” when the correct QR code is scanned and pass `["plan_workday", "computer"]` as input.
-
-  - These can be any user-made shortcuts, but names must be exact matches. Input can contain one item or many items.
-
-- Rescheduling logic (effectively “snoozes” if it’s a bad time, up to maxReschedules times)
-
-  - If this alarm triggers while inside a conflicting event from any calendars named "work meetings", "vacation", or "travel", it will reschedule to after the event ends plus a 10 minute buffer **only if that delay is within reschedMinutes.max**.
-
-  - If the user is not within 200 meters of the work coordinates, it estimates travel time and reschedules only when the estimate is within `reschedMinutes.max`.
-  - If locationMode was set to "blacklist", it would reschedule if the user was at work.
-
-  - If the user is in the driving focus mode, it will reschedule based on an approximation of travel time to the whitelisted location.
-
-## Example Double Alarm Sleep Event
 ```json
 [
   {
-    "alarmName": "Go to Bed in 1 hour",
-    "status": "ON",
+    "alarmName": "Bedtime in one hour",
     "offsetMin": -60,
     "reference": "start"
   },
   {
-    "alarmName": "Wake Up",
-    "status": "ON",
+    "alarmName": "Wake up",
     "offsetMin": 0,
     "reference": "end",
-
-    "qrCodeID": "toothbrush",
-    "qrSoundPath": "wakeup_alarm_ringtone.mp3",
-    "qrSoundLen": 2.13,
-    "qrVol": 40,
-    "qrShortcutsOnScan": [{"name": "Show Morning Tasks", "input": ["wake"]}],
-
-    "shortcutsOnTrigger": [{"name": "Turn Lights On", "input": ["bedroom", "50%"]}],
-    "silenceAlarm": false,
-
-    "silenceIfDriving": "ON",
-    "conflictingCalendars": ["work meetings", "vacation"],
-    "reschedMinutes": 30,
-    "maxReschedules": 3
+    "qrCodeID": "bathroom",
+    "qrSoundPath": "ocean.mp3",
+    "qrVol": 40
   }
 ]
 ```
-### Notes on These Alarms
-- These two alarms would exist on a hypothetical event called “Sleep” that begins at 11PM and ends at 7AM, and serve to notify the user to go to bed and to wake up, respectively.
 
-- The first alarm will go off at 10PM to say “Go to Bed in 1 hour”.
-
-- The second alarm will go off at 7AM and will require you to scan a QR code to turn off.
-
-## C) How to manually schedule alarms
-The automations above will automatically schedule any alarm(s) you make on your phone, and any alarm(s) that will run after today. However, if you make an alarm on another device that is intended to trigger today, you might need to manually schedule it.
-
-To do so: run Calendar Alarms Engine once manually after adding or editing your alarm(s). This forces a sync. After it runs, any alarm scheduled to go off today (even from events ±7 days with offsetMin values that put them in range of today) should now exist in the Clock app. If you cross timezones, running the engine also lets Calendar Alarms clean up the old local Clock time it created and recreate/keep the alarm at the phone’s current local time.
+For an 11 p.m.–7 a.m. event, these fire at 10 p.m. and 7 a.m. See [Wake Times](Feature%20Reference.md#wake-times) for event setup. Registry scheduling fields, playback session IDs, and task-reset payloads are internal runtime state; do not add them to event JSON.
