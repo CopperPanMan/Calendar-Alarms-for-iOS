@@ -1,13 +1,13 @@
 # OpenHabits integration
 
-[Feature Reference](../Feature%20Reference.md) · [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector)
+[Feature Reference](../Feature%20Reference.md) · [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Metrics)
 
 Calendar Alarms works on its own. Connect OpenHabits Metrics when you want reminders about your tracked tasks or alarms that return until those tasks are complete. App blocking is optional.
 
 ## Connect once
 
-1. Finish [OpenHabits Metrics setup](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/blob/main/Repo%20Docs/setup.md) and successfully log one metric.
-2. Install **Update Lockout Cache** and the Metrics Scriptable runtime/evaluator using [its Calendar Alarms integration instructions](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/blob/main/Repo%20Docs/guides/calendar-alarms.md#connect-once). Keep the **Shortcuts** bookmark. You do not need blocking rules or app-open automations.
+1. Finish [OpenHabits Metrics setup](https://github.com/CopperPanMan/OpenHabits-Metrics/blob/main/Repo%20Docs/setup.md) and successfully log one metric.
+2. Install **Update Lockout Cache** and the Metrics Scriptable runtime/evaluator using [its Calendar Alarms integration instructions](https://github.com/CopperPanMan/OpenHabits-Metrics/blob/main/Repo%20Docs/guides/calendar-alarms.md#connect-once). Keep the **Shortcuts** bookmark. You do not need blocking rules or app-open automations.
 3. Run **Update Lockout Cache** without input. It uses your existing Insights connection settings; no second web app deployment or secret is needed.
 4. Test a reminder or task alarm below with the phone unlocked, approving the file and network permissions it requests.
 
@@ -15,7 +15,7 @@ The shared cache lives at `iCloud Drive/Shortcuts/OpenHabits/OpenHabits Metrics/
 
 ## Find your metric IDs
 
-Open your OpenHabits configuration editor and look under **Metrics → Metric ID**. Copy that ID, not the display name or Sheet row number. It must match exactly and exist in your applied configuration. See [Create and log metrics](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector/blob/main/Repo%20Docs/guides/metrics.md).
+Open your OpenHabits configuration editor and look under **Metrics → Metric ID**. Copy that ID, not the display name or Sheet row number. It must match exactly and exist in your applied configuration. See [Create and log metrics](https://github.com/CopperPanMan/OpenHabits-Metrics/blob/main/Repo%20Docs/guides/metrics.md).
 
 For example, **Started Day** can have the ID `started_day`. Examples here work only if those IDs exist in your configuration.
 

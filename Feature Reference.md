@@ -112,7 +112,7 @@ See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, locatio
 
 Use **Task Looping** when an alarm should keep returning until you complete one or more tasks.
 
-- This feature uses [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector), a habit-tracking system with optional app protection that lets you log metrics and habits to Google Sheets. You must connect OpenHabits Metrics to use this feature.
+- This feature uses [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Metrics), a habit-tracking system with optional app protection that lets you log metrics and habits to Google Sheets. You must connect OpenHabits Metrics to use this feature.
 - Any alarm type can loop when a task (that is, a metric) has not been completed, up to the configured `maxReschedules` limit.
   - **Example 1:** Remind me every 30 minutes to feed the dog until I log that I fed it.
   - **Example 2:** Loop a QR alarm that makes me go to my computer until I log that I planned my workday.

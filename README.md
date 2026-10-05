@@ -24,7 +24,7 @@ Once installed, it’s dead simple to use.
 
 ## What Am I Installing?
 
-Calendar Alarms is not an app. Instead, it's a set of five Apple Shortcuts (including optional tools), a few paired automations, and a free helper app called Scriptable that lets the Shortcuts handle the more complex logic. Core alarm behavior runs on your own iPhone and iCloud account; the optional OpenHabits integration uses your own Google Sheet and web app.
+Calendar Alarms is not an app. Instead, it's a set of five Apple Shortcuts (including optional tools), a few paired automations, and a free helper app called Scriptable that lets the Shortcuts handle the more complex logic. Core alarm behavior runs on your own iPhone and iCloud account.
 
 You don't need to understand or write any code. Once installed, the system is your copy: you can inspect it, modify it, build on it, or ignore the technical parts entirely.
 
@@ -83,7 +83,7 @@ Already installed? Choose what you want to do in the [Feature Reference](Feature
 
 ## Want the Full OpenHabits System?
 
-If you want one comprehensive productivity "OS," I recommend you use this with its sibling, [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Habit-Tracker-and-Focus-Protector).
+If you want one comprehensive productivity "OS," I recommend you use this with its sibling, [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Metrics).
 
 OpenHabits Metrics is a task and data tracker (and optional screen-time manager) that lets you log and read data from a Google Sheet using your iPhone, Notion, and much more.
 
