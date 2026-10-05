@@ -24,17 +24,20 @@ Setup differs slightly between iOS 26 and iOS 27. Expand the section for your ve
 <details>
 <summary><strong>iOS 27 and Newer</strong></summary>
 
-Add these **three required shortcuts** and **one optional shortcut** to the Shortcuts app:
+Add these **three required shortcuts** and **two optional but recommended shortcut** to the Shortcuts app:
 
-- **Calendar Alarm Engine**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/2190759d3661488dbac31c011f4ab14b)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
-- **Calendar Alarms QR Scanner**
+- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/d31f76b5f43542c2862d1bc598598854)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
-- **Calendar Alarms Actions**
+- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/f7a4774215d64796a8040e9c9e49c74c)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
-- **CA Wake Times** *(optional, recommended)*
+- **[CA Wake Times](https://www.icloud.com/shortcuts/40230960577d4453aa37a43a5f7860f7)** *(optional, recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
-  - **Why use it?** It lets you use Calendar Alarms for your wake-up alarm and move multiple sleep and wake alarms with one tap, without leaving your Home Screen. See [Wake Times](Feature%20Reference.md#wake-times) for setup instructions.
+  - **Why use it?** It lets you use Calendar Alarms for your wake-up alarm and move multiple sleep and wake alarms with one tap, without leaving your Home Screen. See the [Wake Times Reference](Feature%20Reference.md#wake-times) for setup instructions.
+- **[CA qrClockCloser](https://www.icloud.com/shortcuts/81438415f05a48e59e9df25036ff1c75)** *(recommended)*
+  - Returns you to the Home Screen if you open the Clock app while a QR alarm is active, preventing you from turning it off without scanning.
+  - **Why use it?** QR alarms work by scheduling another alarm for two minutes into the future, which again triggers the shortcut and another alarm to be triggered - and so on until the code is scanned. **CA qrClockCloser** prevents you from breaking this loop by opening the Clock app and disabling the next scheduled alarm.
 
 You can place the shortcuts in a folder called **Calendar Alarms** to keep them organized.
 
@@ -43,18 +46,18 @@ You can place the shortcuts in a folder called **Calendar Alarms** to keep them 
 <details>
 <summary><strong>iOS 26 and Earlier</strong></summary>
 
-Add these **three required shortcuts** and **two optional, recommended shortcuts** to the Shortcuts app:
+Add these **three required shortcuts** and **two optional but recommended shortcuts** to the Shortcuts app:
 
-- **Calendar Alarm Engine**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/2417c207c8784507b1e2ce36e0bcd8b4)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
-- **Calendar Alarms QR Scanner**
+- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/a9be9818993f47caba54df4e4753d5a9)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
-- **Calendar Alarms Actions**
+- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/f7a4774215d64796a8040e9c9e49c74c)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
-- **CA Wake Times** *(optional, recommended)*
+- **[CA Wake Times](https://www.icloud.com/shortcuts/40230960577d4453aa37a43a5f7860f7)** *(optional, recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
   - **Why use it?** It lets you use Calendar Alarms for your wake-up alarm and move multiple sleep and wake alarms with one tap, without leaving your Home Screen. See [Wake Times](Feature%20Reference.md#wake-times) for setup instructions.
-- **iOS 26 Only: CA qrClockCloser** *(recommended)*
+- **[CA qrClockCloser](https://www.icloud.com/shortcuts/bc027a30844b4d569801ad456b7900f5)** *(recommended)*
   - Returns you to the Home Screen if you open the Clock app while a QR alarm is active, preventing you from turning it off without scanning.
   - **Why use it?** QR alarms work by scheduling another alarm for one minute in the future. That alarm triggers the shortcut again, which schedules another alarm, and so on until the code is scanned. **CA qrClockCloser** prevents you from breaking this loop by opening the Clock app and disabling the next scheduled alarm. Scanning the code remains the only way to turn off the QR alarm.
 
@@ -69,15 +72,16 @@ Automations tell your phone to run shortcuts at various times or under specific 
 <details>
 <summary><strong>iOS 27 and Newer</strong></summary>
 
-Turn on the automations inside the following two shortcuts. Open each shortcut, tap **Edit** to view its actions, expand each automation action, and turn it on.
+Turn on the automations inside the following three shortcuts. Open each shortcut, tap **Edit** to view its actions, expand each automation action, and turn it on.
 
 - **Calendar Alarm Engine**
   - **When Any Alarm Goes Off** — handles active alarm behavior
   - **When Calendar Is Closed** — syncs Calendar changes to Clock
   - **At 12:10 a.m.** — performs a daily backup sync
-  - **When Clock Is Opened** — prevents active QR alarms from being bypassed
 - **Calendar Alarms QR Scanner**
   - **When Any Alarm Goes Off** — displays the QR controls when applicable
+- **CA qrClockCloser** (recommended)
+  - **When Clock Is Opened** — prevents active QR alarms from being bypassed
 
 Once you’ve turned on all five automations, you’re finished with this section.
 
@@ -131,9 +135,10 @@ To see how the system works and finish granting permissions, create a demo event
 
 1. **Alarm 1:** A regular alarm like one you would create in the Clock app. Dismiss it normally.
 2. **Alarm 2:** A self-silencing alarm that starts a timer, displays a notification, and speaks a short explanation. This demonstrates how an alarm can act as a scheduled automation without requiring you to dismiss a ringing alarm.
-3. **Alarm 3:** A QR alarm that cancels the timer, then loops `marimba.mp3` (auto installed) until the QR code below is scanned. Scanning the code speaks a final confirmation. If `marimba.mp3` does not exist in the Calendar Alarms `Alarm Tones` folder, the alarm uses a generic notification sound.
-   1. When this alarm goes off, a menu should appear so you can scan the code below. If it does not appear, you can *always* scan the QR code with the Camera app.
-   2. Feel free to observe what happens if you don’t interact with your phone for a minute or two. Another alarm will trigger and extend the loop until you scan the code. Without user interaction, this cycle stops automatically after one hour.
+3. **Alarm 3:** A QR alarm that cancels the timer, then loops `marimba.mp3` until the QR code below is scanned. Scanning the code speaks a final confirmation.
+   1. When this alarm goes off, a menu should appear so you can scan the code below. Sometimes it won't because iOS failed to run the automation. If it does not appear, you can *always* scan the QR code with the Camera app.
+   2. Feel free to observe what happens if you don’t interact with your phone for a minute or two. Another alarm will trigger and extend the loop until you scan the code. If for whatever reason iOS does not run the next automation, there is a delayed backup alarm that will resume the loop. Without user interaction, this cycle stops automatically after one hour.
+   3. marimba.mp3 is auto installed into Calendar Alarms/Alarm Tones in setup. If it is not there, it will play a generic notification sound.
 
 <img width="150" height="150" alt="QR code that completes the wakeup demo alarm" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
 
