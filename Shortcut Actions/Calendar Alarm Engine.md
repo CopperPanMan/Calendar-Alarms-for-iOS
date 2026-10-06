@@ -1,5 +1,7 @@
 # Calendar Alarm Engine
 
+The Engine now requires the dictionary input below, including each Clock alarm's enabled toggle. Update the Scriptable Engine and this input block together; delimiter-based input is no longer accepted. See [disabled-alarm cleanup](../Development/Disabled%20Alarm%20Cleanup.md) for the five-minute grace and future-alarm replacement rules. The Runtime and QR playback section do not change for this update.
+
 Updated QR scheduling readout, 2026-10-05. See [update instructions and QR scheduling behavior](../Development/QR%20Scheduling%20Fixes.md) before rebuilding.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
@@ -47,9 +49,15 @@ GET DICTIONARY VALUE:
     Dictionary: Begin
     Key: cleanInput
     → BeginCleanInput (Text)
-TEXT:
-    [Alarms → Label]:;:[Alarms → Hours]:;:[Alarms → Minutes]:;:[Focus → Name]:;:[BeginCleanInput]
-    // Preserve the existing newline-separated list formatting in each section.
+DICTIONARY:
+    labels: Alarms → Label (List)
+    hours: Alarms → Hours (List)
+    minutes: Alarms → Minutes (List)
+    isEnabled: Alarms → Is Enabled (List)
+    currentFocus: Focus → Name (Text; empty when no Focus is active)
+    taskLogResponse: BeginCleanInput (Text)
+    // All four lists come from the same Alarms result, in the same order.
+    // Keep taskLogResponse as the existing text; do not convert it to a Dictionary.
     → EngineInput
 RUN SCRIPT: Calendar Alarm Engine
     Parameter: EngineInput

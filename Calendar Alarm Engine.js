@@ -17,11 +17,11 @@ const DELETE_DUPLICATE_ALARMS = true;
 // stop path deletes the additional QR restart after a scan.
 // Retired Clock times remain owned until a later alarm snapshot confirms removal.
 
-// Input: args.shortcutParameter string: labels + ":;:" + hours + ":;:" + minutes + ":;:" + currentFocus + ":;:" + task log JSON
+// Input: args.shortcutParameter dictionary: labels, hours, minutes, isEnabled
+// (aligned lists), currentFocus and taskLogResponse (text).
 // Output: JSON string set via Script.setShortcutOutput()
 
 const CALENDAR_ALARMS_ACTIONS = "Calendar Alarms Actions";
-const DELIM = ":;:";
 
 // Path config
 // This expects one Scriptable file bookmark:
@@ -53,6 +53,7 @@ const LOCATION_CACHE_KEY = "calendar_alarms_last_location_v1";
 const LOCATION_TIMEOUT_MS = 4500;
 const LOCATION_MAX_ATTEMPTS = 2;
 const FIRED_ALARM_GRACE_SEC = 15 * 60;
+const CLEANUP_GRACE_SEC = 5 * 60;
 let registryMigrationNeeded = false;
 
 const FILES = {
@@ -543,47 +544,40 @@ async function releaseLock(fm, lockPath) {
   await safeWriteString(fm, lockPath, "");
 }
 
-// ---------- Input parsing (index-aligned) ----------
-// New input shape (still delimiter-based):
-// labels:;:hours:;:minutes:;:currentFocus:;:taskLogResponseJSON
-function parseEngineInput(inputStr) {
-  const raw = String(inputStr ?? "");
-  const parts = raw.split(DELIM);
-
-  const labelsPart = parts[0] ?? "";
-  const hoursPart  = parts[1] ?? "";
-  const minsPart   = parts[2] ?? "";
-  const focusPart  = parts[3] ?? "";
-  // Rejoin in case a free-form message in the JSON happens to contain DELIM.
-  const taskLogResponsePart = parts.length > 4 ? parts.slice(4).join(DELIM) : "";
-
-  const labels = labelsPart.split("\n");
-  const hours  = hoursPart.split("\n");
-  const mins   = minsPart.split("\n");
-
-  const n = Math.max(labels.length, hours.length, mins.length);
-  const iosAlarms = [];
-
-  for (let i = 0; i < n; i++) {
-    const name = labels[i] ?? "";
-    const hhRaw = hours[i] ?? "";
-    const mmRaw = mins[i] ?? "";
-
-    if (!name) continue;
-    const hhNum = Number(hhRaw), mmNum = Number(mmRaw);
-    if (!Number.isFinite(hhNum) || !Number.isFinite(mmNum)) continue;
-
-    const hh = pad2(hhNum);
-    const mm = pad2(mmNum);
-    if (!/^\d{2}$/.test(hh) || !/^\d{2}$/.test(mm)) continue;
-
-    iosAlarms.push({ name, hh, mm });
+// ---------- Dictionary input parsing (index-aligned) ----------
+function parseEngineInput(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Engine input must be a dictionary.");
   }
-
+  const { labels, hours, minutes, isEnabled, currentFocus, taskLogResponse } = value;
+  const lists = [labels, hours, minutes, isEnabled];
+  if (!lists.every(Array.isArray) || !lists.every((list) => list.length === labels.length)) {
+    throw new Error("labels, hours, minutes, and isEnabled must be lists of equal length.");
+  }
+  if (typeof currentFocus !== "string" || typeof taskLogResponse !== "string") {
+    throw new Error("currentFocus and taskLogResponse must be text.");
+  }
+  const iosAlarms = [];
+  for (let i = 0; i < labels.length; i++) {
+    const name = labels[i];
+    const validTime = (raw, max) =>
+      (typeof raw === "number" || (typeof raw === "string" && /^\d{1,2}$/.test(raw.trim()))) &&
+      Number.isInteger(Number(raw)) && Number(raw) >= 0 && Number(raw) <= max;
+    if (typeof name !== "string" || !validTime(hours[i], 23) || !validTime(minutes[i], 59)) {
+      throw new Error(`Invalid alarm label or time at index ${i}.`);
+    }
+    // Shortcuts may supply Booleans as native values, 0/1, or text.
+    const enabled = typeof isEnabled[i] === "string" ? isEnabled[i].trim().toLowerCase() : isEnabled[i];
+    if (![true, false, 0, 1, "true", "false", "0", "1"].includes(enabled)) {
+      throw new Error(`Invalid isEnabled value at index ${i}.`);
+    }
+    if (name) iosAlarms.push({ name, hh: pad2(Number(hours[i])), mm: pad2(Number(minutes[i])),
+      isEnabled: enabled === true || enabled === 1 || enabled === "true" || enabled === "1" });
+  }
   return {
     iosAlarms,
-    currentFocus: String(focusPart ?? "").trim(),
-    taskLogResponseRaw: String(taskLogResponsePart ?? "").trim(),
+    currentFocus: currentFocus.trim(),
+    taskLogResponseRaw: taskLogResponse,
     currentLocation: null,
     locationAttempted: false,
   };
@@ -679,7 +673,8 @@ function queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, name, storedHHMM, fallbac
 
 function queueAddIOSIfMissing(iosAlarms, name, epochSec) {
   const { hh, mm } = epochToHHMM(epochSec);
-  const c = findIOSMatches(iosAlarms, name, hh, mm);
+  const deleting = output.alarmsToDelete.some((alarm) => alarm.name === name && alarm.hh === hh && alarm.mm === mm);
+  const c = deleting ? 0 : findIOSMatches(iosAlarms, name, hh, mm);
   if (c === 0) {
     output.alarmsToAdd.push({ name, time: epochTo12HourTime(epochSec) });
     return true;
@@ -687,7 +682,7 @@ function queueAddIOSIfMissing(iosAlarms, name, epochSec) {
   if (c > 1 && DELETE_DUPLICATE_ALARMS) {
     // Shortcuts deletes every alarm matching this name and time. Re-add one
     // canonical occurrence after removing the duplicated set.
-    output.alarmsToDelete.push({ name, hh, mm });
+    output.alarmsToDelete.push({ name, hh, mm, _cleanup: true });
     output.alarmsToAdd.push({ name, time: epochTo12HourTime(epochSec) });
     return true;
   }
@@ -1086,14 +1081,28 @@ function cleanupRetiredAlarms(entry, iosAlarms) {
     if (wanted.has(slot.hhmm)) return false;
     const hhmm = parseHHMMString(slot.hhmm);
     if (!hhmm || !findIOSMatches(iosAlarms, entry.alarmName, hhmm.hh, hhmm.mm)) return false;
-    // Preserve an unsilenced non-QR ring in its current minute. Context
-    // gates and completion already request explicit deletion independently.
-    if (!entry.qrCodeID && !entry.silenceAlarm && !entry.taskSatisfied &&
-        slot.epoch >= floorToMinute(nowEpoch()) && slot.epoch <= nowEpoch()) return true;
-    queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, entry.alarmName, slot.hhmm, slot.epoch);
+    queueCleanupIOSAlarm(entry, slot, iosAlarms);
     // Keep ownership until a later Clock snapshot confirms deletion.
     return true;
   });
+}
+
+function isCleanupProtected(entry, slot, now = nowEpoch()) {
+  const age = now - Number(slot.epoch);
+  return !entry.qrCodeID && !entry.silenceAlarm && !entry.taskSatisfied &&
+    age >= 0 && age < CLEANUP_GRACE_SEC;
+}
+
+function queueCleanupIOSAlarm(entry, slot, iosAlarms) {
+  if (isCleanupProtected(entry, slot)) return false;
+  const start = output.alarmsToDelete.length;
+  const queued = queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, entry.alarmName, slot.hhmm, slot.epoch);
+  // Explicit silencing, QR cancellation, and task completion keep their
+  // existing immediate deletion behavior.
+  if (!entry.qrCodeID && !entry.silenceAlarm && !entry.taskSatisfied) {
+    for (const alarm of output.alarmsToDelete.slice(start)) alarm._cleanup = true;
+  }
+  return queued;
 }
 
 function cancelQRLoop(entry) {
@@ -1258,26 +1267,89 @@ function applyRegistryPatch(regOnDiskNow, patch, iosAlarms = []) {
   return Array.from(diskMap.values());
 }
 
-function filterOutputAgainstCommittedSchedule(registry, iosAlarms) {
+function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefore) {
+  const now = nowEpoch();
+  const keyFor = (name, hhmm) => `${name}|||${hhmm}`;
+  const opKey = (alarm) => keyFor(alarm.name, `${alarm.hh}:${alarm.mm}`);
   const desired = new Set();
+  const future = new Map();
   for (const entry of registry) {
-    for (const slot of ownedAlarmSlots(entry)) if (slot.epoch >= floorToMinute(nowEpoch())) desired.add(`${entry.alarmName}|||${slot.hhmm}`);
+    for (const slot of ownedAlarmSlots(entry)) {
+      const key = keyFor(entry.alarmName, slot.hhmm);
+      if (slot.epoch >= floorToMinute(now)) desired.add(key);
+      if (!entry.taskSatisfied && slot.epoch > now && slot.epoch <= now + WINDOW_FUTURE_SEC &&
+          (!future.has(key) || future.get(key).epoch > slot.epoch)) {
+        future.set(key, { ...slot, name: entry.alarmName });
+      }
+    }
   }
   const rejected = new Set(output.debug.rejectedScheduleKeys || []);
+  const blocked = new Set();
+  const owned = new Set();
+  const protectedKeys = new Set();
+  // Use committed state for entries updated by this run, while retaining
+  // ownership of entries removed by TTL or Calendar reconciliation.
+  const owners = new Map([...registryBefore, ...registry].map((entry) => [registryKey(entry), entry]));
+  for (const entry of owners.values()) {
+    const slots = ownedAlarmSlots(entry, true).concat(entry.retiredAlarmTimes || []);
+    if (Number(entry.lastHandledFireTime) > 0) {
+      slots.push({ epoch: entry.lastHandledFireTime, hhmm: epochToHHMMString(entry.lastHandledFireTime) });
+    }
+    for (const slot of slots) {
+      const key = keyFor(entry.alarmName, slot.hhmm);
+      owned.add(key);
+      if (isCleanupProtected(entry, slot, now)) protectedKeys.add(key);
+    }
+  }
+  // A rejected concurrent schedule must not reconcile against its stale
+  // Clock snapshot, including times that disappeared from the new schedule.
+  for (const entry of [...registryBefore, ...registry]) {
+    if (!rejected.has(registryKey(entry))) continue;
+    for (const slot of ownedAlarmSlots(entry, true).concat(entry.retiredAlarmTimes || [])) {
+      blocked.add(keyFor(entry.alarmName, slot.hhmm));
+    }
+  }
+  // Disabled-alarm cleanup runs after every successful commit, including
+  // fast-path runs, without fetching Calendar or changing runtime schedules.
+  for (const alarm of iosAlarms) {
+    const key = opKey(alarm);
+    if (alarm.isEnabled || !owned.has(key) || protectedKeys.has(key) || blocked.has(key)) continue;
+    const start = output.alarmsToDelete.length;
+    queueDeleteIOSByStoredHHMMIfUnique(iosAlarms, alarm.name, `${alarm.hh}:${alarm.mm}`, 0);
+    for (const op of output.alarmsToDelete.slice(start)) op._cleanup = true;
+  }
   output.alarmsToAdd = output.alarmsToAdd.filter((alarm) => {
     if (rejected.has(alarm._ownerKey)) return false;
     const match = String(alarm.time).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (!match) return false;
     const hour = Number(match[1]) % 12 + (match[3].toUpperCase() === "PM" ? 12 : 0);
     const hhmm = `${pad2(hour)}:${match[2]}`;
-    return desired.has(`${alarm.name}|||${hhmm}`);
+    return desired.has(keyFor(alarm.name, hhmm)) && !blocked.has(keyFor(alarm.name, hhmm));
   });
-  output.alarmsToDelete = output.alarmsToDelete.filter((alarm) =>
-    !rejected.has(alarm._ownerKey) && (!desired.has(`${alarm.name}|||${alarm.hh}:${alarm.mm}`) ||
-      (DELETE_DUPLICATE_ALARMS && findIOSMatches(iosAlarms, alarm.name, alarm.hh, alarm.mm) > 1)));
+  output.alarmsToDelete = output.alarmsToDelete.filter((alarm) => {
+    const key = opKey(alarm);
+    if (rejected.has(alarm._ownerKey) || blocked.has(key) || (alarm._cleanup && protectedKeys.has(key))) return false;
+    const matches = iosAlarms.filter((a) => opKey(a) === key);
+    // Keep an enabled alarm serving a future occurrence. A disabled one
+    // must be replaced, rather than protected solely by its name/time.
+    return !future.has(key) || matches.some((a) => !a.isEnabled) ||
+      (DELETE_DUPLICATE_ALARMS && matches.length > 1);
+  });
+  const deleting = new Set(output.alarmsToDelete.map(opKey));
+  // Replacements are added from the committed future schedule, never from
+  // a past occurrence or a rejected calculation.
+  for (const [key, slot] of future) {
+    if (deleting.has(key)) output.alarmsToAdd.push({ name: slot.name, time: epochTo12HourTime(slot.epoch) });
+  }
+  output.alarmsToAdd = output.alarmsToAdd.filter((alarm) => {
+    const match = alarm.time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    const hh = pad2(Number(match[1]) % 12 + (match[3].toUpperCase() === "PM" ? 12 : 0));
+    const key = keyFor(alarm.name, `${hh}:${match[2]}`);
+    return deleting.has(key) || !findIOSMatches(iosAlarms, alarm.name, hh, match[2]);
+  });
   output.triggerShortcutsToRunDetailed = output.triggerShortcutsToRunDetailed.filter((a) => !rejected.has(a._ownerKey));
   for (const list of [output.alarmsToAdd, output.alarmsToDelete, output.triggerShortcutsToRunDetailed]) {
-    for (const item of list) delete item._ownerKey;
+    for (const item of list) { delete item._ownerKey; delete item._cleanup; }
   }
 }
 
@@ -2192,7 +2264,7 @@ async function runVerifier(input, registryAfter) {
     syncScannerPointers(entry);
     retireReplacedAlarms(entry, previous, input.iosAlarms);
     for (const slot of ownedAlarmSlots(entry)) {
-      if (slot.epoch < nowMinute) queueDeleteIOSByStoredHHMMIfUnique(input.iosAlarms, entry.alarmName, slot.hhmm, slot.epoch);
+      if (slot.epoch < nowMinute) queueCleanupIOSAlarm(entry, slot, input.iosAlarms);
       else if (!entry.taskSatisfied && slot.epoch >= now && slot.epoch <= now + WINDOW_FUTURE_SEC) {
         // Refresh timezone mirrors and retire Clock times created before travel.
         const currentHHMM = epochToHHMMString(slot.epoch);
@@ -2220,6 +2292,15 @@ async function runVerifier(input, registryAfter) {
 }
 
 // ---------- MAIN ----------
+let input;
+try {
+  input = parseEngineInput(args.shortcutParameter);
+} catch (e) {
+  output.errorRegistry = `ERR: ${String(e)}`;
+  Script.setShortcutOutput(JSON.stringify(output));
+  Script.complete();
+  return;
+}
 const fm = getFileManager();
 
 let baseDir;
@@ -2256,8 +2337,6 @@ let registryBefore = await loadRegistry(fm, registryPath);
 registryBefore = dropRegistryDuplicatesRandom(registryBefore);
 let registryAfter = deepClone(registryBefore);
 
-// Parse input
-const input = parseEngineInput(args.shortcutParameter);
 registryAfter = expireRegistryEntries(registryAfter, input.iosAlarms);
 await applyTaskLogCompletions(input, registryAfter);
 cleanupScannedQRLoops(registryAfter, input.iosAlarms);
@@ -2297,7 +2376,7 @@ if (!commitOK) {
   output.triggerShortcutsToRunDetailed = [];
   output.qrLoop = false;
 } else {
-  filterOutputAgainstCommittedSchedule(committedRegistry, input.iosAlarms);
+  filterOutputAgainstCommittedSchedule(committedRegistry, input.iosAlarms, registryBefore);
   output.qrLoop = committedRegistry.some((entry) => entry.qrActive);
   const nextQR = committedRegistry.filter((entry) => entry.qrActive && entry.qrRestartFireTime > 0)
     .map((entry) => entry.qrRestartFireTime).sort((a, b) => a - b)[0];

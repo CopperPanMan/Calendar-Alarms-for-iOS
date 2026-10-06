@@ -23,7 +23,7 @@ Run the Engine once after updating, preferably with no active QR alarm. It migra
 - Fired-alarm recognition accepts owned scheduled times up to 15 minutes overdue and never fires an alarm early. A consumed schedule is marked so a second invocation does not replay its actions.
 - Task completion uses explicit `reminderState.byID[id].complete === true` flags for every configured ID. Cache older than 90 seconds defers completion to the fresh task reset action. Partial log responses combine their completed IDs with fresh cached completion for the remaining IDs; an explicitly incomplete ID prevents cancellation.
 - A failed calendar fetch preserves existing schedules. A failed registry commit returns no Clock mutations or triggered actions. A stale Engine schedule is rejected if a newer run changed its scheduling state; a scan during calculation cancels the pending QR portion.
-- The existing 60-minute QR timeout and 24-hour registry TTL also apply on the fast path. An unsilenced ordinary task alarm keeps its native sound in the current minute.
+- The existing 60-minute QR timeout and 24-hour registry TTL also apply on the fast path. Routine cleanup preserves an unsilenced ordinary alarm for five minutes after its scheduled firing time; see [disabled-alarm cleanup](Disabled%20Alarm%20Cleanup.md) for the dictionary input and replacement update.
 - Playback identity includes the QR generation. Permission reads mute state before the registry and checks the current instance immediately before reserving playback. Set Volume happens before permission to reduce the gap before Play Sound.
 
 ## Scanner compatibility
