@@ -199,6 +199,8 @@ test('non-QR task alarm keeps its current native ring unless silenced, then clea
   const h = await start(task({qrCodeID: ''}));
   assert.deepEqual(h.times(), ['12:00', '12:21']);
   h.at(1); await h.engine();
+  assert.deepEqual(h.times(), ['12:00', '12:21']);
+  h.at(5); await h.engine();
   assert.deepEqual(h.times(), ['12:21']);
   const silent = await start(task({qrCodeID: '', silenceAlarm: true}));
   assert.deepEqual(silent.times(), ['12:21']);

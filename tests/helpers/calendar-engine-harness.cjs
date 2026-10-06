@@ -56,12 +56,22 @@ class Harness {
     for (const a of plan.alarmsToAdd || []) {
       const m = a.time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
       if (!m) throw Error('Invalid Clock time: ' + a.time);
-      this.clock.push({name: a.name, hh: String(Number(m[1]) % 12 + (m[3] === 'PM' ? 12 : 0)).padStart(2, '0'), mm: m[2]});
+      const hh = String(Number(m[1]) % 12 + (m[3] === 'PM' ? 12 : 0)).padStart(2, '0');
+      const fire = new Date(this.now);
+      fire.setHours(Number(hh), Number(m[2]), 0, 0);
+      if (fire.getTime() < Math.floor(this.now / 60000) * 60000) fire.setDate(fire.getDate() + 1);
+      this.clock.push({name: a.name, hh, mm: m[2], isEnabled: true, fireTime: fire.getTime()});
     }
   }
   async engine(response = '', apply = true) {
-    const fields = ['name', 'hh', 'mm'].map(key => this.clock.map(x => x[key]).join('\n'));
-    const result = await this.run('Calendar Alarm Engine.js', [...fields, this.options.focus || '', response].join(':;:'));
+    for (const alarm of this.clock) {
+      if (alarm.fireTime <= this.now) alarm.isEnabled = false;
+    }
+    const result = await this.run('Calendar Alarm Engine.js', {
+      labels: this.clock.map(x => x.name), hours: this.clock.map(x => Number(x.hh)),
+      minutes: this.clock.map(x => Number(x.mm)), isEnabled: this.clock.map(x => x.isEnabled ?? true),
+      currentFocus: this.options.focus || '', taskLogResponse: response,
+    });
     if (apply) this.apply(result);
     return result;
   }

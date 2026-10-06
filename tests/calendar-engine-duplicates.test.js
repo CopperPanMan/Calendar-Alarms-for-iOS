@@ -64,7 +64,7 @@ test('enabled setting replaces duplicates with one canonical alarm when adding',
   const context = loadDuplicateFunctions(true);
 
   assert.equal(context.queueAddIOSIfMissing(duplicates, 'Wake Up', 123), true);
-  assert.deepEqual(plain(context.output.alarmsToDelete), [{ name: 'Wake Up', hh: '07', mm: '30' }]);
+  assert.deepEqual(plain(context.output.alarmsToDelete), [{ name: 'Wake Up', hh: '07', mm: '30', _cleanup: true }]);
   assert.deepEqual(plain(context.output.alarmsToAdd), [{ name: 'Wake Up', time: '7:30 AM' }]);
   assert.deepEqual(context.errors, []);
 });
