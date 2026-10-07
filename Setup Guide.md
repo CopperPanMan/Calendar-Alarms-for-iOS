@@ -30,7 +30,7 @@ Add these **three required shortcuts** and **two optional but recommended shortc
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
 - **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/d31f76b5f43542c2862d1bc598598854)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
-- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/4434a5595329405bb791ca8e83f4e882)**
+- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/f7a4774215d64796a8040e9c9e49c74c)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
 - **[CA Wake Times](https://www.icloud.com/shortcuts/9f525cedd6c64a5185bc9046d5b1e79c)** *(optional, recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
