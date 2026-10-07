@@ -151,8 +151,14 @@
 
             <section class="advanced-group">
               <h4>Task Looping <span class="help" data-tip="Requires the OpenHabits Metrics cache integration. See Feature Reference → OpenHabits Integration for connection steps.">?</span></h4>
+              <p class="hint">Repeat until all listed OpenHabits metrics are complete, up to your reschedule limit.</p>
+              <details>
+                <summary>Where to find your Metric ID</summary>
+                <p>In the OpenHabits Metrics configuration editor, open <strong>Metrics → Metric ID</strong> and copy the ID for each metric you want to check. Use IDs from your own configuration.</p>
+                <p><a href="https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/blob/main/Guides/OpenHabits%20Integration.md#find-your-metric-ids">Metric ID instructions</a></p>
+              </details>
               <div data-list="taskIDs" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="taskIDs">+ Add Task ID</button>
+              <button type="button" class="btn small add-list-item" data-add="taskIDs">+ Add Metric ID</button>
               <div class="grid two-col">
                 <label>Task Loop Min <span class="help" data-tip="Minutes between task-check loops.">?</span><input data-field="taskLoopMin" type="number" min="0" step="1" /></label>
                 <label class="checkbox-row">Check Tasks First Time <span class="help" data-tip="if unchecked (ie false), it will not check task completion status the first time this alarm runs.">?</span><input data-field="checkTasksFirstTime" type="checkbox" /></label>

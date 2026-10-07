@@ -22,7 +22,7 @@ For example, **Started Day** can have the ID `started_day`. Examples here work o
 ## Repeat until a task is complete
 
 1. In the [Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/), create an alarm and open **Advanced Settings → Task Looping**.
-2. Choose **+ Add Task ID** and enter the metric ID. Add more IDs if every listed task must be completed.
+2. Choose **+ Add Metric ID** and enter the metric ID. Expand **Where to find your Metric ID** in the Editor for copying instructions. Add more IDs if every listed task must be completed.
 3. Set **Task Loop Min** to a positive interval, such as `30` minutes. Under **Rescheduling Properties**, set **Max Reschedules** to the number of follow-ups you want, such as `2`.
 4. Leave **Check Tasks First Time** checked to skip an alarm whose tasks are already complete. Uncheck it to make the initial eligible fire run without a completion check; later task checks still check completion.
 5. Paste the configuration into the calendar event and sync.
@@ -45,7 +45,7 @@ The two-minute QR restart and four-minute backup maintain prompting; they do not
 
 ## Show or speak a reminder
 
-Add an **OpenHabits Reminder** action on trigger or on QR scan. Enter the **Metric IDs** separated by commas and choose **Show**, **Speak**, or **Speak + Show**. This action reports incomplete tasks; it does not enable task looping by itself.
+Add an **OpenHabits Reminder** action on trigger or on QR scan. Enter the **Metric IDs** separated by commas, for example `exercise_time, floss_time`, and choose **Show**, **Speak**, or **Speak + Show**. Spaces after commas are fine; use IDs from your own configuration. The field's **?** icon explains the format, and **Example and setup** expands a sample message and connection guidance. This action reports incomplete tasks; it does not enable task looping by itself.
 
 For example, a silent non-QR alarm with an OpenHabits Reminder for `started_day` can announce that you still need to start your day. Depending on the metric's configuration, the message includes points, a streak, or time remaining until its deadline. Completed, unscheduled, expired, and unknown metrics are omitted. An empty reminder can therefore produce no message. Do Not Disturb displays the message instead of speaking it.
 
