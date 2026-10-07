@@ -258,7 +258,7 @@ const ACTION_HELP = {
   focus: 'Turns a named Focus mode on or off.',
   display: 'Changes Color Filters, screen brightness, or light/dark appearance.',
   open: 'Opens an app or URL, goes to the Home Screen, or locks the device.',
-  openhabits_reminder: 'Shows or speaks an OpenHabits reminder for the listed metric IDs.',
+  openhabits_reminder: 'Shows or speaks reminders to log your OpenHabits metrics, automatically skipping completed metrics.',
   audio: 'Changes media volume or turns Silent Mode on or off.',
   cue: 'Plays a haptic or a sound file from Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones.',
   custom: 'Runs the named Apple Shortcut and passes the configured text or number inputs to it.',
@@ -301,7 +301,7 @@ function renderActionEditor(container, item, rerender) {
       if (payload.operation === 'url') fields += actionField('URL / Deep Link', 'url', 'url', 'required');
       break;
     case 'openhabits_reminder':
-      fields = `${actionField('Metric IDs (comma-separated)', 'metricIDs', 'text', 'required')}${actionSelect('Output', 'mode', [['show', 'Show'], ['speak', 'Speak'], ['both', 'Speak + Show']])}`;
+      fields = `${actionField(`Metric IDs (comma-separated) ${helpIcon('Enter one or more OpenHabits Metric IDs, separated by commas. Spaces after commas are fine. Example: exercise_time, floss_time. Use IDs from your own configuration.')}`, 'metricIDs', 'text', 'required placeholder="exercise_time, floss_time"')}${actionSelect('Output', 'mode', [['show', 'Show'], ['speak', 'Speak'], ['both', 'Speak + Show']])}`;
       break;
     case 'audio':
       fields = actionSelect('Operation', 'operation', [['volume', 'Media Volume'], ['silent_mode', 'Silent Mode']]);
@@ -316,7 +316,16 @@ function renderActionEditor(container, item, rerender) {
   const dndNote = ['notification', 'openhabits_reminder'].includes(item.editorType)
     ? '<p class="notice">Do Not Disturb silences spoken notifications and shows their messages as text instead.</p>'
     : '';
-  container.innerHTML = `<div class="grid two-col action-fields">${fields}</div>${dndNote}`;
+  const reminderHelp = item.editorType === 'openhabits_reminder'
+    ? `<p class="hint">${ACTION_HELP.openhabits_reminder}</p>
+      <details>
+        <summary>Example and setup</summary>
+        <p>Use this action for habit reminders that show or speak a message when a metric still needs logging. Messages can include points, streaks, and approaching deadlines.</p>
+        <p>Example: <q>Log Exercise for 5 points. Your current streak is 3 days.</q></p>
+        <p>Requires OpenHabits Metrics. <a href="https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/blob/main/Guides/OpenHabits%20Integration.md#connect-once">Connect OpenHabits Metrics</a> before using this action.</p>
+      </details>`
+    : '';
+  container.innerHTML = `${reminderHelp}<div class="grid two-col action-fields">${fields}</div>${dndNote}`;
   container.querySelectorAll('[data-action-field]').forEach((control) => {
     const field = control.dataset.actionField;
     control.value = field === 'metricIDs' ? (payload.metricIDs || []).join(', ') : (payload[field] ?? '');
@@ -513,7 +522,7 @@ function renderTaskIDs(container, alarm) {
     const row = document.createElement('div');
     row.className = 'inline-row';
     row.innerHTML = `
-      <input type="text" data-field="taskID" placeholder="Task ID" />
+      <input type="text" data-field="taskID" placeholder="OpenHabits Metric ID" aria-label="OpenHabits Metric ID" />
       <button type="button" class="btn secondary small" data-action="up">↑</button>
       <button type="button" class="btn secondary small" data-action="down">↓</button>
       <button type="button" class="btn danger small" data-action="delete">Delete</button>
