@@ -6,14 +6,14 @@
 
 ## 1) One-Time Setup (5–10 Minutes)
 
-### A) Install Apps
+### A) Install Apps to your iPhone
 
 - Install [**Apple Shortcuts**](https://apps.apple.com/us/app/shortcuts/id1462947752).
 - Install [**Scriptable**](https://apps.apple.com/us/app/scriptable/id1405459188).
 
 ### B) Create a Scriptable Bookmark
 
-Go to **Scriptable → Settings → File Bookmarks → Add (+)** and select **iCloud Drive → Shortcuts**. Make sure the bookmark is named exactly **Shortcuts**. This tells the system where to look for the relevant files.
+On your iPhone, go to **Scriptable → Settings → File Bookmarks → Add (+)** and select **iCloud Drive → Shortcuts**. Make sure the bookmark is named exactly **Shortcuts**. This tells the system where to look for the relevant files.
 
 ### C) Download the Shortcuts
 
