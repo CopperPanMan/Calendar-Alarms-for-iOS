@@ -142,3 +142,22 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
 [hidden] { display: none !important; }
 .drag-handle { background: transparent; border: 0; padding: 0.3rem; font: inherit; }
 .sub-card.dragging { opacity: 0.6; }
+
+.action-heading { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.sub-card-header { gap: 0.6rem; flex-wrap: wrap; }
+.sub-card-header > .button-row { margin-left: auto; }
+.rules-header { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
+.rules-header h4 { margin: 0; }
+.switch-row { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; position: relative; }
+.switch-row > input { position: absolute; opacity: 0; width: 2.4rem; height: 1.4rem; margin: 0; }
+.switch-track { width: 2.4rem; height: 1.4rem; border-radius: 1rem; background: #64748b; position: relative; flex-shrink: 0; }
+.switch-track::after { content: ''; width: 1rem; height: 1rem; background: white; border-radius: 50%; position: absolute; left: 0.2rem; top: 0.2rem; }
+.switch-row > input:checked + .switch-track { background: var(--primary); }
+.switch-row > input:checked + .switch-track::after { left: 1.2rem; }
+.switch-row > input:focus-visible + .switch-track { outline: 3px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 540px) {
+  .alarm-card-header { grid-template-columns: auto minmax(0, 1fr); }
+  .alarm-card-header > .button-row { grid-column: 1 / -1; }
+  .two-col, .four-col { grid-template-columns: minmax(0, 1fr); }
+  .help:hover::after, .help:focus::after { width: min(260px, 65vw); left: auto; right: 0; }
+}

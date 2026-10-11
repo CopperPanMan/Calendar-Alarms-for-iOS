@@ -22,6 +22,9 @@
     silenceIfDriving: 'OFF',
     conflictingCalendars: [],
     reschedMinutes: { min: 10, max: 45 },
+    rescheduleMode: 'smart',
+    rescheduleIntervalMinutes: 10,
+    rescheduleWindowMinutes: 120,
     maxReschedules: 2,
     taskIDs: [],
     taskLoopMin: 30,
@@ -118,6 +121,10 @@
     alarm.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
     alarm.contextEnabled = typeof raw?.contextEnabled === 'boolean' ? raw.contextEnabled
       : alarm.silenceIfDriving === 'ON' || alarm.locationMode !== 'off' || alarm.conflictingCalendars.length > 0 || alarm.locations.length > 0;
+    alarm.rescheduleMode = ['fixed', 'smart'].includes(raw?.rescheduleMode) ? raw.rescheduleMode : 'legacy';
+    alarm.rescheduleIntervalMinutes = finiteNumber(raw?.rescheduleIntervalMinutes,
+      typeof alarm.reschedMinutes === 'number' ? alarm.reschedMinutes : alarm.reschedMinutes?.min ?? 10);
+    alarm.rescheduleWindowMinutes = finiteNumber(raw?.rescheduleWindowMinutes, 120);
     return alarm;
   }
 
@@ -159,18 +166,28 @@
     if (triggerShortcuts.length) cleaned.shortcutsOnTrigger = triggerShortcuts;
 
     if (alarm.silenceAlarm) cleaned.silenceAlarm = true;
-    if (alarm.contextEnabled !== false && alarm.locationMode && alarm.locationMode !== 'off') cleaned.locationMode = alarm.locationMode;
+    if (alarm.locationMode && alarm.locationMode !== 'off') cleaned.locationMode = alarm.locationMode;
     const locations = alarm.locations
       .filter((loc) => Number.isFinite(Number(loc.lat)) && Number.isFinite(Number(loc.lon)) && Number.isFinite(Number(loc.radius)))
       .map((loc) => [Number(loc.lat), Number(loc.lon), Number(loc.radius)]);
-    if (alarm.contextEnabled !== false && locations.length) cleaned.locations = locations;
-    if (alarm.contextEnabled !== false && alarm.silenceIfDriving === 'ON') cleaned.silenceIfDriving = 'ON';
+    if (locations.length) cleaned.locations = locations;
+    if (alarm.silenceIfDriving === 'ON') cleaned.silenceIfDriving = 'ON';
 
     const conflicting = alarm.conflictingCalendars.map((name) => name.trim()).filter(Boolean);
-    if (alarm.contextEnabled !== false && conflicting.length) cleaned.conflictingCalendars = conflicting;
-    cleaned.reschedMinutes = alarm.reschedType === 'fixed'
-      ? Number(alarm.reschedFixed || 0)
-      : { min: Number(alarm.reschedMin || 0), max: Number(alarm.reschedMax ?? 45) };
+    if (conflicting.length) cleaned.conflictingCalendars = conflicting;
+    cleaned.contextEnabled = alarm.contextEnabled !== false;
+    if (['fixed', 'smart'].includes(alarm.rescheduleMode)) {
+      cleaned.rescheduleMode = alarm.rescheduleMode;
+      cleaned.rescheduleIntervalMinutes = Number(alarm.rescheduleIntervalMinutes ?? 10);
+      cleaned.rescheduleWindowMinutes = Number(alarm.rescheduleWindowMinutes ?? 120);
+    } else {
+      // Preserve the legacy number/object form until the user opts into the new model.
+      cleaned.reschedMinutes = alarm.reschedType === 'fixed'
+        ? Number(alarm.reschedFixed ?? alarm.reschedMinutes ?? 0)
+        : { min: Number(alarm.reschedMin ?? alarm.reschedMinutes?.min ?? 0),
+          max: Number(alarm.reschedMax ?? alarm.reschedMinutes?.max ?? 45) };
+      if (typeof alarm.reschedMinutes === 'number' && !alarm.reschedType) cleaned.reschedMinutes = alarm.reschedMinutes;
+    }
     if (Number.isFinite(Number(alarm.maxReschedules))) cleaned.maxReschedules = Number(alarm.maxReschedules);
     cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
     cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;

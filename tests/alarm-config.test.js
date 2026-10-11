@@ -130,7 +130,9 @@ test('new alarms can be normalized and exported', () => {
   const output = cleanAlarm(renderReady(defaultAlarm()));
   assert.equal(output.alarmName, 'New Alarm');
   assert.equal(output.status, 'ON');
-  assert.deepEqual(output.reschedMinutes, { min: 10, max: 45 });
+  assert.equal(output.rescheduleMode, 'smart');
+  assert.equal(output.rescheduleIntervalMinutes, 10);
+  assert.equal(output.rescheduleWindowMinutes, 120);
 });
 
 test('built-in actions serialize as one JSON string for Calendar Alarms Actions', () => {
@@ -182,13 +184,18 @@ test('malformed and internal Calendar Alarms Actions payloads remain raw custom 
   assert.deepEqual(alarm.shortcutsOnTrigger.map((item) => item.editorType), ['custom', 'custom']);
 });
 
-test('context toggle preserves imported conditions and disables only context output', () => {
+test('context toggle retains disabled rules across export and reload', () => {
   const alarm = renderReady({silenceIfDriving: 'ON', locationMode: 'whitelist', locations: [[1, 2, 50]],
     conflictingCalendars: ['Work'], taskIDs: ['work'], maxReschedules: 2});
   assert.equal(alarm.contextEnabled, true);
   alarm.contextEnabled = false;
   const output = cleanAlarm(alarm);
-  for (const key of ['silenceIfDriving', 'locationMode', 'locations', 'conflictingCalendars']) assert.equal(key in output, false);
+  assert.equal(output.contextEnabled, false);
+  const restored = normalizeAlarm(output);
+  assert.equal(restored.contextEnabled, false);
+  assert.deepEqual(restored.conflictingCalendars, ['Work']);
+  assert.equal(restored.silenceIfDriving, 'ON');
+  assert.deepEqual(restored.locations.map(loc => [loc.lat, loc.lon, loc.radius]), [[1, 2, 50]]);
   assert.deepEqual(output.taskIDs, ['work']);
   assert.equal(output.maxReschedules, 2);
   alarm.contextEnabled = true;
@@ -199,4 +206,27 @@ test('context toggle preserves imported conditions and disables only context out
 test('zero conflict/travel maximum survives export', () => {
   const alarm = renderReady({reschedMinutes: {min: 0, max: 0}});
   assert.deepEqual(cleanAlarm(alarm).reschedMinutes, {min: 0, max: 0});
+});
+
+
+test('legacy timing stays in its original form unless a mode is explicitly chosen', () => {
+  for (const value of [30, {min: 0, max: 500}]) {
+    const alarm = normalizeAlarm({alarmName: 'Imported', reschedMinutes: value});
+    assert.equal(alarm.rescheduleMode, 'legacy');
+    assert.deepEqual(cleanAlarm(alarm).reschedMinutes, value);
+    assert.equal('rescheduleWindowMinutes' in cleanAlarm(alarm), false);
+    alarm.rescheduleMode = 'fixed';
+    const upgraded = cleanAlarm(alarm);
+    assert.equal(upgraded.rescheduleMode, 'fixed');
+    assert.equal(upgraded.rescheduleWindowMinutes, 120);
+    assert.equal('reschedMinutes' in upgraded, false);
+  }
+});
+
+test('new mode, zero smart interval and zero window round-trip', () => {
+  const alarm = normalizeAlarm({...defaultAlarm(), rescheduleIntervalMinutes: 0, rescheduleWindowMinutes: 0});
+  const restored = normalizeAlarm(cleanAlarm(alarm));
+  assert.equal(restored.rescheduleMode, 'smart');
+  assert.equal(restored.rescheduleIntervalMinutes, 0);
+  assert.equal(restored.rescheduleWindowMinutes, 0);
 });
