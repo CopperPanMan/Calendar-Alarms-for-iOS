@@ -129,25 +129,43 @@
             </section>
 
             <section class="advanced-group">
-              <h4>Suitable conditions</h4>
-              <label class="checkbox-row">Wait for suitable conditions <span class="help" tabindex="0" data-tip="Postpone actions and QR prompting while a selected condition blocks the alarm. Each scheduled retry uses the shared allowance below.">?</span><input data-field="contextEnabled" type="checkbox" /></label>
+              <div class="rules-header">
+                <h4>Rescheduling Rules</h4>
+                <label class="switch-row"><input data-field="contextEnabled" type="checkbox" role="switch" /><span class="switch-track" aria-hidden="true"></span>Turn on Rescheduling <span class="help" tabindex="0" data-tip="When the alarm fires, check the driving, location and calendar rules below. If blocked, dismiss this fire and schedule another attempt when allowed. Turning this off preserves your rules.">?</span></label>
+              </div>
               <div data-context-settings hidden>
               <div class="grid two-col">
-                <label>Location rule <span class="help" tabindex="0" data-tip="Run only at listed locations, avoid them, or ignore location. Arrival retries use a distance-based travel estimate plus 14 minutes.">?</span>
+                <label>Location Mode <span class="help" tabindex="0" data-tip="Run only at listed locations, avoid them, or ignore location. In Smart mode, arrival retries use a distance-based travel estimate plus 14 minutes.">?</span>
                   <select data-field="locationMode"><option value="off">Ignore location</option><option value="whitelist">Run only at these locations</option><option value="blacklist">Avoid these locations</option></select>
                 </label>
-                <label>Wait while Driving Focus is active <span class="help" tabindex="0" data-tip="While Driving Focus is active, wait the retry delay and check again. This does not predict when driving ends.">?</span>
+                <label>Reschedule if in Driving <span class="help" tabindex="0" data-tip="Checks whether Driving Focus is active when the alarm fires. If active, dismiss this fire and reschedule according to your timing mode.">?</span>
                   <select data-field="silenceIfDriving"><option value="OFF">OFF</option><option value="ON">ON</option></select>
                 </label>
-                <label data-resched="min">Retry delay (minutes) <span class="help" tabindex="0" data-tip="Check again after this delay while driving, at a blocked location, or when no usable estimate is available. Zero disables fallback retries; valid estimates still work.">?</span><input data-field="reschedMin" type="number" min="0" step="1" /></label>
-                <label data-resched="max">Conflict/travel limit (minutes) <span class="help" tabindex="0" data-tip="Use meeting-end and arrival estimates up to this delay. Longer estimates use the retry delay instead; with no fallback, this occurrence stops.">?</span><input data-field="reschedMax" type="number" min="0" step="1" /></label>
               </div>
               <h5>Locations <span class="help" tabindex="0" data-tip="Each location is a circle around its coordinates. Choose whether the alarm runs only inside these circles or avoids them.">?</span></h5>
               <div data-list="locations" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="locations">+ Add Location</button>
-              <h5>Avoid events in these calendars <span class="help" tabindex="0" data-tip="Retry 10 minutes after overlapping meetings end, looking ahead through consecutive meetings. If the delay exceeds the conflict/travel limit, use the retry delay instead.">?</span></h5>
+              <h5>Avoid events in these calendars <span class="help" tabindex="0" data-tip="In Smart mode, reschedule at least 10 minutes after meetings end, including consecutive meetings. Fixed mode checks again at your interval. Attempts must fit within the rescheduling window.">?</span></h5>
               <div data-list="conflictingCalendars" class="list-block"></div>
               <button type="button" class="btn small add-list-item" data-add="conflictingCalendars">+ Add Conflicting Calendar</button>
+              </div>
+              <div data-timing-settings hidden>
+                <div class="grid two-col">
+                  <label>Rescheduling mode <span class="help" tabindex="0" data-tip="Fixed uses your exact interval for blocked alarms. Smart uses arrival and meeting estimates, with your interval as a minimum. Task repetitions keep their own interval.">?</span>
+                    <select data-field="rescheduleMode"><option value="legacy">Keep existing timing</option><option value="fixed">Fixed</option><option value="smart">Smart</option></select>
+                  </label>
+                  <label data-new-timing><span data-interval-label>Minimum reschedule interval (minutes)</span><span class="help" tabindex="0" data-tip="Fixed retries after this many minutes. Smart never retries sooner and uses this interval when there is no estimate. Zero in Smart mode allows estimates only.">?</span><input data-field="rescheduleIntervalMinutes" type="number" min="0" max="500" step="1" /></label>
+                  <label data-new-timing>Rescheduling window (minutes) <span class="help" tabindex="0" data-tip="No context retry or task repetition may be scheduled beyond this window after the original alarm time. Maximum retries is still shared. QR prompting keeps its separate scan-to-dismiss behavior.">?</span><input data-field="rescheduleWindowMinutes" type="number" min="0" max="1440" step="1" /></label>
+                </div>
+                <p class="hint" data-legacy-note hidden>Existing timing is preserved. Choose Fixed or Smart to use a rescheduling window.</p>
+                <details data-legacy-settings hidden>
+                  <summary>Existing timing settings</summary>
+                  <div class="grid two-col">
+                    <label data-resched="fixed">Legacy interval (minutes)<input data-field="reschedFixed" type="number" min="0" max="500" step="1" /></label>
+                    <label data-resched="min">Legacy fallback (minutes)<input data-field="reschedMin" type="number" min="0" max="500" step="1" /></label>
+                    <label data-resched="max">Legacy conflict/travel limit (minutes)<input data-field="reschedMax" type="number" min="0" max="500" step="1" /></label>
+                  </div>
+                </details>
               </div>
             </section>
 

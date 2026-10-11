@@ -23,7 +23,7 @@ For example, **Started Day** can have the ID `started_day`. Examples here work o
 
 1. In the [Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/), create an alarm and open **Advanced Settings → Task Looping**.
 2. Choose **+ Add Metric ID** and enter the metric ID. Expand **Where to find your Metric ID** in the Editor for copying instructions. Add more IDs if every listed task must be completed.
-3. Set **Task Loop Min** to a positive interval, such as `30` minutes. Under **Advanced Settings**, set **Maximum retries** to the number of follow-ups you want, such as `2`.
+3. Set **Task Loop Min** to a positive interval, such as `30` minutes. Under **Advanced Settings**, set **Maximum retries** to the number of follow-ups you want, such as `2`. When using Fixed or Smart timing under **Rescheduling Rules**, set a **Rescheduling window (minutes)** long enough for the task attempts; context postponements and task repetitions share that deadline.
 4. Leave **Check Tasks First Time** checked to skip an alarm whose tasks are already complete. Uncheck it to make the initial eligible fire run without a completion check; later task checks still check completion.
 5. Paste the configuration into the calendar event and sync.
 

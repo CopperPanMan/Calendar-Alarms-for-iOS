@@ -398,8 +398,10 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
     block.className = 'sub-card';
     block.innerHTML = `
       <div class="sub-card-header">
-        <div class="drag-handle" draggable="true" title="Drag to reorder action" aria-label="Drag to reorder action">⠿</div>
-        <strong>Action ${listIndex + 1} <span class="action-help"></span></strong>
+        <div class="action-heading">
+          <div class="drag-handle" draggable="true" title="Drag to reorder action" aria-label="Drag to reorder action">⠿</div>
+          <strong>Action ${listIndex + 1} <span class="action-help"></span></strong>
+        </div>
         <div class="button-row">
           <button type="button" class="btn secondary small" data-action="up">↑</button>
           <button type="button" class="btn secondary small" data-action="down">↓</button>
@@ -619,21 +621,46 @@ function renderConflictCalendars(container, alarm) {
 }
 
 function setRescheduleForm(card, alarm) {
-  if (alarm.reschedType === 'fixed' || (alarm.reschedType == null && typeof alarm.reschedMinutes === 'number')) {
-    alarm.reschedMin = alarm.reschedFixed ?? alarm.reschedMinutes;
-    alarm.reschedMax = Math.max(alarm.reschedMin, 45);
-  } else {
-    alarm.reschedMin ??= alarm.reschedMinutes?.min ?? 10;
-    alarm.reschedMax ??= alarm.reschedMinutes?.max ?? 45;
+  const fixed = alarm.reschedType === 'fixed' || (alarm.reschedType == null && typeof alarm.reschedMinutes === 'number');
+  alarm.reschedType = fixed ? 'fixed' : 'range';
+  alarm.reschedFixed ??= typeof alarm.reschedMinutes === 'number' ? alarm.reschedMinutes : 10;
+  alarm.reschedMin ??= alarm.reschedMinutes?.min ?? 10;
+  alarm.reschedMax ??= alarm.reschedMinutes?.max ?? 45;
+  for (const field of ['reschedFixed', 'reschedMin', 'reschedMax']) {
+    const control = card.querySelector(`[data-field="${field}"]`);
+    control.value = alarm[field];
+    control.addEventListener('input', () => { alarm[field] = Number(control.value); updateOutput(); });
   }
-  alarm.reschedType = 'range';
-  card.querySelector('[data-field="reschedMin"]').value = alarm.reschedMin;
-  card.querySelector('[data-field="reschedMax"]').value = alarm.reschedMax;
   const toggle = card.querySelector('[data-field="contextEnabled"]');
-  const settings = card.querySelector('[data-context-settings]');
-  const updateVisibility = () => { settings.hidden = !toggle.checked; };
+  const mode = card.querySelector('[data-field="rescheduleMode"]');
+  mode.value = alarm.rescheduleMode;
+  const updateVisibility = () => {
+    const legacy = mode.value === 'legacy';
+    mode.querySelector('option[value="legacy"]').hidden = !legacy;
+    card.querySelector('[data-context-settings]').hidden = !toggle.checked;
+    card.querySelector('[data-timing-settings]').hidden = !toggle.checked && !alarm.taskIDs.length;
+    card.querySelectorAll('[data-new-timing]').forEach((el) => { el.hidden = legacy; });
+    card.querySelector('[data-legacy-note]').hidden = !legacy;
+    card.querySelector('[data-legacy-settings]').hidden = !legacy;
+    card.querySelector('[data-resched="fixed"]').hidden = !fixed;
+    card.querySelector('[data-resched="min"]').hidden = fixed;
+    card.querySelector('[data-resched="max"]').hidden = fixed;
+    card.querySelector('[data-interval-label]').textContent = mode.value === 'fixed'
+      ? 'Reschedule interval (minutes)' : 'Minimum reschedule interval (minutes)';
+    card.querySelector('[data-field="rescheduleIntervalMinutes"]').min = mode.value === 'fixed' ? '1' : '0';
+  };
   updateVisibility();
   toggle.addEventListener('input', updateVisibility);
+  mode.addEventListener('input', () => {
+    if (alarm.rescheduleMode === 'legacy' && mode.value !== 'legacy') {
+      alarm.rescheduleIntervalMinutes = fixed ? alarm.reschedFixed : alarm.reschedMin;
+    }
+    alarm.rescheduleMode = mode.value;
+    if (mode.value === 'fixed' && alarm.rescheduleIntervalMinutes <= 0) alarm.rescheduleIntervalMinutes = 1;
+    card.querySelector('[data-field="rescheduleIntervalMinutes"]').value = alarm.rescheduleIntervalMinutes;
+    updateVisibility();
+    updateOutput();
+  });
 }
 
 function render() {
@@ -658,7 +685,7 @@ function render() {
 
     card.querySelectorAll('[data-field]').forEach((input) => {
       const key = input.dataset.field;
-      if (key.startsWith('resched')) return;
+      if (['reschedFixed', 'reschedMin', 'reschedMax', 'rescheduleMode'].includes(key)) return;
       if (input.type === 'checkbox') input.checked = !!alarm[key];
       else input.value = alarm[key] ?? '';
 
@@ -674,15 +701,6 @@ function render() {
     setRescheduleForm(card, alarm);
     setupQrGenerator(card, alarm);
     setupSoundPreview(card);
-    card.querySelector('[data-field="reschedMin"]').addEventListener('input', (e) => {
-      alarm.reschedMin = Number(e.target.value);
-      updateOutput();
-    });
-    card.querySelector('[data-field="reschedMax"]').addEventListener('input', (e) => {
-      alarm.reschedMax = Number(e.target.value);
-      updateOutput();
-    });
-
     renderShortcutList(card.querySelector('[data-list="qrShortcutsOnScan"]'), alarm, 'qrShortcutsOnScan', index);
     renderShortcutList(card.querySelector('[data-list="shortcutsOnTrigger"]'), alarm, 'shortcutsOnTrigger', index);
     renderLocations(card.querySelector('[data-list="locations"]'), alarm, index);

@@ -101,20 +101,38 @@ The built-in action payload is one serialized JSON object in one input string. T
 
 ## Context and retry fields
 
-See [Rescheduling](Guides/Rescheduling.md) for examples and the meaning of the Editor's retry delay and conflict/travel limit.
+See [Rescheduling](Guides/Rescheduling.md) for examples and the meaning of the Editor's Fixed/Smart modes and original-time window.
 
 | Field | Meaning | Engine default / limits |
 | --- | --- | --- |
+| `contextEnabled` | Apply saved driving, location and calendar rules; false preserves the rules without applying them | `true` when omitted; Editor starts new alarms at `false` |
 | `locationMode` | `"whitelist"` runs only inside a listed location; `"blacklist"` blocks inside it | `"off"` |
 | `locations` | Coordinate triples: `[[latitude, longitude, radiusMeters], ...]` | `[]`; radius 1–500 meters, default 50 when omitted |
 | `silenceIfDriving` | Block the fire while Driving Focus is active | `"OFF"`; `"ON"` enables it |
 | `conflictingCalendars` | Exact Apple Calendar names whose overlapping events can postpone the alarm | `[]` |
-| `reschedMinutes` | Context fallback and maximum considered conflict/travel delay | Missing: `{ "min": 0, "max": 45 }`; values 0–500, with max at least min |
+| `rescheduleMode` | `"fixed"` retries blocked fires periodically; `"smart"` uses estimates and calendar buffers | Omitted: legacy timing remains active |
+| `rescheduleIntervalMinutes` | Fixed interval or Smart minimum/fallback interval | `10`; 0–500; Fixed needs a positive value; Smart zero permits estimates only |
+| `rescheduleWindowMinutes` | Total window after the original alarm time for all context retries and task repetitions | `120` for new modes; 0–1440; exact deadline allowed; QR-only restarts excluded |
+| `reschedMinutes` | Legacy fallback and maximum considered conflict/travel delay; ignored when a new mode is specified | Missing: `{ "min": 0, "max": 45 }`; values 0–500, with max at least min |
 | `maxReschedules` | Shared allowance for future task/context follow-ups | `1`; integer 0–10 |
 
-For example, `"reschedMinutes": { "min": 10, "max": 45 }` uses ten minutes for driving, blacklist matches, or unavailable location, and considers conflict/travel candidates within 45 minutes. The latest applicable candidate wins. This is **not a random range**. A calendar conflict candidate is ten minutes after overlapping meetings end, looking ahead until the proposed time is free. Conflicts beyond the maximum still block the alarm; a positive fallback schedules another check, otherwise the occurrence stops.
+For new timing, use:
 
-The legacy number form `"reschedMinutes": 30` is treated as `{ "min": 30, "max": 45 }`; its effective max is raised if min is greater. It is not a strict fixed delay for every condition. A zero fallback disables only fallback retries; valid calendar/arrival candidates can still schedule follow-ups. QR-only restarts do not spend `maxReschedules`. A blocked ordinary alarm with no available follow-up is silenced rather than forced to run.
+```json
+{
+  "contextEnabled": true,
+  "rescheduleMode": "smart",
+  "rescheduleIntervalMinutes": 15,
+  "rescheduleWindowMinutes": 120,
+  "maxReschedules": 2
+}
+```
+
+Every context retry and task repetition must be at or before `calcFireTime + rescheduleWindowMinutes * 60` (the original alarm time is computed from the event and offset). The window never resets. Fixed uses the exact context interval and rechecks on each fire. Smart uses at least its minimum interval, includes the existing arrival overhead, and checks the final time against meetings plus ten-minute buffers. Known estimates beyond the window stop the occurrence instead of being shortened or replaced by an earlier fallback. Task repetitions retain `taskLoopMin` but share the window and allowance.
+
+When `rescheduleMode` is omitted, `"reschedMinutes": { "min": 10, "max": 45 }` retains ten-minute fallback and 45-minute considered conflict/travel candidates. This is not a random range. The legacy number `30` is treated as `{ "min": 30, "max": 45 }`; max rises if min is greater. Legacy scheduling retains its four-hour per-attempt clamp and does not acquire a total window automatically. A zero fallback permits valid estimates. Imported definitions stay on this path until a new mode is chosen.
+
+`contextEnabled: false` disables driving/location/calendar checks while retaining their configuration. Task repetition and its shared count still apply. QR-only restarts do not spend `maxReschedules` or use the new window. Update the Engine before using the new fields; older versions will not honor saved disabled rules or new timing.
 
 ## Task fields
 

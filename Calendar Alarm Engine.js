@@ -843,6 +843,13 @@ function normalizeCalendarAlarmObject(rawObj) {
     return { min, max: Math.max(min, 45) };
   };
 
+  const contextEnabled = rawObj.contextEnabled !== false;
+  const rescheduleMode = rawObj.rescheduleMode == null ? null : String(rawObj.rescheduleMode).toLowerCase();
+  if (rescheduleMode !== null && !["fixed", "smart"].includes(rescheduleMode)) {
+    return { ok: false, err: `${errPrefix}rescheduleMode must be fixed/smart` };
+  }
+  const rescheduleIntervalMinutes = rescheduleNumber(rawObj.rescheduleIntervalMinutes, 10, 0, 500);
+  const rescheduleWindowMinutes = rescheduleNumber(rawObj.rescheduleWindowMinutes, 120, 0, 1440);
   const reschedMinutes = parseReschedMinutes(rawObj.reschedMinutes);
   const taskLoopMin = intInRange(rawObj.taskLoopMin, 0, 0, 500);
   const taskIDs = Array.isArray(rawObj.taskIDs)
@@ -873,6 +880,10 @@ function normalizeCalendarAlarmObject(rawObj) {
       silenceIfDriving,
       conflictingCalendars,
       reschedMinutes,
+      contextEnabled,
+      rescheduleMode,
+      rescheduleIntervalMinutes,
+      rescheduleWindowMinutes,
       taskLoopMin,
       taskIDs,
       checkTasksFirstTime,
@@ -966,6 +977,10 @@ function ensureRegistryEntryShape(entry) {
   if (typeof entry.silenceIfDriving !== "string") entry.silenceIfDriving = "OFF";
   if (!Array.isArray(entry.conflictingCalendars)) entry.conflictingCalendars = [];
   entry.reschedMinutes = normalizeReschedMinutesRange(entry.reschedMinutes);
+  entry.contextEnabled = entry.contextEnabled !== false;
+  entry.rescheduleMode = ["fixed", "smart"].includes(entry.rescheduleMode) ? entry.rescheduleMode : null;
+  entry.rescheduleIntervalMinutes = rescheduleNumber(entry.rescheduleIntervalMinutes, 10, 0, 500);
+  entry.rescheduleWindowMinutes = rescheduleNumber(entry.rescheduleWindowMinutes, 120, 0, 1440);
   if (!Number.isFinite(Number(entry.taskLoopMin))) entry.taskLoopMin = 0;
   if (!Array.isArray(entry.taskIDs)) {
     if (Number.isFinite(Number(entry.taskRow)) && Number(entry.taskRow) > 0) {
@@ -1559,7 +1574,7 @@ async function findConflictReadyAt(entry, fireEpoch) {
   }
 }
 
-async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLocation, includeTaskBaseline) {
+async function computeLegacyRescheduleTime(entry, fireEpoch, currentFocus, currentLocation, includeTaskBaseline) {
   const candidates = [];
   const reschedRange = normalizeReschedMinutesRange(entry.reschedMinutes);
   const reschedMinutes = reschedRange.min;
@@ -1674,7 +1689,86 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
   return next;
 }
 
+function rescheduleNumber(value, fallback, min, max) {
+  const number = value == null ? NaN : Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.trunc(number))) : fallback;
+}
+
+function rescheduleDeadline(entry) {
+  if (!entry.rescheduleMode) return Infinity; // Legacy definitions retain their timing.
+  return Number(entry.calcFireTime) + entry.rescheduleWindowMinutes * 60;
+}
+
+async function findSmartCalendarTime(entry, fireEpoch, candidate, deadline) {
+  const names = Array.isArray(entry.conflictingCalendars) ? entry.conflictingCalendars : [];
+  if (!names.length || entry.contextEnabled === false) return candidate;
+  try {
+    const calendars = new Map((await Calendar.forEvents()).map((cal) => [cal.title, cal]));
+    const intervals = [];
+    for (const name of names) {
+      const calendar = calendars.get(name);
+      if (!calendar) continue;
+      const events = await CalendarEvent.between(
+        new Date((fireEpoch - 12 * 3600) * 1000), new Date((deadline + CONFLICT_BUFFER_MIN * 60) * 1000), [calendar]);
+      for (const event of events) {
+        const start = event.startDate.getTime() / 1000;
+        const end = event.endDate.getTime() / 1000;
+        if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+          intervals.push([start, Math.ceil((end + CONFLICT_BUFFER_MIN * 60) / 60) * 60]);
+        }
+      }
+    }
+    let ready = candidate;
+    while (ready <= deadline) {
+      let next = ready;
+      // Include each event's buffer, even if the event ends before the proposed retry.
+      for (const [start, bufferedEnd] of intervals) {
+        if (ready >= start && ready < bufferedEnd) next = Math.max(next, bufferedEnd);
+      }
+      if (next === ready) return ready;
+      ready = next;
+    }
+    return null;
+  } catch (e) {
+    addError(`WARN: smart calendar check failed; using the candidate time. (${String(e)})`);
+    return candidate;
+  }
+}
+
+async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLocation, includeTaskBaseline) {
+  if (!entry.rescheduleMode) {
+    const legacyEntry = entry.contextEnabled === false
+      ? {...entry, silenceIfDriving: "OFF", conflictingCalendars: [], locationMode: "off"} : entry;
+    return computeLegacyRescheduleTime(legacyEntry, fireEpoch, currentFocus, currentLocation, includeTaskBaseline);
+  }
+  const deadline = rescheduleDeadline(entry);
+  const interval = Number(entry.rescheduleIntervalMinutes);
+  // Task repetition keeps its own cadence. Fixed context retries are exactly periodic.
+  let candidate = fireEpoch + (includeTaskBaseline ? Number(entry.taskLoopMin) : interval) * 60;
+  if (entry.rescheduleMode === "smart" && !includeTaskBaseline && entry.contextEnabled !== false) {
+    if (entry.locationMode === "whitelist" && currentLocation && entry.locations.length) {
+      let nearest = null;
+      let inside = false;
+      for (const [lat, lon, radius] of entry.locations) {
+        const distance = haversineMeters(currentLocation.lat, currentLocation.lon, lat, lon);
+        if (distance <= radius) inside = true;
+        if (!nearest || distance < nearest.distance) nearest = {lat, lon, distance};
+      }
+      if (!inside && nearest) {
+        const minutes = estimateDriveMinutes(currentLocation.lat, currentLocation.lon, nearest.lat, nearest.lon);
+        candidate = Math.max(candidate, fireEpoch + minutes * 60);
+      }
+    }
+  }
+  candidate = Math.ceil(candidate / 60) * 60;
+  if (candidate > deadline || !Number.isFinite(candidate)) return null;
+  if (entry.rescheduleMode === "smart") candidate = await findSmartCalendarTime(entry, fireEpoch, candidate, deadline);
+  if (!Number.isFinite(candidate) || candidate <= fireEpoch || candidate > deadline) return null;
+  return candidate;
+}
+
 function entryUsesLocation(entry) {
+  if (entry.contextEnabled === false) return false;
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   if (locationMode !== "whitelist" && locationMode !== "blacklist") return false;
   if (!Array.isArray(entry.locations) || entry.locations.length === 0) return false;
@@ -1809,6 +1903,7 @@ function serializeExistingQRLoops(registryArr, iosAlarms) {
 // ---------- Fast-path ----------
 
 async function isRescheduledForContextGates(entry, fireEpoch, input) {
+  if (entry.contextEnabled === false) return false;
   const focus = String(input.currentFocus ?? "").trim().toLowerCase();
   if (String(entry.silenceIfDriving ?? "OFF").toUpperCase() === "ON" && focus === "driving") return true;
 
@@ -1915,10 +2010,12 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     let payload = null;
     if (loopsRemaining > 0) {
       const next = await computeRescheduleTime(entry, now, input.currentFocus, input.currentLocation, true);
-      setTaskCheck(entry, next ?? now + taskLoopMin * 60);
-      entry.maxReschedules = loopsRemaining - 1;
-      queueAddIOSIfMissing(input.iosAlarms, name, entry.taskCheckFireTime);
-      payload = {name, ...epochToHHMM(entry.taskCheckFireTime)};
+      setTaskCheck(entry, Number.isFinite(next) ? next : 0);
+      if (Number.isFinite(next)) {
+        entry.maxReschedules = loopsRemaining - 1;
+        queueAddIOSIfMissing(input.iosAlarms, name, next);
+        payload = {name, ...epochToHHMM(next)};
+      }
     } else setTaskCheck(entry, 0);
     const actions = skip ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
       : buildTriggerActionsForTaskLoop(entry, payload);
@@ -1936,70 +2033,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
   // If gated: delete fired alarm, maybe reschedule, decrement maxReschedules.
   // If not gated: this fire is allowed to proceed.
 
-  // Gating check: conditions block independently of whether a retry is possible.
-  let gated = false;
-
-  const focus = String(input.currentFocus ?? "").trim().toLowerCase();
-  if (String(entry.silenceIfDriving ?? "OFF").toUpperCase() === "ON" && focus === "driving") gated = true;
-
-  const conflictReady = await findConflictReadyAt(entry, now);
-  if (conflictReady !== null) {
-    gated = true;
-  }
-
-  const locationMode = String(entry.locationMode ?? "off").toLowerCase();
-  if ((locationMode === "whitelist" || locationMode === "blacklist") && Array.isArray(entry.locations) && entry.locations.length > 0) {
-    const cur = input.currentLocation;
-    if (cur) {
-      const defaultRadius = Number(entry.radiusMeters ?? 50);
-      let insideAny = false;
-      let nearest = null;
-      let nearestLat = null;
-      let nearestLon = null;
-      let nearestRadius = null;
-      for (const pair of entry.locations) {
-        if (!Array.isArray(pair) || pair.length < 2) continue;
-        const lat = Number(pair[0]), lon = Number(pair[1]);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-        const radius = Number.isFinite(Number(pair[2])) ? Number(pair[2]) : defaultRadius;
-        const d = haversineMeters(cur.lat, cur.lon, lat, lon);
-        if (nearest === null || d < nearest) {
-          nearest = d;
-          nearestLat = lat;
-          nearestLon = lon;
-          nearestRadius = radius;
-        }
-        if (d <= radius) insideAny = true;
-      }
-      if (nearest !== null) {
-        setLocationDebug({
-          current: { lat: cur.lat, lon: cur.lon },
-          nearest: {
-            lat: nearestLat,
-            lon: nearestLon,
-            distanceMeters: Math.round(nearest),
-            radiusMeters: Number.isFinite(nearestRadius) ? nearestRadius : null,
-          },
-          insideAny,
-          mode: locationMode,
-        });
-      }
-      if (locationMode === "whitelist" && !insideAny && nearest !== null) {
-        gated = true;
-      }
-      if (locationMode === "blacklist" && insideAny) gated = true;
-    } else {
-      setLocationDebug({
-        current: null,
-        nearest: null,
-        insideAny: null,
-        mode: locationMode,
-        reason: "currentLocation unavailable",
-        decision: "failClosed",
-      });
-      gated = true;
-    }
-  }
+  const gated = await isRescheduledForContextGates(entry, now, input);
 
   if (gated) {
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
@@ -2225,7 +2259,8 @@ async function runVerifier(input, registryAfter) {
   const registry = new Map(dropRegistryDuplicatesRandom(registryAfter).map((e) => [registryKey(e), e]));
   const calendarFields = ["status", "offsetMin", "reference", "qrCodeID", "qrSoundPath", "qrSoundLen", "qrVol",
     "qrShortcutsOnScan", "shortcutsOnTrigger", "silenceAlarm", "locationMode", "locations", "radiusMeters",
-    "silenceIfDriving", "conflictingCalendars", "reschedMinutes", "taskLoopMin", "taskIDs", "checkTasksFirstTime"];
+    "silenceIfDriving", "conflictingCalendars", "reschedMinutes", "contextEnabled", "rescheduleMode",
+    "rescheduleIntervalMinutes", "rescheduleWindowMinutes", "taskLoopMin", "taskIDs", "checkTasksFirstTime"];
   for (const [key, entry] of registry) {
     const previous = ownedAlarmSlots(entry, true);
     const qrExpired = entry.qrActive && (!(Number(entry.firstQRFireTime) > 0) || now - Number(entry.firstQRFireTime) > QR_TIMEOUT_SEC);
@@ -2254,6 +2289,12 @@ async function runVerifier(input, registryAfter) {
       }
       if (hadQR && !entry.qrCodeID) cancelQRLoop(entry);
       entry.maxReschedules = Math.min(Number(entry.maxReschedules), Number(exp.maxReschedules));
+      const deadline = rescheduleDeadline(entry);
+      if (entry.taskCheckFireTime > deadline) setTaskCheck(entry, 0);
+      if (!hasTaskLoop(entry) && entry.nextFireTime > entry.calcFireTime && entry.nextFireTime > deadline) {
+        entry.nextFireTime = 0;
+        entry.nextFireHHMM = "";
+      }
     }
     if (entry.taskSatisfied) {
       setTaskCheck(entry, 0);
