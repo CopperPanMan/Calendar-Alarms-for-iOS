@@ -138,3 +138,7 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   .alarm-card-header { grid-template-columns: auto 1fr; }
   .alarm-card-header .button-row { grid-column: 1 / -1; }
 }
+
+[hidden] { display: none !important; }
+.drag-handle { background: transparent; border: 0; padding: 0.3rem; font: inherit; }
+.sub-card.dragging { opacity: 0.6; }
