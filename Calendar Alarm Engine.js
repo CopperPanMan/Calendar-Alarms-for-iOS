@@ -1532,27 +1532,27 @@ async function findConflictReadyAt(entry, fireEpoch) {
   try {
     const allCals = await Calendar.forEvents();
     const calByName = new Map(allCals.map((c) => [c.title, c]));
-    let latestEnd = null;
-
+    const intervals = [];
     for (const name of names) {
       const cal = calByName.get(name);
       if (!cal) continue;
-
       const start = new Date((fireEpoch - 12 * 60 * 60) * 1000);
       const end = new Date((fireEpoch + 12 * 60 * 60) * 1000);
       const events = await CalendarEvent.between(start, end, [cal]);
-
       for (const ev of events) {
-        const s = Math.floor(ev.startDate.getTime() / 1000);
-        const e = Math.floor(ev.endDate.getTime() / 1000);
-        if (fireEpoch >= s && fireEpoch < e) {
-          if (latestEnd === null || e > latestEnd) latestEnd = e;
-        }
+        intervals.push([Math.floor(ev.startDate.getTime() / 1000), Math.floor(ev.endDate.getTime() / 1000)]);
       }
     }
-
-    if (latestEnd === null) return null;
-    return floorToMinute(latestEnd + CONFLICT_BUFFER_MIN * 60);
+    let ready = fireEpoch;
+    // Advancing can expose another meeting. Stop only when the proposed time is free.
+    while (true) {
+      let latestEnd = null;
+      for (const [start, end] of intervals) {
+        if (ready >= start && ready < end && (latestEnd === null || end > latestEnd)) latestEnd = end;
+      }
+      if (latestEnd === null) return ready === fireEpoch ? null : ready;
+      ready = floorToMinute(latestEnd + CONFLICT_BUFFER_MIN * 60);
+    }
   } catch (e) {
     addError(`WARN: conflict check failed; treating as no conflict. (${String(e)})`);
     return null;
@@ -1657,6 +1657,9 @@ async function computeRescheduleTime(entry, fireEpoch, currentFocus, currentLoca
     }
   }
 
+  if (!candidates.length && !includeTaskBaseline && reschedMinutes > 0) {
+    candidates.push(floorToMinute(fireEpoch + reschedMinutes * 60));
+  }
   if (!candidates.length) return null;
 
   let next = candidates[0];
@@ -1933,10 +1936,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
   // If gated: delete fired alarm, maybe reschedule, decrement maxReschedules.
   // If not gated: this fire is allowed to proceed.
 
-  // Gating check
-  const reschedRange = normalizeReschedMinutesRange(entry.reschedMinutes);
-  const reschedMinutes = reschedRange.min;
-  const reschedMax = reschedRange.max;
+  // Gating check: conditions block independently of whether a retry is possible.
   let gated = false;
 
   const focus = String(input.currentFocus ?? "").trim().toLowerCase();
@@ -1944,8 +1944,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
 
   const conflictReady = await findConflictReadyAt(entry, now);
   if (conflictReady !== null) {
-    const conflictDelayMin = Math.max(0, Math.ceil((conflictReady - now) / 60));
-    if (conflictDelayMin <= reschedMax) gated = true;
+    gated = true;
   }
 
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
@@ -2005,18 +2004,19 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
   if (gated) {
     output.alarmsToDelete.push({ name, hh: firedHH, mm: firedMM });
 
-    if (reschedMinutes > 0 && Number(entry.maxReschedules ?? 0) > 0) {
-      entry.maxReschedules = Math.max(0, Math.trunc(Number(entry.maxReschedules)) - 1);
-      const next = await computeRescheduleTime(entry, now, input.currentFocus, input.currentLocation, true);
-      entry.prevFireTime = entry.nextFireTime;
-      entry.prevFireHHMM = entry.nextFireHHMM;
-      entry.nextFireTime = floorToMinute(next ?? (now + reschedMinutes * 60));
-      entry.nextFireHHMM = epochToHHMMString(entry.nextFireTime);
-      queueAddIOSIfMissing(input.iosAlarms, name, entry.nextFireTime);
-      reportLocationFailureOutcome(input, entry, fireEpoch, entry.nextFireTime, "");
+    if (Number(entry.maxReschedules ?? 0) > 0) {
+      const next = await computeRescheduleTime(entry, now, input.currentFocus, input.currentLocation, false);
+      if (Number.isFinite(next)) {
+        entry.maxReschedules = Math.max(0, Math.trunc(Number(entry.maxReschedules)) - 1);
+        entry.prevFireTime = entry.nextFireTime;
+        entry.prevFireHHMM = entry.nextFireHHMM;
+        entry.nextFireTime = next;
+        entry.nextFireHHMM = epochToHHMMString(next);
+        queueAddIOSIfMissing(input.iosAlarms, name, next);
+      }
+      reportLocationFailureOutcome(input, entry, fireEpoch, next, "no valid context reschedule was available");
     } else {
-      const reason = reschedMinutes <= 0 ? "rescheduling is disabled" : "no reschedules remaining";
-      reportLocationFailureOutcome(input, entry, fireEpoch, null, reason);
+      reportLocationFailureOutcome(input, entry, fireEpoch, null, "no reschedules remaining");
     }
 
     return { handled: true };

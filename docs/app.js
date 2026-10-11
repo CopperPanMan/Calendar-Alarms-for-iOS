@@ -14,7 +14,7 @@ const EDITOR_URL = 'https://copperpanman.github.io/Calendar-Alarms-for-iOS/';
 const SOUND_PREVIEW_URL = 'https://raw.githubusercontent.com/CopperPanMan/Calendar-Alarms-for-iOS/main/qr%20alarm%20ringtones/';
 
 let alarms = [];
-let dragFromIndex = null;
+let activeDrag = null;
 let openAdvancedByIndex = [];
 let history = [];
 let historyIndex = -1;
@@ -362,6 +362,34 @@ function renderActionEditor(container, item, rerender) {
   });
 }
 
+function setupReorderDrag(target, handle, scope, index, move) {
+  handle.addEventListener('dragstart', (event) => {
+    event.stopPropagation();
+    activeDrag = { scope, index };
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+    target.classList.add('dragging');
+  });
+  handle.addEventListener('dragend', () => {
+    activeDrag = null;
+    target.classList.remove('dragging');
+  });
+  target.addEventListener('dragover', (event) => {
+    if (activeDrag?.scope !== scope) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+  });
+  target.addEventListener('drop', (event) => {
+    if (activeDrag?.scope !== scope) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const from = activeDrag.index;
+    activeDrag = null;
+    move(from, index);
+  });
+}
+
 function renderShortcutList(container, alarm, key, alarmIndex) {
   container.innerHTML = '';
   const list = alarm[key];
@@ -370,10 +398,12 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
     block.className = 'sub-card';
     block.innerHTML = `
       <div class="sub-card-header">
+        <div class="drag-handle" draggable="true" title="Drag to reorder action" aria-label="Drag to reorder action">⠿</div>
         <strong>Action ${listIndex + 1} <span class="action-help"></span></strong>
         <div class="button-row">
           <button type="button" class="btn secondary small" data-action="up">↑</button>
           <button type="button" class="btn secondary small" data-action="down">↓</button>
+          <button type="button" class="btn secondary small" data-action="duplicate">Duplicate</button>
           <button type="button" class="btn danger small" data-action="delete">Delete</button>
         </div>
       </div>
@@ -448,6 +478,14 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
       });
     }
 
+    setupReorderDrag(block, block.querySelector('.drag-handle'), `action:${alarmIndex}:${key}`, listIndex, (from, to) => {
+      moveItem(list, from, to);
+      renderAfterMutation();
+    });
+    block.querySelector('[data-action="duplicate"]').addEventListener('click', () => {
+      list.splice(listIndex + 1, 0, JSON.parse(JSON.stringify(item)));
+      renderAfterMutation();
+    });
     block.querySelector('[data-action="up"]').addEventListener('click', () => {
       moveItem(alarm[key], listIndex, listIndex - 1);
       renderAfterMutation();
@@ -581,35 +619,21 @@ function renderConflictCalendars(container, alarm) {
 }
 
 function setRescheduleForm(card, alarm) {
-  const isFixed = typeof alarm.reschedMinutes === 'number';
-  alarm.reschedType = isFixed ? 'fixed' : alarm.reschedType || 'range';
-  alarm.reschedFixed = isFixed ? alarm.reschedMinutes : alarm.reschedFixed ?? 10;
-  alarm.reschedMin = !isFixed ? alarm.reschedMinutes?.min ?? 10 : alarm.reschedMin ?? 10;
-  alarm.reschedMax = !isFixed ? alarm.reschedMinutes?.max ?? 45 : alarm.reschedMax ?? 45;
-
-  const typeSelect = card.querySelector('[data-field="reschedType"]');
-  const fixedWrap = card.querySelector('[data-resched="fixed"]');
-  const minWrap = card.querySelector('[data-resched="min"]');
-  const maxWrap = card.querySelector('[data-resched="max"]');
-
-  typeSelect.value = alarm.reschedType;
-  card.querySelector('[data-field="reschedFixed"]').value = alarm.reschedFixed;
+  if (alarm.reschedType === 'fixed' || (alarm.reschedType == null && typeof alarm.reschedMinutes === 'number')) {
+    alarm.reschedMin = alarm.reschedFixed ?? alarm.reschedMinutes;
+    alarm.reschedMax = Math.max(alarm.reschedMin, 45);
+  } else {
+    alarm.reschedMin ??= alarm.reschedMinutes?.min ?? 10;
+    alarm.reschedMax ??= alarm.reschedMinutes?.max ?? 45;
+  }
+  alarm.reschedType = 'range';
   card.querySelector('[data-field="reschedMin"]').value = alarm.reschedMin;
   card.querySelector('[data-field="reschedMax"]').value = alarm.reschedMax;
-
-  const updateVisibility = () => {
-    const fixed = typeSelect.value === 'fixed';
-    fixedWrap.style.display = fixed ? 'block' : 'none';
-    minWrap.style.display = fixed ? 'none' : 'block';
-    maxWrap.style.display = fixed ? 'none' : 'block';
-  };
+  const toggle = card.querySelector('[data-field="contextEnabled"]');
+  const settings = card.querySelector('[data-context-settings]');
+  const updateVisibility = () => { settings.hidden = !toggle.checked; };
   updateVisibility();
-
-  typeSelect.addEventListener('change', () => {
-    alarm.reschedType = typeSelect.value;
-    updateVisibility();
-    updateOutput();
-  });
+  toggle.addEventListener('input', updateVisibility);
 }
 
 function render() {
@@ -650,10 +674,6 @@ function render() {
     setRescheduleForm(card, alarm);
     setupQrGenerator(card, alarm);
     setupSoundPreview(card);
-    card.querySelector('[data-field="reschedFixed"]').addEventListener('input', (e) => {
-      alarm.reschedFixed = Number(e.target.value);
-      updateOutput();
-    });
     card.querySelector('[data-field="reschedMin"]').addEventListener('input', (e) => {
       alarm.reschedMin = Number(e.target.value);
       updateOutput();
@@ -699,20 +719,12 @@ function render() {
       renderAfterMutation();
     });
 
-    card.addEventListener('dragstart', (event) => {
-      event.dataTransfer.setData('text/plain', String(index));
-      card.classList.add('dragging');
-    });
-    card.addEventListener('dragend', () => card.classList.remove('dragging'));
-    card.addEventListener('dragover', (event) => event.preventDefault());
-    card.addEventListener('drop', (event) => {
-      event.preventDefault();
-      const fromIndex = Number(event.dataTransfer.getData('text/plain'));
-      const toIndex = Number(card.dataset.index);
-      moveItem(alarms, fromIndex, toIndex);
+    setupReorderDrag(card, card.querySelector('.drag-handle'), `alarm`, index, (from, to) => {
+      moveItem(alarms, from, to);
       renderAfterMutation();
     });
 
+    card.querySelectorAll('.help').forEach((help) => help.setAttribute('tabindex', '0'));
     alarmsContainer.appendChild(fragment);
   });
 }

@@ -10,7 +10,7 @@ Under **Advanced Settings → Trigger & Silence Properties**, choose **+ Add Act
 
 Copy the updated configuration back into the event's notes and sync it. Trigger actions run after the alarm passes any driving, location, or calendar gates. Task-check fires can run them again while the task is incomplete; QR-only playback restarts do not rerun them.
 
-Enable **Silence Alarm** to have the native alarm silence itself while actions run. This requires its automation to execute, so it may ring briefly first. That setting does not replace the scan requirement for a QR alarm. For a silent scheduled action, use an alarm without a QR ID.
+Enable **Automatically dismiss alarm** to have the native alarm silence itself while actions run. This requires its automation to execute, so it may ring briefly first. That setting does not replace the scan requirement for a QR alarm. For a silent scheduled action, use an alarm without a QR ID.
 
 ## Choose an action
 
@@ -30,7 +30,7 @@ These actions change the requested setting; they do not automatically restore it
 
 ## Example: a silent work-session reminder
 
-On an event called **Focused Work**, add an alarm at offset `0`, reference **start**, and enable **Silence Alarm**. Add these trigger actions in order:
+On an event called **Focused Work**, add an alarm at offset `0`, reference **start**, and enable **Automatically dismiss alarm**. Add these trigger actions in order:
 
 1. **Focus:** Work → On.
 2. **Timer:** Start → 25 minutes.

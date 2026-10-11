@@ -93,7 +93,7 @@ Choose built-in actions or **Run Custom Shortcut** from the Editor's action list
 
 ## Rescheduling
 
-Use **Rescheduling Properties** when an alarm should go off at the right time rather than only at its originally scheduled time.
+Use **Suitable conditions → Wait for suitable conditions** when an alarm should go off at the right time rather than only at its originally scheduled time.
 
 Depending on your configuration, the alarm can wait and try again later if:
 
@@ -104,7 +104,7 @@ Depending on your configuration, the alarm can wait and try again later if:
 
 This is useful for context-dependent reminders such as “Review my day plan once I get to work.”
 
-See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, retry limits, and tests. Range Min/Max are context settings; they do not select a random delay.
+See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, retry limits, and tests. Retry delay and conflict/travel limit control context attempts; they do not select a random delay.
 
 ---
 

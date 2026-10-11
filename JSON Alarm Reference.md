@@ -101,7 +101,7 @@ The built-in action payload is one serialized JSON object in one input string. T
 
 ## Context and retry fields
 
-See [Rescheduling](Guides/Rescheduling.md) for examples and the meaning of the Editor's Range/Fixed controls.
+See [Rescheduling](Guides/Rescheduling.md) for examples and the meaning of the Editor's retry delay and conflict/travel limit.
 
 | Field | Meaning | Engine default / limits |
 | --- | --- | --- |
@@ -112,9 +112,9 @@ See [Rescheduling](Guides/Rescheduling.md) for examples and the meaning of the E
 | `reschedMinutes` | Context fallback and maximum considered conflict/travel delay | Missing: `{ "min": 0, "max": 45 }`; values 0–500, with max at least min |
 | `maxReschedules` | Shared allowance for future task/context follow-ups | `1`; integer 0–10 |
 
-For example, `"reschedMinutes": { "min": 10, "max": 45 }` uses ten minutes for driving, blacklist matches, or unavailable location, and considers conflict/travel candidates within 45 minutes. The latest applicable candidate wins. This is **not a random range**. A calendar conflict candidate is the latest overlapping event's end plus ten minutes.
+For example, `"reschedMinutes": { "min": 10, "max": 45 }` uses ten minutes for driving, blacklist matches, or unavailable location, and considers conflict/travel candidates within 45 minutes. The latest applicable candidate wins. This is **not a random range**. A calendar conflict candidate is ten minutes after overlapping meetings end, looking ahead until the proposed time is free. Conflicts beyond the maximum still block the alarm; a positive fallback schedules another check, otherwise the occurrence stops.
 
-The legacy number form `"reschedMinutes": 30` is treated as `{ "min": 30, "max": 45 }`; its effective max is raised if min is greater. It is not a strict fixed delay for every condition. A zero fallback disables fallback retries. QR-only restarts do not spend `maxReschedules`. A blocked ordinary alarm with no available follow-up is silenced rather than forced to run.
+The legacy number form `"reschedMinutes": 30` is treated as `{ "min": 30, "max": 45 }`; its effective max is raised if min is greater. It is not a strict fixed delay for every condition. A zero fallback disables only fallback retries; valid calendar/arrival candidates can still schedule follow-ups. QR-only restarts do not spend `maxReschedules`. A blocked ordinary alarm with no available follow-up is silenced rather than forced to run.
 
 ## Task fields
 

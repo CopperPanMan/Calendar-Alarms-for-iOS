@@ -181,3 +181,22 @@ test('malformed and internal Calendar Alarms Actions payloads remain raw custom 
 
   assert.deepEqual(alarm.shortcutsOnTrigger.map((item) => item.editorType), ['custom', 'custom']);
 });
+
+test('context toggle preserves imported conditions and disables only context output', () => {
+  const alarm = renderReady({silenceIfDriving: 'ON', locationMode: 'whitelist', locations: [[1, 2, 50]],
+    conflictingCalendars: ['Work'], taskIDs: ['work'], maxReschedules: 2});
+  assert.equal(alarm.contextEnabled, true);
+  alarm.contextEnabled = false;
+  const output = cleanAlarm(alarm);
+  for (const key of ['silenceIfDriving', 'locationMode', 'locations', 'conflictingCalendars']) assert.equal(key in output, false);
+  assert.deepEqual(output.taskIDs, ['work']);
+  assert.equal(output.maxReschedules, 2);
+  alarm.contextEnabled = true;
+  assert.deepEqual(cleanAlarm(alarm).conflictingCalendars, ['Work']);
+  assert.equal(defaultAlarm().contextEnabled, false);
+});
+
+test('zero conflict/travel maximum survives export', () => {
+  const alarm = renderReady({reschedMinutes: {min: 0, max: 0}});
+  assert.deepEqual(cleanAlarm(alarm).reschedMinutes, {min: 0, max: 0});
+});

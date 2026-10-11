@@ -16,6 +16,7 @@
     qrShortcutsOnScan: [],
     shortcutsOnTrigger: [],
     silenceAlarm: false,
+    contextEnabled: false,
     locationMode: 'off',
     locations: [],
     silenceIfDriving: 'OFF',
@@ -115,6 +116,8 @@
     alarm.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id)) : [];
     alarm.taskLoopMin = finiteNumber(alarm.taskLoopMin, 30);
     alarm.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
+    alarm.contextEnabled = typeof raw?.contextEnabled === 'boolean' ? raw.contextEnabled
+      : alarm.silenceIfDriving === 'ON' || alarm.locationMode !== 'off' || alarm.conflictingCalendars.length > 0 || alarm.locations.length > 0;
     return alarm;
   }
 
@@ -156,18 +159,18 @@
     if (triggerShortcuts.length) cleaned.shortcutsOnTrigger = triggerShortcuts;
 
     if (alarm.silenceAlarm) cleaned.silenceAlarm = true;
-    if (alarm.locationMode && alarm.locationMode !== 'off') cleaned.locationMode = alarm.locationMode;
+    if (alarm.contextEnabled !== false && alarm.locationMode && alarm.locationMode !== 'off') cleaned.locationMode = alarm.locationMode;
     const locations = alarm.locations
       .filter((loc) => Number.isFinite(Number(loc.lat)) && Number.isFinite(Number(loc.lon)) && Number.isFinite(Number(loc.radius)))
       .map((loc) => [Number(loc.lat), Number(loc.lon), Number(loc.radius)]);
-    if (locations.length) cleaned.locations = locations;
-    if (alarm.silenceIfDriving === 'ON') cleaned.silenceIfDriving = 'ON';
+    if (alarm.contextEnabled !== false && locations.length) cleaned.locations = locations;
+    if (alarm.contextEnabled !== false && alarm.silenceIfDriving === 'ON') cleaned.silenceIfDriving = 'ON';
 
     const conflicting = alarm.conflictingCalendars.map((name) => name.trim()).filter(Boolean);
-    if (conflicting.length) cleaned.conflictingCalendars = conflicting;
+    if (alarm.contextEnabled !== false && conflicting.length) cleaned.conflictingCalendars = conflicting;
     cleaned.reschedMinutes = alarm.reschedType === 'fixed'
       ? Number(alarm.reschedFixed || 0)
-      : { min: Number(alarm.reschedMin || 0), max: Number(alarm.reschedMax || 45) };
+      : { min: Number(alarm.reschedMin || 0), max: Number(alarm.reschedMax ?? 45) };
     if (Number.isFinite(Number(alarm.maxReschedules))) cleaned.maxReschedules = Number(alarm.maxReschedules);
     cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
     cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
