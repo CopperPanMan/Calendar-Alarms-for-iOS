@@ -29,12 +29,14 @@ test('QR restarts and backups preserve task deadline, remaining reschedules, and
   assert.equal(h.registry()[0].maxReschedules, 1);
 });
 
-test('unchanged scanner plus Engine stop cleanup cancels QR retries and preserves the task', async () => {
+test('scanner cancels QR retries one minute after firing without Engine cleanup', async () => {
   const h = await start();
+  h.at(1);
   const session = (await h.runtime({op: 'engine_begin', input: ''})).session;
   const result = await h.scan('bath');
   assert.equal(result.vibrate, true);
-  assert.deepEqual(h.times(), ['12:02', '12:21']);
+  assert.deepEqual(result.alarmsToDelete.map(a => a.hh + ':' + a.mm).sort(), ['12:00', '12:02', '12:04']);
+  assert.deepEqual(h.times(), ['12:21']);
   const stopped = await h.runtime({op: 'qr_poll', session});
   assert.equal(stopped.reason, 'no_active_qr_alarm');
   h.apply(stopped);
@@ -54,6 +56,7 @@ test('scan still stops QR after task reschedules are exhausted', async () => {
   assert.deepEqual(h.times(), ['12:02', '12:04']);
   const session = (await h.runtime({op: 'engine_begin', input: ''})).session;
   await h.scan('bath');
+  assert.deepEqual(h.times(), []);
   h.apply(await h.runtime({op: 'qr_poll', session}));
   assert.deepEqual(h.times(), []);
   h.at(2);
@@ -67,6 +70,7 @@ for (const minutes of [2, 4]) test(`scan preserves a coincident +${minutes} task
   assert.deepEqual(h.times(), ['12:02', '12:04']);
   const session = (await h.runtime({op: 'engine_begin', input: ''})).session;
   await h.scan('bath');
+  assert.deepEqual(h.times(), ['12:0' + minutes]);
   h.apply(await h.runtime({op: 'qr_poll', session}));
   assert.deepEqual(h.times(), ['12:0' + minutes]);
   h.at(minutes);
@@ -168,7 +172,7 @@ test('a scan during an Engine calculation wins over the pending QR restart plan'
   assert.deepEqual(result.alarmsToAdd, []);
 });
 
-test('non-task QR scanning cancels both retry alarms using the unchanged scanner', async () => {
+test('non-task QR scanning cancels both retry alarms', async () => {
   const h = await start({alarmName: 'Wake', qrCodeID: 'bath'});
   assert.deepEqual(h.times(), ['12:02', '12:04']);
   await h.scan('bath');

@@ -32,7 +32,7 @@ The current Engine schedules a restart **two minutes later** and a backup **four
 
 Keep the separate **CA qrClockCloser** Shortcut and Clock-open automation on both iOS 26 and iOS 27 if you want Clock to send you Home during an active QR alarm. This discourages disabling upcoming retries; it is not a tamper-proof lock.
 
-After scanning, the Scanner and the Engine's playback cleanup remove QR retries. If the Engine has already stopped, additional cleanup depends on its next successful run. A sound already handed to the native playback action can still play. An active QR instance expires after an hour; expiration is applied when the system next runs.
+After scanning, the Scanner Shortcut deletes the owned QR restart and backup even when Engine has already stopped. It preserves any Clock alarm that also serves a task check or another live occurrence. If a native deletion action fails, a later Engine run retries cleanup using the retained schedule pointers. A sound already handed to the native playback action can still play. An active QR instance expires after an hour; expiration is applied when the system next runs.
 
 When [task looping](OpenHabits%20Integration.md#repeat-until-a-task-is-complete) is also enabled, scanning stops the current QR prompt **without completing the task**. Its separate task check stays scheduled and can start another QR instance if the task remains incomplete. A task check that shares a Clock time with a QR retry is intentionally retained.
 

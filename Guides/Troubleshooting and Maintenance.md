@@ -34,7 +34,7 @@ Sound can pause while the scan controls are used, while a new execution starts, 
 
 If task looping is enabled, its future task check is intentionally retained. A scan stops the current QR instance; it does not record task completion. Complete every configured task to stop that chain.
 
-For a non-task alarm, a queued clip or a Clock retry awaiting cleanup can still occur. Run Engine to reconcile stopped retries. If it continues, verify that Engine, Runtime, and the Engine Shortcut playback section were updated together. Known old alarms whose ownership was lost before the fix may require manual removal.
+The current Scanner deletes QR-only restarts and backups on scan, including those attached to task alarms. Replace an older **Calendar Alarm QR Scanner** Scriptable script to apply this fix. A queued clip or a failed native Clock deletion can still occur; run Engine to reconcile stopped retries. Known old alarms whose ownership was lost before the fix may require manual removal.
 
 ### I cannot reach the code
 
@@ -45,6 +45,8 @@ Temporarily disable the **Clock-open automation for CA qrClockCloser**, then dis
 Run the action's Shortcut manually and grant permissions. Check exact Shortcut, app, and Focus names, plus sound paths. Test actions individually, then put them back in order. Opening an app or another destination may require an unlocked phone. **Do Not Disturb** intentionally turns spoken notifications and OpenHabits reminders into displayed text.
 
 If a Shortcut was imported again, reselect its target in each affected **Run Shortcut** action. An action can show the expected name while retaining an old connection.
+
+If an action's exported input contains `[object Object]`, rebuild it in the current Alarm Editor or restore a known-good configuration. Older Editor versions could corrupt action inputs during undo/redo or alarm duplication; the original payload cannot be recovered from that string.
 
 ## OpenHabits reminders or task checks fail
 
@@ -64,7 +66,7 @@ Rerunning **Calendar Alarms Actions** installs missing scripts and tones. **It d
 
 1. Read the relevant change notes. For the current QR update, see [QR Scheduling Fixes](../Development/QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
 2. Save copies of any Scriptable scripts or Shortcuts you customized.
-3. Replace existing Scriptable source with the matching repository version, keeping its script name. For the QR update, replace **Calendar Alarm Engine** and **Calendar Alarms Runtime** together.
+3. Replace existing Scriptable source with the matching repository version, keeping its script name. For the full QR update, replace **Calendar Alarm Engine**, **Calendar Alarms Runtime**, and **Calendar Alarm QR Scanner**. If Engine and Runtime are already current, only the Scanner script needs replacing for the scan cleanup fix.
 4. Install the corresponding updated shared Shortcuts when available, or apply the specified [manual action readout](../Shortcut%20Actions/README.md). Source changes in GitHub do not update a shared Shortcut automatically. Preserve the corrected Wake Times duration behavior if using its older readout.
 5. Reconnect imported **Run Shortcut** actions and confirm your version's automations. Run Engine once, preferably without an active QR alarm, then repeat the demo and test the features you use.
 
