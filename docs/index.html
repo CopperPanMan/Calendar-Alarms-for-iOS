@@ -155,7 +155,7 @@
                     <select data-field="rescheduleMode"><option value="legacy">Keep existing timing</option><option value="fixed">Fixed</option><option value="smart">Smart</option></select>
                   </label>
                   <label data-new-timing><span data-interval-label>Minimum reschedule interval (minutes)</span><span class="help" tabindex="0" data-tip="Fixed retries after this many minutes. Smart never retries sooner and uses this interval when there is no estimate. Zero in Smart mode allows estimates only.">?</span><input data-field="rescheduleIntervalMinutes" type="number" min="0" max="500" step="1" /></label>
-                  <label data-new-timing>Rescheduling window (minutes) <span class="help" tabindex="0" data-tip="No context retry or task repetition may be scheduled beyond this window after the original alarm time. Maximum retries is still shared. QR prompting keeps its separate scan-to-dismiss behavior.">?</span><input data-field="rescheduleWindowMinutes" type="number" min="0" max="1440" step="1" /></label>
+                  <label data-new-timing>Rescheduling window (minutes) <span class="help" tabindex="0" data-tip="No context retry or task repetition may be scheduled beyond this window after the original alarm time. Both share the follow-up limit. QR prompting keeps its separate scan-to-dismiss behavior.">?</span><input data-field="rescheduleWindowMinutes" type="number" min="0" max="1440" step="1" /></label>
                 </div>
                 <p class="hint" data-legacy-note hidden>Existing timing is preserved. Choose Fixed or Smart to use a rescheduling window.</p>
                 <details data-legacy-settings hidden>
@@ -170,12 +170,12 @@
             </section>
 
             <section class="advanced-group">
-              <h4>Retry limit</h4>
-              <label>Maximum retries <span class="help" tabindex="0" data-tip="Shared by condition-based postponements and task repetitions. Once used up, no further retries are scheduled. QR restarts do not use this allowance.">?</span><input data-field="maxReschedules" type="number" min="0" max="10" step="1" /></label>
+              <h4>Rescheduling and Task Loop Limit</h4>
+              <label>Maximum follow-ups <span class="help" tabindex="0" data-tip="Shared limit for condition-based rescheduling and task repetitions. The original alarm does not count. QR restarts and backups do not use this limit.">?</span><input data-field="maxReschedules" type="number" min="0" max="10" step="1" /></label>
             </section>
             <section class="advanced-group">
               <h4>Task Looping <span class="help" tabindex="0" data-tip="Requires the OpenHabits Metrics cache integration. See Feature Reference → OpenHabits Integration for connection steps.">?</span></h4>
-              <p class="hint">Repeat until all listed OpenHabits metrics are complete, up to your reschedule limit.</p>
+              <p class="hint">Repeat until all listed OpenHabits metrics are complete, up to the shared follow-up limit.</p>
               <details>
                 <summary>Where to find your Metric ID</summary>
                 <p>In the OpenHabits Metrics configuration editor, open <strong>Metrics → Metric ID</strong> and copy the ID for each metric you want to check. Use IDs from your own configuration.</p>

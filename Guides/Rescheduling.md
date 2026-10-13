@@ -8,12 +8,14 @@ Rules are checked **when the alarm fires**, not continuously in the background. 
 
 Open **Advanced Settings → Rescheduling Rules** and turn on **Turn on Rescheduling**. New alarms start with the switch off. Turning it off preserves the driving, location, and calendar rules in exported notes so they can be restored later. Task looping has its own settings.
 
+Set **Maximum follow-ups** under **Advanced Settings → Rescheduling and Task Loop Limit**.
+
 | Setting | Behavior |
 | --- | --- |
 | Fixed | A blocked alarm retries after the exact **Reschedule interval (minutes)**, then checks conditions again. Meeting and arrival estimates do not change this interval. |
 | Smart | Uses arrival and meeting-end estimates. **Minimum reschedule interval (minutes)** is a lower bound and supplies another check when there is no prediction, such as Driving Focus remaining active. Zero allows calculated estimates only. |
 | Rescheduling window (minutes) | No context retry or task repetition can be scheduled beyond this many minutes after the **original alarm time**. It never moves forward with a retry. Default for new timing: 120 minutes; range 0–1440. |
-| Maximum retries | Shared count of future context attempts and task repetitions, from 0 to 10. QR-only restarts and backups do not consume it. |
+| Maximum follow-ups | Shared count of condition-based reschedules and task repetitions, from 0 to 10. The original alarm does not count. QR-only restarts and backups do not consume it. |
 
 For an original alarm at 9:00, a 15-minute interval and a 120-minute window, Fixed proposes 9:15 when blocked. Smart might propose 9:50 based on arrival or a meeting, but never sooner than 9:15. No follow-up can be scheduled after 11:00. A calculated time of 11:10 stops that occurrence; it is not shortened to fit. An attempt exactly at 11:00 is allowed. Clock alarms use whole minutes, so an interval following a launch partway through a minute rounds up.
 
@@ -61,6 +63,6 @@ To test, use an allowed location outside your current radius and confirm postpon
 
 Driving, location and calendar rules must pass before trigger actions run. Smart chooses a time satisfying its minimum interval, arrival estimate and calendar buffers. Fixed makes periodic checks. Both use the original-time window and shared allowance.
 
-Task repetitions retain **Task Loop Min**, rather than the context interval, but use the same original-time window and retry count. Smart also checks future task candidates against the selected calendars when context rules are enabled. QR prompting retains its separate scan-to-dismiss behavior. See [OpenHabits Integration](OpenHabits%20Integration.md).
+Task repetitions retain **Task Loop Min**, rather than the context interval, but use the same original-time window and follow-up count. Smart also checks future task candidates against the selected calendars when context rules are enabled. QR prompting retains its separate scan-to-dismiss behavior. See [OpenHabits Integration](OpenHabits%20Integration.md).
 
 For raw fields and limits, see [JSON Alarm Reference](../JSON%20Alarm%20Reference.md). For unexpected timing, see [Troubleshooting](Troubleshooting%20and%20Maintenance.md#an-alarm-is-delayed-or-does-not-run).
