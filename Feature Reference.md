@@ -104,7 +104,7 @@ Depending on your configuration, the alarm can wait and try again later if:
 
 This is useful for context-dependent reminders such as “Review my day plan once I get to work.”
 
-See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, retry limits, and tests. Choose Fixed intervals or Smart estimates, bounded by an overall window from the original alarm time. Task repetitions share the same window and retry count. Imported timing stays unchanged until a new mode is selected.
+See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, follow-up limits, and tests. Choose Fixed intervals or Smart estimates, bounded by an overall window from the original alarm time. Task repetitions share the same window and **Maximum follow-ups** count under **Rescheduling and Task Loop Limit**. Imported timing stays unchanged until a new mode is selected.
 
 ---
 

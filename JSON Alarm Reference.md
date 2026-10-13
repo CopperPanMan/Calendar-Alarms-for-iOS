@@ -114,7 +114,7 @@ See [Rescheduling](Guides/Rescheduling.md) for examples and the meaning of the E
 | `rescheduleIntervalMinutes` | Fixed interval or Smart minimum/fallback interval | `10`; 0–500; Fixed needs a positive value; Smart zero permits estimates only |
 | `rescheduleWindowMinutes` | Total window after the original alarm time for all context retries and task repetitions | `120` for new modes; 0–1440; exact deadline allowed; QR-only restarts excluded |
 | `reschedMinutes` | Legacy fallback and maximum considered conflict/travel delay; ignored when a new mode is specified | Missing: `{ "min": 0, "max": 45 }`; values 0–500, with max at least min |
-| `maxReschedules` | Shared allowance for future task/context follow-ups | `1`; integer 0–10 |
+| `maxReschedules` | Editor's **Maximum follow-ups**: shared by condition-based rescheduling and task repetitions; original alarm and QR-only restarts/backups excluded | `1`; integer 0–10 |
 
 For new timing, use:
 
