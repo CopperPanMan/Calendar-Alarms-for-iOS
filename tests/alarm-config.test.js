@@ -61,6 +61,33 @@ test('duplicating an alarm creates an independently editable copy', () => {
   assert.equal(original.locations[0].name, 'Home');
 });
 
+test('duplicating an imported alarm preserves reminder actions and custom input types', () => {
+  const original = normalizeAlarm({alarmName: 'Dinner',
+    shortcutsOnTrigger: [{name: ACTIONS_SHORTCUT_NAME,
+      input: [JSON.stringify({action: 'openhabits_reminder', metricIDs: ['dinner'], mode: 'both'})]}],
+    qrShortcutsOnScan: [{name: 'Example', input: [0, 'dinner']}],
+  });
+  const duplicate = duplicateAlarm(original);
+  assert.deepEqual(cleanAlarm(duplicate), {...cleanAlarm(original), alarmName: 'Dinner Copy'});
+  assert.equal(duplicate.shortcutsOnTrigger[0].editorType, 'openhabits_reminder');
+  duplicate.shortcutsOnTrigger[0].action.metricIDs.push('exercise');
+  duplicate.qrShortcutsOnScan[0].input[0].value = 9;
+  assert.deepEqual(original.shortcutsOnTrigger[0].action.metricIDs, ['dinner']);
+  assert.equal(original.qrShortcutsOnScan[0].input[0].value, 0);
+});
+
+test('duplicating an alarm preserves newly created built-in actions', () => {
+  const original = normalizeAlarm(defaultAlarm());
+  original.shortcutsOnTrigger.push(newActionShortcut('openhabits_reminder'));
+  original.shortcutsOnTrigger[0].action.metricIDs = ['dinner'];
+  original.qrShortcutsOnScan.push(newActionShortcut('notification'));
+  original.qrShortcutsOnScan[0].action.message = 'Done';
+  const duplicate = duplicateAlarm(original);
+  assert.deepEqual(cleanAlarm(duplicate), {...cleanAlarm(original), alarmName: 'New Alarm Copy'});
+  duplicate.qrShortcutsOnScan[0].action.message = 'Changed';
+  assert.equal(original.qrShortcutsOnScan[0].action.message, 'Done');
+});
+
 function renderReady(raw) {
   const alarm = normalizeAlarm(raw);
   const fixed = typeof alarm.reschedMinutes === 'number';

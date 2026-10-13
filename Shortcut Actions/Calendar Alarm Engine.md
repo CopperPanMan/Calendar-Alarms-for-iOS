@@ -6,7 +6,7 @@ Updated QR scheduling readout, 2026-10-05. See [update instructions and QR sched
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
-Install the matching Engine and Runtime scripts when rebuilding this readout. The QR Scanner remains unchanged. The playback stop path removes QR retries while preserving task checks. Set Volume now precedes Permit so permission is followed immediately by Play Sound.
+Install the matching Engine and Runtime scripts when rebuilding this readout. The updated QR Scanner returns QR retry deletions directly on scan; the playback stop path remains an additional cleanup path while preserving task checks. Set Volume now precedes Permit so permission is followed immediately by Play Sound.
 
 The QR section includes the latest cached-file update. `fileName` is a subfolder-preserving path relative to Alarm Tones. Load file/duration on the first playable Poll and only when this path changes. There are no Base64 actions. QR stop/play outputs are actual Numbers (0/1); other Boolean-to-Number mappings remain part of the experimental readouts. The core returns JSON text; verify output conversion on the Run Script action.
 

@@ -4,7 +4,9 @@ Checkpoint readout, 2026-10-05. See [checkpoint status and known issues](../Deve
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
-**Known unresolved wiring:** this readout preserves the previously supplied Scanner flow, including its Number comparisons for `shouldShowMenu` and `vibrate`. The unchanged core returns those as Booleans inside JSON text. Restore explicit Get Dictionary from Output where the Scriptable action does not convert it, and use Boolean/is Yes comparisons; these corrections were discussed but have not yet been phone-tested. Dismissing the menu without choosing an option can leave its open flag set for 120 seconds. The proposed timestamp-only cooldown is not implemented here.
+The updated **Calendar Alarm QR Scanner** Scriptable core returns all owned QR retry deletions directly on scan. The native deletion loop below does not need changing for this fix; see [update instructions](../Development/QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
+
+**Known unresolved wiring:** this readout preserves the previously supplied Scanner flow, including its Number comparisons for `shouldShowMenu` and `vibrate`. The core returns those as Booleans inside JSON text. Restore explicit Get Dictionary from Output where the Scriptable action does not convert it, and use Boolean/is Yes comparisons; these corrections were discussed but have not yet been phone-tested. Dismissing the menu without choosing an option can leave its open flag set for 120 seconds. The proposed timestamp-only cooldown is not implemented here.
 
 ```jsx
 IF: Shortcut Input does not have any value

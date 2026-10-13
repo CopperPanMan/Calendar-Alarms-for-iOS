@@ -229,7 +229,8 @@ function restoreHistoryAt(index) {
   if (index < 0 || index >= history.length) return;
   isNavigatingHistory = true;
   historyIndex = index;
-  alarms = JSON.parse(history[historyIndex]).map((alarm) => normalizeAlarm(alarm));
+  // Snapshots already contain editor state, including typed action payloads.
+  alarms = JSON.parse(history[historyIndex]);
   render();
   updateOutput();
   isNavigatingHistory = false;

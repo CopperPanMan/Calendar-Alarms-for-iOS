@@ -5,7 +5,7 @@
 //
 // Mode A (no input): choose active QR alarm name (earliest firstQRFireTime) + decide if menu should show.
 // Mode B (input=qrCodeID): acquire lock, set matching active QR alarms qrActive=false,
-//                          return shortcutsToRun + notifications.
+//                          return owned QR alarm deletions + scan actions.
 //
 // IMPORTANT:
 // - This script NEVER writes scannerLastOpened.txt.
@@ -314,6 +314,58 @@ async function runModeA(fm, paths) {
   };
 }
 
+function hasTaskLoop(entry) {
+  return Array.isArray(entry.taskIDs) && entry.taskIDs.some((id) => typeof id === "string" && id.trim());
+}
+
+function clockSlot(epoch, storedHHMM) {
+  const time = Number(epoch);
+  if (!Number.isFinite(time) || time <= 0) return null;
+  const match = /^(\d{2}):(\d{2})$/.exec(String(storedHHMM ?? ""));
+  const { hh, mm } = match && Number(match[1]) < 24 && Number(match[2]) < 60
+    ? { hh: match[1], mm: match[2] } : epochToHHMM(time);
+  return { hh, mm };
+}
+
+function scanAlarmDeletions(registry, scannedEntries) {
+  const qrFields = [["qrRestartFireTime", "qrRestartHHMM"],
+    ["qrFallbackFireTime", "qrFallbackHHMM"], ["qrBackupFireTime", "qrBackupHHMM"]];
+  const key = (name, slot) => `${name}|||${slot.hh}|||${slot.mm}`;
+  const protectedTimes = new Set();
+  const scanned = new Set(scannedEntries);
+  for (const entry of registry) {
+    if (!entry || typeof entry !== "object" || entry.taskSatisfied === true) continue;
+    const task = hasTaskLoop(entry);
+    const fields = [];
+    if (task || (!scanned.has(entry) &&
+        (entry.qrActive || entry.qrPending || !(Number(entry.firstQRFireTime) > 0)))) {
+      fields.push(["nextFireTime", "nextFireHHMM"]);
+    }
+    if (task) fields.push(["taskCheckFireTime", "taskCheckHHMM"]);
+    if (entry.qrActive || entry.qrPending) fields.push(...qrFields);
+    for (const [time, mirror] of fields) {
+      const slot = clockSlot(entry[time], entry[mirror]);
+      if (slot) protectedTimes.add(key(entry.alarmName, slot));
+    }
+  }
+  const deletions = new Map();
+  for (const entry of scannedEntries) {
+    const name = String(entry.alarmName ?? "").trim();
+    if (!name) continue;
+    const fields = hasTaskLoop(entry) ? qrFields : [...qrFields, ["nextFireTime", "nextFireHHMM"]];
+    const slots = fields.map(([time, mirror]) => clockSlot(entry[time], entry[mirror]));
+    if (Array.isArray(entry.retiredAlarmTimes)) {
+      for (const retired of entry.retiredAlarmTimes) {
+        if (retired) slots.push(clockSlot(retired.epoch, retired.hhmm));
+      }
+    }
+    for (const slot of slots) {
+      if (slot && !protectedTimes.has(key(name, slot))) deletions.set(key(name, slot), { name, ...slot });
+    }
+  }
+  return Array.from(deletions.values());
+}
+
 async function runModeB(fm, paths, qrCodeID) {
   const out = {
     mode: "scan",
@@ -337,13 +389,14 @@ async function runModeB(fm, paths, qrCodeID) {
 
     if (!pj.ok || !Array.isArray(pj.val)) {
       addError("ERR: registry.txt corrupt during scan; no changes made.");
-      reg = [];
+      return out;
     } else {
       reg = pj.val;
     }
 
     const matchedNames = [];
     const remainingActive = [];
+    const scannedEntries = [];
 
     for (const a of reg) {
       if (!a || typeof a !== "object") continue;
@@ -354,6 +407,9 @@ async function runModeB(fm, paths, qrCodeID) {
 
       if (code === qrCodeID) {
         a.qrActive = false;
+        a.qrPending = false;
+        a.qrPendingSince = 0;
+        scannedEntries.push(a);
         out.identifiedAlarms += 1;
         if (name) matchedNames.push(name);
 
@@ -362,29 +418,6 @@ async function runModeB(fm, paths, qrCodeID) {
           out.shortcutsToRun.push(action.name);
           out.shortcutsToRunDetailed.push({ name: action.name, input: action.input });
         }
-
-        if (name) {
-          const taskIDs = Array.isArray(a.taskIDs)
-            ? a.taskIDs.filter((x) => typeof x === "string" && x.trim())
-            : [];
-          const hasTaskLoop = taskIDs.length > 0;
-
-          // Non-task QR loops should stop all pending local alarms immediately on scan.
-          // Task-loop alarms keep nextFireTime because the engine pre-schedules the follow-up nag there.
-          if (!hasTaskLoop) {
-            const nextFire = Number(a.nextFireTime ?? 0);
-            if (Number.isFinite(nextFire) && nextFire > 0) {
-              const { hh, mm } = epochToHHMM(nextFire);
-              out.alarmsToDelete.push({ name, hh, mm });
-            }
-          }
-
-          const backup = Number(a.qrBackupFireTime ?? 0);
-          if (Number.isFinite(backup) && backup > 0) {
-            const { hh, mm } = epochToHHMM(backup);
-            out.alarmsToDelete.push({ name, hh, mm });
-          }
-        }
       } else {
         if (name) {
           remainingActive.push({ name, code });
@@ -392,17 +425,11 @@ async function runModeB(fm, paths, qrCodeID) {
       }
     }
 
+    // Keep the schedule pointers until Engine confirms native Clock deletion.
+    // Protect shared task/occurrence times after every matching QR instance stops.
+    out.alarmsToDelete = scanAlarmDeletions(reg, scannedEntries);
     out.vibrate = out.identifiedAlarms > 0;
 
-    if (out.alarmsToDelete.length > 1) {
-      const seen = new Set();
-      out.alarmsToDelete = out.alarmsToDelete.filter((a) => {
-        const key = `${a.name}|||${a.hh}|||${a.mm}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    }
     if (out.shortcutsToRunDetailed.length > 1) {
       const seen = new Set();
       out.shortcutsToRunDetailed = out.shortcutsToRunDetailed.filter((a) => {
@@ -436,7 +463,11 @@ async function runModeB(fm, paths, qrCodeID) {
       out.shortcutToRunInput = out.shortcutsToRunDetailed[0]?.input || [];
     }
 
-    await safeWriteString(fm, paths.registry, JSON.stringify(reg));
+    if (!(await safeWriteString(fm, paths.registry, JSON.stringify(reg)))) {
+      return { ...out, identifiedAlarms: 0, shortcutsToRun: [], shortcutsToRunDetailed: [],
+        shortcutToRun: "", shortcutToRunInput: [], vibrate: false, alarmsToDelete: [],
+        notification: "Could not save alarm cleanup. Please scan again." };
+    }
   } finally {
     await releaseLock(fm, paths.lock);
   }

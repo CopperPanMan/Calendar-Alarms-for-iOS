@@ -203,7 +203,9 @@
   }
 
   function duplicateAlarm(alarm) {
-    const duplicate = normalizeAlarm(JSON.parse(JSON.stringify(alarm)));
+    // Clone editor state directly; import normalization would wrap typed inputs
+    // again and discard built-in action payloads.
+    const duplicate = JSON.parse(JSON.stringify(alarm));
     if (duplicate.alarmName) duplicate.alarmName = `${duplicate.alarmName} Copy`;
     return duplicate;
   }
