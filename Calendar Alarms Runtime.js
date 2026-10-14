@@ -294,6 +294,12 @@ function scanInput(raw, fromScan) {
 async function cache(optional = false) {
   base();
   const p = fm.joinPath(root, 'OpenHabits/OpenHabits Metrics/lockoutCache.json');
+  // Completion is optional alarm-suppression data. Never spend the extension's
+  // execution window downloading an old snapshot; the native refresh owns I/O.
+  if (fm.fileExists(p) && fm.isFileStoredIniCloud(p) && !fm.isFileDownloaded(p)) {
+    if (optional) return {};
+    throw new Error('OpenHabits cache is not downloaded. Download it in Files.');
+  }
   const c = await json(p, optional ? {} : undefined);
   if (!optional && (c.ok === false || !c.reminderState?.byID))
     throw new Error('OpenHabits cache is missing a successful reminderState.byID.');
@@ -407,10 +413,12 @@ async function action(r) {
   if (a.action === 'openhabits_reminder' || a.action === 'task_alarm_reset') {
     if (a.action === 'task_alarm_reset' && r.refreshed !== true) return {...p, refresh: true};
     try {
+      if (r.refreshed === true && r.cacheOK !== undefined && Number(r.cacheOK) !== 1)
+        throw new Error('Cache refresh failed. Task alarms were not reset.');
       const initial = await cache(true);
       if (r.refreshed !== true && !currentTaskCache(initial))
         return {...p, refresh: true};
-      if (r.refreshed === true && ((r.cacheOK !== undefined && Number(r.cacheOK) !== 1) || !currentTaskCache(initial)))
+      if (r.refreshed === true && !currentTaskCache(initial))
         throw new Error('Cache refresh failed or returned an outdated snapshot. Task alarms were not reset.');
       const c = initial;
       if (a.action === 'openhabits_reminder')

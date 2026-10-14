@@ -18,6 +18,18 @@ test('native empty input representations start a normal Engine session', async (
   }
 });
 
+test('a rejected refresh and missing local completion data never wait on iCloud', async () => {
+  const {h, plan} = await start([task('A', 'a', {shortcutsOnTrigger: [{name: 'Speak'}]})]);
+  h.fm.isFileStoredIniCloud = p => p === cachePath;
+  h.fm.isFileDownloaded = () => false;
+  h.fm.downloadFileFromiCloud = async () => assert.fail('Completion must not download an old cache');
+  const input = {action: 'task_alarm_reset', taskLoopMetricIDs: ['a']};
+  const p = await h.runtime({op: 'action', input, refreshed: true, cacheOK: 0});
+  assert.equal(p.ok, false); assert.equal(p.allComplete, false); assert.match(p.error, /refresh failed/);
+  const speech = plan.triggerShortcutsToRunDetailed.find(t => t.name === 'Speak');
+  assert.equal((await h.runtime({op: 'trigger_check', trigger: speech})).run, 1);
+});
+
 test('completion-only calls preserve unrelated active QR, playback owner, and schedules without Calendar access', async () => {
   const {h} = await start([task('A', 'a'), task('B', 'b')]);
   const owner = (await h.runtime({op: 'engine_begin', input: ''})).session;
