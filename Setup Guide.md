@@ -28,7 +28,7 @@ Add these **three required shortcuts** and **two optional but recommended shortc
 
 - **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/7b96b2236b3543aa885345a6e1495343)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
-- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/d31f76b5f43542c2862d1bc598598854)**
+- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/0b797f905b8a454e949af8776d3e7cba)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
 - **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/f7a4774215d64796a8040e9c9e49c74c)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
@@ -50,7 +50,7 @@ Add these **three required shortcuts** and **two optional but recommended shortc
 
 - **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/7bb2e61155ae4ed28226446271e880d4)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
-- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/a9be9818993f47caba54df4e4753d5a9)**
+- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/3ccfb60c857a45879d298e7602e40b30)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
 - **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/4434a5595329405bb791ca8e83f4e882)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
