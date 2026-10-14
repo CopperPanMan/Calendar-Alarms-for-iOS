@@ -1,10 +1,10 @@
 # CA Wake Times
 
-Checkpoint readout, 2026-10-05. See [checkpoint status and known issues](../Development/Runtime%20Checkpoint.md) before rebuilding.
-
-**Version note:** The owner has since corrected the on-phone Shortcut to preserve the original Sleep event's duration. This older readout still takes dates from the runtime's eight-hour plan and does not capture that correction. See [Wake Times version note](../Development/README.md#wake-times-version-note); do not replace a corrected Shortcut with this older flow.
+Full replacement action readout, 2026-10-14, for Calendar Alarms Runtime in this branch. It uses the existing short runtime-based flow, including exact disabled-calendar matching and preservation of the original Sleep event duration. Updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
+
+`endFirst` is a **Boolean**; the guard count is a **Number**. `wake_info` filters complete calendar names after trimming configured names, with the shared Shortcut's ten-hour lookback. `wake_plan` now preserves the event's actual elapsed duration, including daylight-saving changes. Native actions below edit Calendar and Clock; the Runtime handles selection, arithmetic, and messages. Turn Off Alarms opens Clock for manual control. Install the matching Runtime before rebuilding.
 
 ```jsx
 DICTIONARY:
@@ -56,7 +56,9 @@ IF: Shortcut Input has any value
             SHOW NOTIFICATION:
                 Body: SleepWarning
         OTHERWISE
-            SPEAK TEXT: SleepWarning
+            SPEAK TEXT:
+                Text: SleepWarning
+                Wait Until Finished: On
         END IF
     END IF
     STOP THIS SHORTCUT
@@ -87,14 +89,15 @@ IF: Choice is Other
         Input: CustomWakeTime
         Format: Custom
         Format String: HH:mm
+        → CustomWakeText
+    SET VARIABLE: WakeTime to CustomWakeText
 OTHERWISE
-    TEXT: Choice
+    SET VARIABLE: WakeTime to Choice (Text)
 END IF
-// The preceding If Result is the selected HH:mm text.
 DICTIONARY:
     op: wake_plan (Text)
     sleep: Sleep (Dictionary)
-    time: If Result (Text)
+    time: WakeTime (Text)
     → PlanRequest
 RUN SCRIPT: Calendar Alarms Runtime
     Parameter: PlanRequest
@@ -102,10 +105,14 @@ RUN SCRIPT: Calendar Alarms Runtime
 GET DICTIONARY VALUE:
     Dictionary: Sleep
     Key: start
+    → SleepStartISO (Text)
+GET DATES FROM INPUT: SleepStartISO
     → SleepStart (Date)
 GET DICTIONARY VALUE:
     Dictionary: Sleep
     Key: end
+    → SleepEndISO (Text)
+GET DATES FROM INPUT: SleepEndISO
     → SleepEnd (Date)
 GET DICTIONARY VALUE:
     Dictionary: Sleep
@@ -117,20 +124,36 @@ FIND CALENDAR EVENTS:
         Start Date is SleepStart
         End Date is SleepEnd
         Calendar is SleepCalendar
-    → SleepEvent
+    Limit: Off
+    → MatchingSleepEvents
+COUNT: MatchingSleepEvents
+    → MatchingSleepCount (Number)
+IF: MatchingSleepCount is not 1
+    SHOW NOTIFICATION:
+        Body: Sleep event changed while choosing wake time. Run CA Wake Times again.
+    STOP THIS SHORTCUT
+END IF
+GET ITEM FROM LIST:
+    List: MatchingSleepEvents
+    Item: First Item
+    → SleepEvent (Calendar Event)
 GET DICTIONARY VALUE:
     Dictionary: Wake
     Key: endFirst
-    → WakeEndFirst (Number)
+    → WakeEndFirst (Boolean)
 GET DICTIONARY VALUE:
     Dictionary: Wake
     Key: start
+    → WakeStartISO (Text)
+GET DATES FROM INPUT: WakeStartISO
     → WakeStart (Date)
 GET DICTIONARY VALUE:
     Dictionary: Wake
     Key: end
+    → WakeEndISO (Text)
+GET DATES FROM INPUT: WakeEndISO
     → WakeEnd (Date)
-IF: WakeEndFirst is 1
+IF: WakeEndFirst is Yes
     EDIT CALENDAR EVENT:
         Event: SleepEvent
         End Date: WakeEnd
@@ -198,7 +221,9 @@ IF: WarningMessage has any value
         SHOW NOTIFICATION:
             Body: WarningMessage
     OTHERWISE
-        SPEAK TEXT: WarningMessage
+        SPEAK TEXT:
+            Text: WarningMessage
+            Wait Until Finished: On
     END IF
     OPEN APP: Clock
 END IF
@@ -213,6 +238,7 @@ GET MY SHORTCUTS:
     → MyShortcuts
 IF: MyShortcuts (Names) contains Log Sleep Time
     RUN SHORTCUT: Log Sleep Time
-        Input: none
+        Input: none — explicitly clear this field
 END IF
+STOP THIS SHORTCUT
 ```

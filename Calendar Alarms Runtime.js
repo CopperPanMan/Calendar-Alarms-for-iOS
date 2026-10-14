@@ -464,7 +464,7 @@ function clock(d) {
   return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2,'0')}${d.getHours() >= 12 ? 'PM' : 'AM'}`;
 }
 async function wakeInfo() {
-  const start = new Date(Date.now() - 9 * 3600000);
+  const start = new Date(Date.now() - 10 * 3600000);
   const end = new Date(Date.now() + 14 * 3600000);
   const s = await json(path('settings.json'), {});
   const disabled = ids(s.disabledCalendars);
@@ -480,10 +480,12 @@ async function wakeInfo() {
 }
 function wakePlan(r) {
   const oldStart = new Date(r.sleep.start), end = new Date(r.sleep.end);
+  const duration = end.getTime() - oldStart.getTime();
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error('Sleep event duration must be positive.');
   const m = String(r.time).match(/^(\d{1,2}):(\d{2})$/);
   if (!m || +m[1] > 23 || +m[2] > 59) throw new Error('Wake time must be HH:mm.');
   end.setHours(+m[1], +m[2], 0, 0);
-  const start = new Date(end.getTime() - 8 * 3600000);
+  const start = new Date(end.getTime() - duration);
   return {start: start.toISOString(), end: end.toISOString(), hh: end.getHours(), mm: end.getMinutes(),
     endFirst: start > oldStart, notification: 'Alarm Set for ' + clock(end), wakeTime: clock(end)};
 }

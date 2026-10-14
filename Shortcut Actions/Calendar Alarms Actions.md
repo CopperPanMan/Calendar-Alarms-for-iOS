@@ -1,10 +1,12 @@
 # Calendar Alarms Actions
 
-Checkpoint readout, 2026-10-05. See [checkpoint status and known issues](../Development/Runtime%20Checkpoint.md) before rebuilding.
+Full replacement action readout, 2026-10-14, for Calendar Alarms Runtime in this branch and OpenHabits Runtime 1.2.2. It includes setup and every supported action kind. Updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
 The installer source is [Calendar Alarms Installer.js](../Inline%20Scriptable/Calendar%20Alarms%20Installer.js). Paste its complete contents into the Run Inline Script action. It installs missing files only; it does not update existing scripts.
+
+`refresh`, `speak`, `show`, `ok`, and `allComplete` are **Booleans**: use is Yes, not Number comparisons. `cacheOK` is a **Number**. Keep the original Shortcut Input bound in both action requests. Update Lockout Cache must return its status Dictionary as shown in the companion Metrics readout. It must not call the normal Engine while fetching a snapshot. Task reset calls the Engine only for completion cleanup; it never simulates a QR scan. Speak Text has Wait Until Finished On, so trigger speech completes before Engine playback begins.
 
 ```jsx
 IF: Shortcut Input does not have any value
@@ -94,15 +96,21 @@ SET VARIABLE: Plan to PreparedAction
 GET DICTIONARY VALUE:
     Dictionary: Plan
     Key: refresh
-    → PlanRefresh (Number)
-IF: PlanRefresh is 1
+    → PlanRefresh (Boolean)
+IF: PlanRefresh is Yes
     RUN SHORTCUT: Update Lockout Cache
         Input: fetch_new_cache
+        → RefreshResult (Dictionary)
+    GET DICTIONARY VALUE:
+        Dictionary: RefreshResult
+        Key: cacheOK
+        → RefreshCacheOK (Number)
     DICTIONARY:
         op: action (Text)
         input: Shortcut Input
         focus: Focus (Name; Text)
         refreshed: Yes (Boolean)
+        cacheOK: RefreshCacheOK (Number)
         → RefreshedRequest
     RUN SCRIPT: Calendar Alarms Runtime
         Parameter: RefreshedRequest
@@ -113,19 +121,21 @@ END IF
 GET DICTIONARY VALUE:
     Dictionary: Plan
     Key: speak
-    → PlanSpeak (Number)
-IF: PlanSpeak is 1
+    → PlanSpeak (Boolean)
+IF: PlanSpeak is Yes
     GET DICTIONARY VALUE:
         Dictionary: Plan
         Key: message
         → PlanMessage (Text)
-    SPEAK TEXT: PlanMessage
+    SPEAK TEXT:
+        Text: PlanMessage
+        Wait Until Finished: On
 END IF
 GET DICTIONARY VALUE:
     Dictionary: Plan
     Key: show
-    → PlanShow (Number)
-IF: PlanShow is 1
+    → PlanShow (Boolean)
+IF: PlanShow is Yes
     GET DICTIONARY VALUE:
         Dictionary: Plan
         Key: title
@@ -253,34 +263,38 @@ IF: PlanKind is task_alarm_reset
     GET DICTIONARY VALUE:
         Dictionary: Plan
         Key: ok
-        → PlanOk (Number)
-    IF: PlanOk is 1
+        → PlanOk (Boolean)
+    IF: PlanOk is Yes
         GET DICTIONARY VALUE:
             Dictionary: Plan
             Key: allComplete
-            → PlanAllComplete (Number)
-        IF: PlanAllComplete is 1
-            SHOW NOTIFICATION:
-                Body: Alarm Reset due to Task Completion.
-            GET DICTIONARY VALUE:
-                Dictionary: Plan
-                Key: qrCodeID
-                → PlanQrCodeID (Text)
-            IF: PlanQrCodeID has any value
-                RUN SHORTCUT: Calendar Alarms QR Scanner
-                    Input: PlanQrCodeID
-            END IF
+            → PlanAllComplete (Boolean)
+        IF: PlanAllComplete is Yes
             GET DICTIONARY VALUE:
                 Dictionary: Plan
                 Key: engineInput
                 → PlanEngineInput (Text)
             RUN SHORTCUT: Calendar Alarm Engine
                 Input: PlanEngineInput
+                → CleanupResult (Dictionary)
+            GET DICTIONARY VALUE:
+                Dictionary: CleanupResult
+                Key: errorRegistry
+                → CleanupErrors (Text)
+            IF: CleanupErrors does not have any value
+                SHOW NOTIFICATION:
+                    Body: Alarm Reset due to Task Completion.
+            END IF
         END IF
     OTHERWISE
+        GET DICTIONARY VALUE:
+            Dictionary: Plan
+            Key: error
+            → PlanError (Text)
         SHOW NOTIFICATION:
-            Body: Error: something went wrong with Task Alarm Reset.
+            Body: PlanError
     END IF
 END IF
-STOP THIS SHORTCUT
+STOP AND OUTPUT:
+    Output: Plan (Dictionary)
 ```

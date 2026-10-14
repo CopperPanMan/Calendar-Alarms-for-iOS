@@ -1,14 +1,14 @@
 # Calendar Alarm Engine
 
-The Engine now requires the dictionary input below, including each Clock alarm's enabled toggle. Update the Scriptable Engine and this input block together; delimiter-based input is no longer accepted. See [disabled-alarm cleanup](../Development/Disabled%20Alarm%20Cleanup.md) for the five-minute grace and future-alarm replacement rules. The Runtime and QR playback section do not change for this update.
-
-Updated QR scheduling readout, 2026-10-05. See [update instructions and QR scheduling behavior](../Development/QR%20Scheduling%20Fixes.md) before rebuilding.
+Full replacement action readout, 2026-10-14, for the Engine and Runtime in this branch. It incorporates the audited shared Shortcut's native actions and the completion/trigger fixes. This is the flow to rebuild; updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
-Install the matching Engine and Runtime scripts when rebuilding this readout. The updated QR Scanner returns QR retry deletions directly on scan; the playback stop path remains an additional cleanup path while preserving task checks. Set Volume now precedes Permit so permission is followed immediately by Play Sound.
+Install the matching Engine and Runtime scripts when rebuilding. Empty input or `Calendar` runs the normal Engine; a metric/task response runs completion cleanup and returns before triggers or playback. `Clock` uses the guard only. All four Clock lists below must come from the same Find Alarms result. Delimiter-based Engine input is no longer accepted.
 
-The QR section includes the latest cached-file update. `fileName` is a subfolder-preserving path relative to Alarm Tones. Load file/duration on the first playable Poll and only when this path changes. There are no Base64 actions. QR stop/play outputs are actual Numbers (0/1); other Boolean-to-Number mappings remain part of the experimental readouts. The core returns JSON text; verify output conversion on the Run Script action.
+The Engine core returns JSON **Text**; the explicit Get Dictionary action is required. Runtime returns a Dictionary. `clock`, `completionOnly`, `run`, `lastInGroup`, and QR `stop`/`play` are **Numbers** (0/1). Preserve `CurrentTrigger` as a Dictionary, including its occurrence/invocation metadata. Finish the last action in each group even if it was skipped. Speak Text actions in called Shortcuts must have **Wait Until Finished On** to delay QR sound until speech completes.
+
+`fileName` is relative to Alarm Tones and preserves subfolders. Cache file and duration on the first playable Poll and when the path changes. Duration is in seconds. Set Volume precedes Permit; Play Sound immediately follows granted permission. The playback stop path removes QR retries while preserving future task checks.
 
 ```jsx
 DICTIONARY:
@@ -42,6 +42,7 @@ END IF
 
 FIND ALARMS:
     Label: is anything
+    Limit: Off
     → Alarms
 GET CURRENT FOCUS:
     → Focus
@@ -61,6 +62,9 @@ DICTIONARY:
     → EngineInput
 RUN SCRIPT: Calendar Alarm Engine
     Parameter: EngineInput
+    Output Type: Text
+    → EngineJSON
+GET DICTIONARY FROM INPUT: EngineJSON
     → Engine
 
 GET DICTIONARY VALUE:
@@ -85,6 +89,7 @@ REPEAT WITH EACH: EngineAlarmsToDelete
             Label is ItemName
             Hours is ItemHh
             Minutes is ItemMm
+        Limit: Off
         → MatchingAlarms
     IF: MatchingAlarms has any value
         DELETE ALARMS: MatchingAlarms
@@ -108,6 +113,23 @@ REPEAT WITH EACH: EngineAlarmsToAdd
         Label: ItemName2
 END REPEAT
 
+GET DICTIONARY VALUE:
+    Dictionary: Engine
+    Key: errorRegistry
+    → EngineErrorRegistry (Text)
+IF: EngineErrorRegistry has any value
+    SHOW NOTIFICATION:
+        Body: EngineErrorRegistry
+END IF
+GET DICTIONARY VALUE:
+    Dictionary: Begin
+    Key: completionOnly
+    → BeginCompletionOnly (Number)
+IF: BeginCompletionOnly is 1
+    STOP AND OUTPUT:
+        Output: Engine (Dictionary)
+END IF
+
 GET MY SHORTCUTS:
     Folder: All Shortcuts
     → MyShortcuts
@@ -118,38 +140,56 @@ GET DICTIONARY VALUE:
     Key: triggerShortcutsToRunDetailed
     → EngineTriggerShortcutsToRunDetailed (List)
 REPEAT WITH EACH: EngineTriggerShortcutsToRunDetailed
-    IF: ContinueActions is 1
-        GET DICTIONARY VALUE:
-            Dictionary: Repeat Item
-            Key: name
-            → ItemName3 (Text)
-        IF: MyShortcuts (Names) contains ItemName3
+    SET VARIABLE: CurrentTrigger to Repeat Item (Dictionary)
+    DICTIONARY:
+        op: trigger_check (Text)
+        trigger: CurrentTrigger (Dictionary)
+        → TriggerCheckRequest
+    RUN SCRIPT: Calendar Alarms Runtime
+        Parameter: TriggerCheckRequest
+        → TriggerCheck
+    GET DICTIONARY VALUE:
+        Dictionary: TriggerCheck
+        Key: run
+        → TriggerRun (Number)
+    IF: TriggerRun is 1
+        IF: ContinueActions is 1
             GET DICTIONARY VALUE:
-                Dictionary: Repeat Item
-                Key: input
-                → ItemInput (List)
-            RUN SHORTCUT:
-                Shortcut: ItemName3
-                Input: ItemInput
-                → CalledResult
-            IF: CalledResult is Stop Running Shortcuts
-                NUMBER: 0
-                SET VARIABLE: ContinueActions to Number
+                Dictionary: CurrentTrigger
+                Key: name
+                → ItemName3 (Text)
+            IF: MyShortcuts (Names) contains ItemName3
+                GET DICTIONARY VALUE:
+                    Dictionary: CurrentTrigger
+                    Key: input
+                    → ItemInput (List)
+                RUN SHORTCUT:
+                    Shortcut: ItemName3
+                    Input: ItemInput
+                    → CalledResult
+                IF: CalledResult is Stop Running Shortcuts
+                    NUMBER: 0
+                    SET VARIABLE: ContinueActions to Number
+                END IF
+            OTHERWISE
+                SHOW NOTIFICATION:
+                    Body: Shortcut “[ItemName3]” not found.
             END IF
-        OTHERWISE
-            SHOW NOTIFICATION:
-                Body: Shortcut “[ItemName3]” not found.
         END IF
     END IF
+    GET DICTIONARY VALUE:
+        Dictionary: CurrentTrigger
+        Key: lastInGroup
+        → TriggerLastInGroup (Number)
+    IF: TriggerLastInGroup is 1
+        DICTIONARY:
+            op: trigger_finish (Text)
+            trigger: CurrentTrigger (Dictionary)
+            → TriggerFinishRequest
+        RUN SCRIPT: Calendar Alarms Runtime
+            Parameter: TriggerFinishRequest
+    END IF
 END REPEAT
-GET DICTIONARY VALUE:
-    Dictionary: Engine
-    Key: errorRegistry
-    → EngineErrorRegistry (Text)
-IF: EngineErrorRegistry has any value
-    SHOW NOTIFICATION:
-        Body: EngineErrorRegistry
-END IF
 
 // No nextLoopStart cutoff. The runtime checks actual ownership and elapsed time.
 // Check the live registry even when a verifier run returned qrLoop=false.
@@ -261,13 +301,17 @@ REPEAT: 180 times
                     Label is CleanupName
                     Hours is CleanupHh
                     Minutes is CleanupMm
+                Limit: Off
                 → CleanupAlarms
             IF: CleanupAlarms has any value
                 DELETE ALARMS: CleanupAlarms
             END IF
         END REPEAT
-        STOP THIS SHORTCUT
+        STOP AND OUTPUT:
+            Output: Engine (Dictionary)
     END IF
     WAIT: 1 second
 END REPEAT
+STOP AND OUTPUT:
+    Output: Engine (Dictionary)
 ```

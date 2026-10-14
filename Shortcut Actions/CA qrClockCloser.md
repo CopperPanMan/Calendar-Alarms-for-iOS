@@ -1,6 +1,6 @@
 # CA qrClockCloser
 
-Checkpoint readout, 2026-10-05. See [checkpoint status and known issues](../Development/Runtime%20Checkpoint.md) before rebuilding.
+Full action readout, 2026-10-14, for Calendar Alarms Runtime in this branch. The guard flow is unchanged. Updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
