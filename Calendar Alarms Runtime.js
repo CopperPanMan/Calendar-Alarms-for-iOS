@@ -47,6 +47,7 @@ function object(raw) {
   return raw;
 }
 function text(raw) {
+  if (Array.isArray(raw) && raw.length === 0) return '';
   if (Array.isArray(raw) && raw.length === 1) raw = raw[0];
   return raw == null ? '' : typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
 }
@@ -108,7 +109,7 @@ function playbackBusy() {
   return now >= playback.reservedAt && now < playback.expectedEndAt;
 }
 function begin(raw) {
-  const input = text(raw);
+  const input = text(raw).trim();
   // Completion input is cleanup work, not a new playback owner. Preserve an
   // existing session even when a failed/malformed response was forwarded.
   if (input && input !== 'Calendar') return {completionOnly: 1, cleanInput: input};

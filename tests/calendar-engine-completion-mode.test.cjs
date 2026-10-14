@@ -9,6 +9,15 @@ async function start(definitions = [task('A', 'a')]) {
   const plan = await h.engine(); return {h, plan};
 }
 
+test('native empty input representations start a normal Engine session', async () => {
+  const h = new Harness();
+  for (const input of [undefined, '', [], [''], ' \n ']) {
+    const begin = await h.runtime({op: 'engine_begin', input});
+    assert.equal(begin.completionOnly, 0); assert.equal(begin.cleanInput, '');
+    assert.ok(begin.session.id);
+  }
+});
+
 test('completion-only calls preserve unrelated active QR, playback owner, and schedules without Calendar access', async () => {
   const {h} = await start([task('A', 'a'), task('B', 'b')]);
   const owner = (await h.runtime({op: 'engine_begin', input: ''})).session;
