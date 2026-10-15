@@ -55,7 +55,7 @@ Supply **Lat**, **Long**, and **Radius m**. Copy decimal coordinates from a map'
 
 The Engine accepts a radius from **1 to 500 meters**. Grant Scriptable location access on the first unlocked test. Smart arrival timing is a rough distance-based estimate with 14 minutes of overhead, not live traffic or routing. The minimum interval still applies. If the arrival estimate is beyond the original-time window, the occurrence stops instead of retrying earlier.
 
-If location cannot be obtained, a configured location rule blocks the fire. A positive interval and remaining allowance schedule another check within the window; otherwise the occurrence stops. Task Loop Min supplies the task cadence after context checks pass, not the missing-location interval.
+If location cannot be obtained, a configured location rule blocks that fire just like an unsuitable location: trigger actions and QR prompting wait. Rescheduling continues at the configured interval. For a task-loop alarm with no context retry interval, a valid **Task Loop Min** keeps the next task check scheduled instead of discarding the occurrence. Both paths still obey the shared follow-up limit and original-time window. An ordinary alarm without a valid retry stops. Disabling context rules skips location checks entirely.
 
 To test, use an allowed location outside your current radius and confirm postponement. Then move its coordinates to your current location and confirm that conditions pass. Test each rule alone before combining them.
 

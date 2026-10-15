@@ -89,7 +89,8 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  check(p.message.includes('Log Floss for 1 point.')&&p.message.includes('You currently have 10 points.'));
  check(p.speak&&p.show&&!p.message.includes('missing'));
  now+=91000;p=await run({op:'action',input:{action:'openhabits_reminder',metricIDs:['normal']}});check(p.refresh);
- p=await run({op:'action',input:{action:'openhabits_reminder',metricIDs:['normal']},refreshed:true});check(!p.refresh&&p.show);
+ p=await run({op:'action',input:{action:'openhabits_reminder',metricIDs:['normal']},refreshed:true});check(!p.refresh&&p.message.includes('outdated'));
+ c.generatedAtISO=new RealDate(now).toISOString();disk.set(metrics,JSON.stringify(c));
  p=await run({op:'action',input:{action:'task_alarm_reset',taskLoopMetricIDs:['done'],qrCodeID:'bath'}});check(p.refresh);
  p=await run({op:'action',input:{action:'task_alarm_reset',taskLoopMetricIDs:['done'],qrCodeID:'bath'},refreshed:true});
  check(p.allComplete&&p.qrCodeID==='bath'&&JSON.parse(p.engineInput).metricsByID[0].complete);
@@ -99,6 +100,24 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  check(p.hh===7&&p.mm===30&&(Date.parse(p.end)-Date.parse(p.start))===8*3600000);
  const dst=await run({op:'wake_plan',sleep:{start:'2026-10-31T23:30:00-04:00',end:'2026-11-01T06:30:00-05:00'},time:'08:30'});
  check(dst.hh===8&&dst.mm===30&&(Date.parse(dst.end)-Date.parse(dst.start))===8*3600000);
+ for (const [start,end,time,hours,endFirst] of [
+  ['2026-10-02T01:00:00-04:00','2026-10-02T10:30:00-04:00','07:30',9.5,false],
+  ['2026-10-02T01:00:00-04:00','2026-10-02T10:30:00-04:00','11:30',9.5,true],
+  ['2026-10-31T23:30:00-04:00','2026-11-01T07:30:00-05:00','08:30',9,true]
+ ]) {
+  const moved=await run({op:'wake_plan',sleep:{start,end},time});
+  check((Date.parse(moved.end)-Date.parse(moved.start))===hours*3600000);
+  check(moved.endFirst===endFirst);
+ }
+ await assert.rejects(()=>run({op:'wake_plan',sleep:{start:'invalid',end:'invalid'},time:'07:30'}));tests++;
+ await assert.rejects(()=>run({op:'wake_plan',sleep:{start:'2026-10-02T10:30:00-04:00',end:'2026-10-02T01:00:00-04:00'},time:'07:30'}));tests++;
+ const wakeNow=now;
+ now=Date.parse('2026-10-02T12:00:00-04:00');
+ set('settings.json',{disabledCalendars:[' Work Archive ']});
+ const sleepEvent={title:'Sleep',startDate:new FakeDate(now-9.5*3600000),endDate:new FakeDate(now+3600000),calendar:{title:'Work'}};
+ events=[sleepEvent,{...sleepEvent,calendar:{title:'Work Archive'}}];
+ const info=await run({op:'wake_info'});check(info.error===''&&info.calendar==='Work');
+ events=[];now=wakeNow;
  const diagnosticSession=(await run({op:'engine_begin',input:''})).session;
  check((await run({op:'engine_begin',input:'Clock'})).clock===1);
  check((await run({op:'engine_begin',input:'Clock'})).activeCount===0);

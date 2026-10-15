@@ -1,22 +1,26 @@
 # Calendar Alarms QR Scanner
 
-Checkpoint readout, 2026-10-05. See [checkpoint status and known issues](../Development/Runtime%20Checkpoint.md) before rebuilding.
+Full replacement action readout, 2026-10-15, for the Scanner core and Runtime in this branch. Includes both menu and scan paths. Updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
-The updated **Calendar Alarm QR Scanner** Scriptable core returns all owned QR retry deletions directly on scan. The native deletion loop below does not need changing for this fix; see [update instructions](../Development/QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
+The core returns JSON **Text**; convert it explicitly to a Dictionary in both paths. `shouldShowMenu` and `vibrate` are **Booleans**. Display `errorRegistry` without aborting the returned deletion plan. Find Alarms below has exactly the three predicates shown, with no additional empty Label filter. A successful scan removes owned QR restarts, including the next minute's restart, while preserving future task checks.
 
-**Known unresolved wiring:** this readout preserves the previously supplied Scanner flow, including its Number comparisons for `shouldShowMenu` and `vibrate`. The core returns those as Booleans inside JSON text. Restore explicit Get Dictionary from Output where the Scriptable action does not convert it, and use Boolean/is Yes comparisons; these corrections were discussed but have not yet been phone-tested. Dismissing the menu without choosing an option can leave its open flag set for 120 seconds. The proposed timestamp-only cooldown is not implemented here.
+Menu cancellation can still leave the core's open flag set until its 120-second lease expires. This readout retains that bounded behavior. Runtime `scanner_touch` supplies the existing silence timestamp; it does not redesign the menu lease.
+
+Task QR menus remain deferred through reset/trigger actions until Runtime grants the first matching playback permission. The existing `shouldShowMenu` Boolean carries that decision; no new native action is needed. The 180-second deadline and 90 repeats below replace the earlier 50-second/10-repeat limits so a slow reset has time to finish. Completion before playback exits without a menu, and direct scans remain available. Permission is immediately followed by Play Sound; it cannot confirm that iOS actually emitted sound.
+
+Deferral applies while the Runtime session is live. Legacy playback without a Runtime session keeps its existing menu behavior; a session that expires before playback releases the menu for recovery.
 
 ```jsx
 IF: Shortcut Input does not have any value
     CURRENT DATE:
         → Started
     ADJUST DATE:
-        Add 50 seconds to Started
+        Add 180 seconds to Started
         → Deadline
     WAIT: 2 seconds
-    REPEAT: 10 times
+    REPEAT: 90 times
         CURRENT DATE:
             → Now
         IF: Now is after Deadline
@@ -24,7 +28,18 @@ IF: Shortcut Input does not have any value
         END IF
         RUN SCRIPT: Calendar Alarm QR Scanner
             Parameter: none — explicitly clear this field
+            Output Type: Text
+            → MenuJSON
+        GET DICTIONARY FROM INPUT: MenuJSON
             → MenuState
+        GET DICTIONARY VALUE:
+            Dictionary: MenuState
+            Key: errorRegistry
+            → MenuErrors (Text)
+        IF: MenuErrors has any value
+            SHOW NOTIFICATION:
+                Body: MenuErrors
+        END IF
         GET DICTIONARY VALUE:
             Dictionary: MenuState
             Key: activeName
@@ -35,8 +50,8 @@ IF: Shortcut Input does not have any value
         GET DICTIONARY VALUE:
             Dictionary: MenuState
             Key: shouldShowMenu
-            → MenuStateShouldShowMenu (Number)
-        IF: MenuStateShouldShowMenu is 1
+            → MenuStateShouldShowMenu (Boolean)
+        IF: MenuStateShouldShowMenu is Yes
             CHOOSE FROM MENU:
                 Prompt: Alarm active: [MenuStateActiveName]
                 Silence for 12s:
@@ -78,7 +93,18 @@ IF: Shortcut Input does not have any value
 OTHERWISE
     RUN SCRIPT: Calendar Alarm QR Scanner
         Parameter: Shortcut Input (Text; the QR code ID)
+        Output Type: Text
+        → ScanJSON
+    GET DICTIONARY FROM INPUT: ScanJSON
         → ScanResult
+    GET DICTIONARY VALUE:
+        Dictionary: ScanResult
+        Key: errorRegistry
+        → ScanErrors (Text)
+    IF: ScanErrors has any value
+        SHOW NOTIFICATION:
+            Body: ScanErrors
+    END IF
     GET DICTIONARY VALUE:
         Dictionary: ScanResult
         Key: alarmsToDelete
@@ -101,6 +127,7 @@ OTHERWISE
                 Label is ItemName
                 Hours is ItemHh
                 Minutes is ItemMm
+            Limit: Off
             → MatchingAlarms
         IF: MatchingAlarms has any value
             DELETE ALARMS: MatchingAlarms
@@ -109,8 +136,8 @@ OTHERWISE
     GET DICTIONARY VALUE:
         Dictionary: ScanResult
         Key: vibrate
-        → ScanResultVibrate (Number)
-    IF: ScanResultVibrate is 1
+        → ScanResultVibrate (Boolean)
+    IF: ScanResultVibrate is Yes
         VIBRATE DEVICE
     OTHERWISE
         GET DICTIONARY VALUE:

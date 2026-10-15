@@ -82,6 +82,7 @@ const output = {
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
   triggerShortcutsToRunDetailed: [],
+  completionOnly: false,
   qrLoop: false,
   nextLoopStart: "",
   debug: {},
@@ -126,16 +127,31 @@ function normalizeShortcutActionList(raw) {
   return single.name ? [single] : [];
 }
 
-function queueTriggerShortcut(raw) {
+function queueTriggerShortcut(raw, metadata = {}) {
   const action = normalizeShortcutAction(raw);
   if (!action.name) return;
   output.triggerShortcutsToRun.push(action.name);
-  output.triggerShortcutsToRunDetailed.push(action);
+  output.triggerShortcutsToRunDetailed.push({ ...action, ...metadata });
 }
 
-function queueTriggerShortcuts(rawList) {
+function queueTriggerShortcuts(rawList, entry) {
   const actions = normalizeShortcutActionList(rawList);
-  for (const action of actions) queueTriggerShortcut(action);
+  if (!actions.length) return;
+  const triggerID = UUID.string();
+  entry.triggerActionID = triggerID;
+  // A terminated Shortcut must not leave playback blocked indefinitely.
+  entry.triggerActionsUntil = nowEpoch() + 180;
+  const triggerKey = registryKey(entry);
+  actions.forEach((action, index) => {
+    const payload = safeJSONParse(String(action.input[0] || ""));
+    queueTriggerShortcut(action, {
+      triggerKey, triggerID,
+      hasQR: entry.qrCodeID ? 1 : 0,
+      taskReset: action.name === CALENDAR_ALARMS_ACTIONS && payload.ok &&
+        payload.val?.action === "task_alarm_reset" ? 1 : 0,
+      lastInGroup: index === actions.length - 1 ? 1 : 0,
+    });
+  });
 }
 
 function setLocationDebug(details) {
@@ -578,6 +594,7 @@ function parseEngineInput(value) {
     iosAlarms,
     currentFocus: currentFocus.trim(),
     taskLogResponseRaw: taskLogResponse,
+    completionOnly: taskLogResponse.trim().length > 0,
     currentLocation: null,
     locationAttempted: false,
   };
@@ -605,13 +622,18 @@ function getCompletedTaskMetricIDs(taskLogResponseRaw) {
   const ids = [];
   const seen = new Set();
   for (const metric of response.metricsByID) {
-    if (!metric || typeof metric !== "object" || metric.found === false || metric.complete !== true) continue;
+    if (!taskMetricIsComplete(metric)) continue;
     const metricID = String(metric.metricID ?? "").trim();
     if (!metricID || seen.has(metricID)) continue;
     seen.add(metricID);
     ids.push(metricID);
   }
   return { ids, error: "" };
+}
+
+function taskMetricIsComplete(metric) {
+  return metric && typeof metric === "object" && metric.found !== false && metric.complete === true &&
+    metric.status !== "error" && (metric.errors == null || (Array.isArray(metric.errors) && metric.errors.length === 0));
 }
 
 async function applyTaskLogCompletions(input, registryAfter) {
@@ -622,7 +644,7 @@ async function applyTaskLogCompletions(input, registryAfter) {
   }
   if (!parsed.ids.length) return;
   const report = JSON.parse(input.taskLogResponseRaw);
-  const explicitlyIncomplete = new Set(report.metricsByID.filter((m) => m && m.complete !== true)
+  const explicitlyIncomplete = new Set(report.metricsByID.filter((m) => m && !taskMetricIsComplete(m))
     .map((m) => String(m.metricID || "").trim()));
   const completedIDs = new Set(parsed.ids);
   for (const entry of registryAfter) {
@@ -727,13 +749,17 @@ function dedupeOutputOps() {
   for (const a of output.triggerShortcutsToRunDetailed) {
     const spec = normalizeShortcutAction(a);
     if (!spec.name) continue;
-    const k = `${spec.name}|||${JSON.stringify(spec.input)}|||${spec.silenceAlarm ? 1 : 0}`;
+    const k = `${a.triggerID || ""}|||${spec.name}|||${JSON.stringify(spec.input)}|||${spec.silenceAlarm ? 1 : 0}`;
     if (seenTD.has(k)) continue;
     seenTD.add(k);
-    td.push(spec);
+    td.push({ ...spec, ...(a.triggerID ? {
+      triggerKey: a.triggerKey, triggerID: a.triggerID, taskReset: a.taskReset, hasQR: a.hasQR,
+    } : {}) });
   }
   output.triggerShortcutsToRun = td.map((a) => a.name);
-  output.triggerShortcutsToRunDetailed = td.map((a) => ({ name: a.name, input: a.input }));
+  output.triggerShortcutsToRunDetailed = td.map((a, i) => ({ name: a.name, input: a.input,
+    ...(a.triggerID ? {triggerKey: a.triggerKey, triggerID: a.triggerID, taskReset: a.taskReset, hasQR: a.hasQR,
+      lastInGroup: td[i + 1]?.triggerID !== a.triggerID ? 1 : 0} : {}) }));
 }
 
 // ---------- Calendar alarm normalization ----------
@@ -1282,7 +1308,7 @@ function applyRegistryPatch(regOnDiskNow, patch, iosAlarms = []) {
   return Array.from(diskMap.values());
 }
 
-function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefore) {
+function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefore, completionOnly = false) {
   const now = nowEpoch();
   const keyFor = (name, hhmm) => `${name}|||${hhmm}`;
   const opKey = (alarm) => keyFor(alarm.name, `${alarm.hh}:${alarm.mm}`);
@@ -1326,7 +1352,7 @@ function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefor
   }
   // Disabled-alarm cleanup runs after every successful commit, including
   // fast-path runs, without fetching Calendar or changing runtime schedules.
-  for (const alarm of iosAlarms) {
+  for (const alarm of completionOnly ? [] : iosAlarms) {
     const key = opKey(alarm);
     if (alarm.isEnabled || !owned.has(key) || protectedKeys.has(key) || blocked.has(key)) continue;
     const start = output.alarmsToDelete.length;
@@ -1345,6 +1371,7 @@ function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefor
     const key = opKey(alarm);
     if (rejected.has(alarm._ownerKey) || blocked.has(key) || (alarm._cleanup && protectedKeys.has(key))) return false;
     const matches = iosAlarms.filter((a) => opKey(a) === key);
+    if (completionOnly && future.has(key)) return false;
     // Keep an enabled alarm serving a future occurrence. A disabled one
     // must be replaced, rather than protected solely by its name/time.
     return !future.has(key) || matches.some((a) => !a.isEnabled) ||
@@ -1354,7 +1381,7 @@ function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefor
   // Replacements are added from the committed future schedule, never from
   // a past occurrence or a rejected calculation.
   for (const [key, slot] of future) {
-    if (deleting.has(key)) output.alarmsToAdd.push({ name: slot.name, time: epochTo12HourTime(slot.epoch) });
+    if (!completionOnly && deleting.has(key)) output.alarmsToAdd.push({ name: slot.name, time: epochTo12HourTime(slot.epoch) });
   }
   output.alarmsToAdd = output.alarmsToAdd.filter((alarm) => {
     const match = alarm.time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -1362,7 +1389,9 @@ function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefor
     const key = keyFor(alarm.name, `${hh}:${match[2]}`);
     return deleting.has(key) || !findIOSMatches(iosAlarms, alarm.name, hh, match[2]);
   });
-  output.triggerShortcutsToRunDetailed = output.triggerShortcutsToRunDetailed.filter((a) => !rejected.has(a._ownerKey));
+  output.triggerShortcutsToRunDetailed = output.triggerShortcutsToRunDetailed.filter((a) =>
+    !rejected.has(a._ownerKey) && (!a.triggerID || registry.some((entry) =>
+      registryKey(entry) === a.triggerKey && entry.triggerActionID === a.triggerID && !entry.taskSatisfied)));
   for (const list of [output.alarmsToAdd, output.alarmsToDelete, output.triggerShortcutsToRunDetailed]) {
     for (const item of list) { delete item._ownerKey; delete item._cleanup; }
   }
@@ -1481,6 +1510,12 @@ async function checkTaskIDsCompleteFailOpen(taskIDs) {
   if (!Array.isArray(taskIDs) || !taskIDs.length) return true;
   const cachePath = ensureLockoutCachePathInitialized();
   if (!cachePath) return false;
+  // Completion is optional suppression data. Native refresh owns downloading;
+  // don't stall the alarm on an old iCloud placeholder before task reset runs.
+  if (fm.fileExists(cachePath) && fm.isFileStoredIniCloud?.(cachePath) && !fm.isFileDownloaded(cachePath)) {
+    output.debug.taskCacheUnavailable = true;
+    return false;
+  }
   const raw = await safeReadString(fm, cachePath, "");
   const parsed = safeJSONParse(raw);
   const byID = parsed.ok && parsed.val?.ok !== false ? parsed.val?.reminderState?.byID : null;
@@ -1699,6 +1734,11 @@ function rescheduleDeadline(entry) {
   return Number(entry.calcFireTime) + entry.rescheduleWindowMinutes * 60;
 }
 
+function hasContextRetryTiming(entry) {
+  return entry.rescheduleMode ? Number(entry.rescheduleIntervalMinutes) > 0
+    : normalizeReschedMinutesRange(entry.reschedMinutes).min > 0;
+}
+
 async function findSmartCalendarTime(entry, fireEpoch, candidate, deadline) {
   const names = Array.isArray(entry.conflictingCalendars) ? entry.conflictingCalendars : [];
   if (!names.length || entry.contextEnabled === false) return candidate;
@@ -1875,6 +1915,7 @@ function beginQRLoop(entry, baseEpoch, iosAlarms) {
     entry.qrGeneration = (Number(entry.qrGeneration) || 0) + 1;
   }
   entry.qrActive = true;
+  if (hasTaskLoop(entry)) entry.qrMenuAfterPlayback = true;
   entry.qrPending = false;
   entry.qrPendingSince = 0;
   continueActiveQRLoop(entry, baseEpoch, iosAlarms);
@@ -1910,16 +1951,21 @@ async function isRescheduledForContextGates(entry, fireEpoch, input) {
   const conflictReady = await findConflictReadyAt(entry, fireEpoch);
   if (conflictReady !== null) return true;
 
+  return isLocationGated(entry, input.currentLocation);
+}
+
+function isLocationGated(entry, currentLocation) {
+  if (!entryUsesLocation(entry)) return false;
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   if (
     (locationMode === "whitelist" || locationMode === "blacklist") &&
     Array.isArray(entry.locations) &&
     entry.locations.length > 0
   ) {
-    const cur = input.currentLocation;
+    const cur = currentLocation;
 
     // If location is required for gating but unavailable, do NOT treat that as "passed".
-    // This keeps task loops from starting when location could not be verified.
+    // Suppress this firing's actions/QR; a future task check may still be kept.
     if (!cur) return true;
 
     const defaultRadius = Number(entry.radiusMeters ?? 50);
@@ -1972,6 +2018,17 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     return {handled: true};
   }
 
+  const skipTaskCheck = hasTask && shouldSkipTaskCheckOnInitialFire(entry);
+  if (hasTask && !skipTaskCheck && await checkTaskIDsCompleteFailOpen(taskIDs)) {
+    const previous = ownedAlarmSlots(entry, true);
+    output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
+    entry.taskSatisfied = true;
+    entry.taskCheckFirstFireHandled = true;
+    setTaskCheck(entry, 0);
+    cancelQRLoop(entry);
+    retireReplacedAlarms(entry, previous, input.iosAlarms);
+    return {handled: true};
+  }
   await ensureInputLocationForEntry(input, entry);
   if (hasTask) {
     const previous = ownedAlarmSlots(entry, true);
@@ -1980,8 +2037,14 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
     if (contextGated) {
       output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
-      const next = loopsRemaining > 0 ? await computeRescheduleTime(
+      let next = loopsRemaining > 0 ? await computeRescheduleTime(
         entry, now, input.currentFocus, input.currentLocation, false) : null;
+      // A failed/blocked location must not discard the task cadence when
+      // context postponement is off. Keep the shared limit and time window.
+      if (!Number.isFinite(next) && loopsRemaining > 0 && taskLoopMin > 0 &&
+          isLocationGated(entry, input.currentLocation) && !hasContextRetryTiming(entry)) {
+        next = await computeRescheduleTime(entry, now, input.currentFocus, input.currentLocation, true);
+      }
       setTaskCheck(entry, Number.isFinite(next) ? next : 0);
       cancelQRLoop(entry);
       if (Number.isFinite(next)) {
@@ -1994,12 +2057,10 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     }
 
     entry.taskLoopEligible = true;
-    const skip = shouldSkipTaskCheckOnInitialFire(entry);
-    const complete = !skip && await checkTaskIDsCompleteFailOpen(taskIDs);
-    if (hasQR || complete || entry.silenceAlarm) output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
-    if (complete || taskLoopMin <= 0) {
-      if (complete) entry.taskSatisfied = true;
-      else addError(`ERR: taskIDs set but taskLoopMin<=0 for "${name}". Task loop cannot continue.`);
+    const skip = skipTaskCheck;
+    if (hasQR || entry.silenceAlarm) output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
+    if (taskLoopMin <= 0) {
+      addError(`ERR: taskIDs set but taskLoopMin<=0 for "${name}". Task loop cannot continue.`);
       entry.taskCheckFirstFireHandled = true;
       setTaskCheck(entry, 0);
       cancelQRLoop(entry);
@@ -2019,7 +2080,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     } else setTaskCheck(entry, 0);
     const actions = skip ? normalizeShortcutActionList(entry.shortcutsOnTrigger)
       : buildTriggerActionsForTaskLoop(entry, payload);
-    if (!entry.qrPending) queueTriggerShortcuts(actions);
+    if (!entry.qrPending) queueTriggerShortcuts(actions, entry);
     entry.taskCheckFirstFireHandled = true;
     if (hasQR) {
       if (allowQR) beginQRLoop(entry, now, input.iosAlarms);
@@ -2058,7 +2119,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
 
   // Only run shortcutOnTrigger/silence behavior after this alarm has passed all gates.
   // If this fire was gated (driving/conflict/location), we returned earlier and did not queue shortcuts.
-  if (entry.qrPending !== true) queueTriggerShortcuts(entry.shortcutsOnTrigger);
+  if (entry.qrPending !== true) queueTriggerShortcuts(entry.shortcutsOnTrigger, entry);
 
   // silenceAlarm always deletes the just-fired alarm once it has reached trigger handling.
   // (Gated/rescheduled alarms are already deleted in the gated block above.)
@@ -2336,6 +2397,7 @@ async function runVerifier(input, registryAfter) {
 let input;
 try {
   input = parseEngineInput(args.shortcutParameter);
+  output.completionOnly = input.completionOnly;
 } catch (e) {
   output.errorRegistry = `ERR: ${String(e)}`;
   Script.setShortcutOutput(JSON.stringify(output));
@@ -2371,24 +2433,20 @@ await ensureFile(fm, menuLastOpenedPath, new Date(0).toISOString());
 await ensureFile(fm, menuOpenStatusPath, "false");
 
 // Settings are maintained by the Calendar Alarms Shortcut, so read but do not create the file.
-disabledCalendarNames = await loadDisabledCalendarNames(fm, settingsPath);
+if (!input.completionOnly) disabledCalendarNames = await loadDisabledCalendarNames(fm, settingsPath);
 
 // Load registry
 let registryBefore = await loadRegistry(fm, registryPath);
 registryBefore = dropRegistryDuplicatesRandom(registryBefore);
 let registryAfter = deepClone(registryBefore);
 
-registryAfter = expireRegistryEntries(registryAfter, input.iosAlarms);
+if (!input.completionOnly) registryAfter = expireRegistryEntries(registryAfter, input.iosAlarms);
 await applyTaskLogCompletions(input, registryAfter);
-cleanupScannedQRLoops(registryAfter, input.iosAlarms);
-serializeExistingQRLoops(registryAfter, input.iosAlarms);
-
-// Phase B — Fast-path
-const fast = await tryFastPath(input, registryAfter);
-
-// Phase C — Verifier if fast-path didn't handle
-if (!fast.handled) {
-  registryAfter = await runVerifier(input, registryAfter);
+if (!input.completionOnly) {
+  cleanupScannedQRLoops(registryAfter, input.iosAlarms);
+  serializeExistingQRLoops(registryAfter, input.iosAlarms);
+  const fast = await tryFastPath(input, registryAfter);
+  if (!fast.handled) registryAfter = await runVerifier(input, registryAfter);
 }
 
 // Write registry back under lock using diff patch
@@ -2417,8 +2475,8 @@ if (!commitOK) {
   output.triggerShortcutsToRunDetailed = [];
   output.qrLoop = false;
 } else {
-  filterOutputAgainstCommittedSchedule(committedRegistry, input.iosAlarms, registryBefore);
-  output.qrLoop = committedRegistry.some((entry) => entry.qrActive);
+  filterOutputAgainstCommittedSchedule(committedRegistry, input.iosAlarms, registryBefore, input.completionOnly);
+  output.qrLoop = !input.completionOnly && committedRegistry.some((entry) => entry.qrActive);
   const nextQR = committedRegistry.filter((entry) => entry.qrActive && entry.qrRestartFireTime > 0)
     .map((entry) => entry.qrRestartFireTime).sort((a, b) => a - b)[0];
   output.nextLoopStart = nextQR ? epochToShortcutTimestamp(nextQR) : "";

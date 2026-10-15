@@ -47,6 +47,7 @@ function object(raw) {
   return raw;
 }
 function text(raw) {
+  if (Array.isArray(raw) && raw.length === 0) return '';
   if (Array.isArray(raw) && raw.length === 1) raw = raw[0];
   return raw == null ? '' : typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
 }
@@ -108,12 +109,55 @@ function playbackBusy() {
   return now >= playback.reservedAt && now < playback.expectedEndAt;
 }
 function begin(raw) {
+  const input = text(raw).trim();
+  // Completion input is cleanup work, not a new playback owner. Preserve an
+  // existing session even when a failed/malformed response was forwarded.
+  if (input && input !== 'Calendar') return {completionOnly: 1, cleanInput: input};
   const session = {id: UUID.string(), deadline: Date.now() + 180000};
   local.writeString(ownerPath, JSON.stringify(session));
   // Ownership can change while an old native Play Sound is still running.
   // Leave its separate playback reservation intact until it expires.
-  const input = text(raw);
-  return {session, cleanInput: input === 'Calendar' ? '' : input};
+  return {session, completionOnly: 0, cleanInput: ''};
+}
+
+function triggerReadyPath(id) {
+  if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(id))
+    throw new Error('Invalid trigger action ID.');
+  return local.joinPath(local.cacheDirectory(), 'calendar-alarms-trigger-ready-' + id + '.json');
+}
+function triggerPending(entry) {
+  if (Number(entry.triggerActionsUntil) * 1000 <= Date.now()) {
+    clearTriggerReady(entry);
+    return false;
+  }
+  return entry.triggerActionID && !local.fileExists(triggerReadyPath(entry.triggerActionID));
+}
+function clearTriggerReady(entry) {
+  if (!entry.triggerActionID) return;
+  const p = triggerReadyPath(entry.triggerActionID);
+  if (local.fileExists(p) && typeof local.remove === 'function') local.remove(p);
+}
+async function triggerCheck(raw) {
+  const trigger = object(raw);
+  if (!trigger.triggerKey || !trigger.triggerID) return {run: 1}; // Older core output.
+  const rows = await json(path('registry.txt'), []);
+  const entry = rows.find(e => `${e.alarmName}|||${e.calcFireTime}` === trigger.triggerKey &&
+    e.triggerActionID === trigger.triggerID);
+  if (!entry || entry.taskSatisfied) return {run: 0};
+  if (!trigger.taskReset && Array.isArray(entry.taskIDs) && entry.taskIDs.length) {
+    try {
+      const c = await cache(true);
+      if (currentTaskCache(c) && entry.taskIDs.every(id =>
+        c.reminderState.byID[id]?.found !== false && c.reminderState.byID[id]?.complete === true)) return {run: 0};
+    } catch (_) {} // Unavailable completion data must not suppress an alarm.
+  }
+  return {run: 1};
+}
+function triggerFinish(raw) {
+  const trigger = object(raw);
+  if (trigger.triggerID && trigger.hasQR !== 0)
+    local.writeString(triggerReadyPath(trigger.triggerID), JSON.stringify({completedAt: Date.now()}));
+  return {ok: 1};
 }
 async function soundFile(name) {
   const relative = String(name || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -149,6 +193,7 @@ function qrCleanup(rows) {
   }
   const result = new Map();
   for (const entry of rows) {
+    if (!entry.qrActive && !entry.qrPending) clearTriggerReady(entry);
     if (entry.qrActive || entry.qrPending || !(Number(entry.firstQRFireTime) > 0)) continue;
     const fields = [['qrRestartFireTime', 'qrRestartHHMM'], ['qrFallbackFireTime', 'qrFallbackHHMM'], ['qrBackupFireTime', 'qrBackupHHMM']];
     if (!Array.isArray(entry.taskIDs) || !entry.taskIDs.length) fields.push(['nextFireTime', 'nextFireHHMM']);
@@ -174,7 +219,7 @@ async function qrState(session) {
   if (changed) return stopped(session, changed);
   if (!alarms.length) return {...stopped(session, 'no_active_qr_alarm'), alarmsToDelete: qrCleanup(rows)};
   const age = Date.now() - opened;
-  return {stop: false, play: !(age >= 0 && age < 13000) && !playbackBusy(), alarm: alarms[0]};
+  return {stop: false, play: !triggerPending(alarms[0]) && !(age >= 0 && age < 13000) && !playbackBusy(), alarm: alarms[0]};
 }
 function qrSoundRelativePath(name) {
   let relative = String(name || 'ringtone.mp3').replace(/\\/g, '/');
@@ -226,6 +271,8 @@ async function qrPermit(r) {
   const reservedAt = Date.now();
   local.writeString(playbackPath, JSON.stringify({
     instanceID: r.session.id,
+    alarmKey: key,
+    triggerID: a.triggerActionID || '',
     reservedAt,
     expectedEndAt: reservedAt + duration * 1000 + PLAYBACK_ALLOWANCE_MS
   }));
@@ -249,10 +296,20 @@ function scanInput(raw, fromScan) {
 async function cache(optional = false) {
   base();
   const p = fm.joinPath(root, 'OpenHabits/OpenHabits Metrics/lockoutCache.json');
+  // Completion is optional alarm-suppression data. Never spend the extension's
+  // execution window downloading an old snapshot; the native refresh owns I/O.
+  if (fm.fileExists(p) && fm.isFileStoredIniCloud(p) && !fm.isFileDownloaded(p)) {
+    if (optional) return {};
+    throw new Error('OpenHabits cache is not downloaded. Download it in Files.');
+  }
   const c = await json(p, optional ? {} : undefined);
   if (!optional && (c.ok === false || !c.reminderState?.byID))
     throw new Error('OpenHabits cache is missing a successful reminderState.byID.');
   return c;
+}
+function currentTaskCache(c) {
+  const age = Date.now() - Date.parse(c.generatedAtISO);
+  return c.ok === true && !!c.reminderState?.byID && age >= 0 && age <= 90000;
 }
 function reminder(c, metricIDs) {
   const rs = c.reminderState;
@@ -358,11 +415,14 @@ async function action(r) {
   if (a.action === 'openhabits_reminder' || a.action === 'task_alarm_reset') {
     if (a.action === 'task_alarm_reset' && r.refreshed !== true) return {...p, refresh: true};
     try {
+      if (r.refreshed === true && r.cacheOK !== undefined && Number(r.cacheOK) !== 1)
+        throw new Error('Cache refresh failed. Task alarms were not reset.');
       const initial = await cache(true);
-      const age = Date.now() - Date.parse(initial.generatedAtISO);
-      if (r.refreshed !== true && (initial.ok === false || !initial.reminderState?.byID || !(age >= 0 && age <= 90000)))
+      if (r.refreshed !== true && !currentTaskCache(initial))
         return {...p, refresh: true};
-      const c = await cache();
+      if (r.refreshed === true && !currentTaskCache(initial))
+        throw new Error('Cache refresh failed or returned an outdated snapshot. Task alarms were not reset.');
+      const c = initial;
       if (a.action === 'openhabits_reminder')
         return {...p, ...display(reminder(c, ids(a.metricIDs)), a.mode, r.focus)};
       const metricsByID = ids(a.taskLoopMetricIDs).map(metricID => {
@@ -406,7 +466,7 @@ function clock(d) {
   return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2,'0')}${d.getHours() >= 12 ? 'PM' : 'AM'}`;
 }
 async function wakeInfo() {
-  const start = new Date(Date.now() - 9 * 3600000);
+  const start = new Date(Date.now() - 10 * 3600000);
   const end = new Date(Date.now() + 14 * 3600000);
   const s = await json(path('settings.json'), {});
   const disabled = ids(s.disabledCalendars);
@@ -422,10 +482,12 @@ async function wakeInfo() {
 }
 function wakePlan(r) {
   const oldStart = new Date(r.sleep.start), end = new Date(r.sleep.end);
+  const duration = end.getTime() - oldStart.getTime();
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error('Sleep event duration must be positive.');
   const m = String(r.time).match(/^(\d{1,2}):(\d{2})$/);
   if (!m || +m[1] > 23 || +m[2] > 59) throw new Error('Wake time must be HH:mm.');
   end.setHours(+m[1], +m[2], 0, 0);
-  const start = new Date(end.getTime() - 8 * 3600000);
+  const start = new Date(end.getTime() - duration);
   return {start: start.toISOString(), end: end.toISOString(), hh: end.getHours(), mm: end.getMinutes(),
     endFirst: start > oldStart, notification: 'Alarm Set for ' + clock(end), wakeTime: clock(end)};
 }
@@ -440,6 +502,8 @@ async function main(r) {
       return text(r.input) === 'Clock' ? {clock: 1, ...await guard()} : {clock: 0, ...begin(r.input)};
     case 'qr_poll': return qrOutput(await qrPoll(r.session));
     case 'qr_permit': return qrOutput(await qrPermit(r));
+    case 'trigger_check': return triggerCheck(r.trigger);
+    case 'trigger_finish': return triggerFinish(r.trigger);
     case 'sound_file': return soundFile(r.file);
     case 'scanner_touch':
       write('scannerLastOpened.txt', new Date().toISOString());
