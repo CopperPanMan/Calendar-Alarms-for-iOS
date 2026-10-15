@@ -1,0 +1,24 @@
+{
+  "engineInput": {
+    "labels": [],
+    "hours": [],
+    "minutes": [],
+    "isEnabled": [],
+    "currentFocus": "",
+    "taskLogResponse": ""
+  },
+  "notificationRequest": {
+    "op": "action",
+    "input": ["{\"action\":\"notification\",\"message\":\"Native interface fixture\",\"mode\":\"both\"}"],
+    "focus": "",
+    "refreshed": false
+  },
+  "legacyTrigger": {"name": "Existing Shortcut", "input": []},
+  "taskRequest": {
+    "op": "action",
+    "input": ["{\"action\":\"task_alarm_reset\",\"taskLoopMetricIDs\":[\"work\"]}"],
+    "focus": "",
+    "refreshed": true,
+    "cacheOK": 1
+  }
+}

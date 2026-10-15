@@ -29,6 +29,7 @@ function loadTaskLogFunctions(overrides = {}) {
   };
   vm.createContext(context);
   vm.runInContext([
+    functionSource('taskMetricIsComplete'),
     functionSource('getCompletedTaskMetricIDs'),
     functionSource('applyTaskLogCompletions'),
   ].join('\n'), context);

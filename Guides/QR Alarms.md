@@ -36,6 +36,10 @@ After scanning, the Scanner Shortcut deletes the owned QR restart and backup eve
 
 When [task looping](OpenHabits%20Integration.md#repeat-until-a-task-is-complete) is also enabled, scanning stops the current QR prompt **without completing the task**. Its separate task check stays scheduled and can start another QR instance if the task remains incomplete. A task check that shares a Clock time with a QR retry is intentionally retained.
 
+For task-looping QR alarms, the automatic Scanner menu waits until reset/trigger actions finish and the Engine hands off the first sound clip to native playback. This gives task reset a chance to cancel the alarm without opening a menu. A task completed before that handoff opens no automatic menu. You can still scan directly using Camera or a QR ID input while the menu is deferred. Install the matching Engine, Runtime, and Scanner scripts and use the updated Scanner readout's wait limits.
+
+An expired playback session releases the menu for recovery if the sound never began. Older native playback without a Runtime session retains its existing menu behavior until the corresponding native flow is updated.
+
 ## Use your own sound
 
 1. Put an MP3 in **iCloud Drive → Shortcuts → OpenHabits → Calendar Alarms → Alarm Tones**. You can create subfolders there.

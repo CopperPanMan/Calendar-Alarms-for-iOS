@@ -271,6 +271,8 @@ async function qrPermit(r) {
   const reservedAt = Date.now();
   local.writeString(playbackPath, JSON.stringify({
     instanceID: r.session.id,
+    alarmKey: key,
+    triggerID: a.triggerActionID || '',
     reservedAt,
     expectedEndAt: reservedAt + duration * 1000 + PLAYBACK_ALLOWANCE_MS
   }));

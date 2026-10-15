@@ -30,6 +30,36 @@ test('a rejected refresh and missing local completion data never wait on iCloud'
   assert.equal((await h.runtime({op: 'trigger_check', trigger: speech})).run, 1);
 });
 
+test('the Engine does not download an optional completion cache before running task reset', async () => {
+  const h = new Harness([task('A', 'a', {shortcutsOnTrigger: [{name: 'Speak'}]})]); await h.install();
+  h.fm.isFileStoredIniCloud = p => p === cachePath;
+  h.fm.isFileDownloaded = () => false;
+  h.fm.downloadFileFromiCloud = async () => assert.fail('Optional completion must not stall alarm startup');
+  const plan = await h.engine();
+  assert.equal(plan.debug.taskCacheUnavailable, true);
+  assert.equal(plan.qrLoop, true);
+  assert.ok(plan.triggerShortcutsToRunDetailed.some(t => t.taskReset === 1));
+  assert.ok(plan.triggerShortcutsToRunDetailed.some(t => t.name === 'Speak'));
+});
+
+test('failed metric entries cannot reset an alarm even if they contain complete:true', async () => {
+  for (const invalid of [{status: 'error'}, {found: false}, {errors: ['write failed']}, {errors: 'write failed'}]) {
+    const {h} = await start();
+    const before = h.registry();
+    const result = await h.engine(JSON.stringify({ok: true, metricsByID: [{metricID: 'a', complete: true, ...invalid}]}));
+    assert.deepEqual(h.registry(), before); assert.deepEqual(result.alarmsToDelete, []);
+  }
+});
+
+test('an explicit failed duplicate cannot be overridden by a successful entry or cached completion', async () => {
+  const {h} = await start([task('A', 'a', {taskIDs: ['a', 'b']})]);
+  h.setCompletion({a: true, b: true});
+  await h.engine(JSON.stringify({ok: true, metricsByID: [
+    {metricID: 'a', complete: true}, {metricID: 'b', complete: true},
+    {metricID: 'b', complete: true, status: 'error'}]}));
+  assert.equal(h.registry()[0].taskSatisfied, false);
+});
+
 test('completion-only calls preserve unrelated active QR, playback owner, and schedules without Calendar access', async () => {
   const {h} = await start([task('A', 'a'), task('B', 'b')]);
   const owner = (await h.runtime({op: 'engine_begin', input: ''})).session;

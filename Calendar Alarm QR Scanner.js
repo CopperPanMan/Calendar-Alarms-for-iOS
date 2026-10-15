@@ -275,13 +275,42 @@ function pickActiveQRAlarm(registryArr) {
   return active[0];
 }
 
+function waitingForPlayback(entry) {
+  // Opt-in state from the updated Engine. Older registry entries keep their
+  // existing menu behavior; direct scans never depend on this handshake.
+  if (!hasTaskLoop(entry) || entry.qrMenuAfterPlayback !== true) return false;
+  const local = FileManager.local();
+  const ownerPath = local.joinPath(local.cacheDirectory(), "calendar-alarms-loop-owner-v1.json");
+  // Legacy native playback has no Runtime session. An ended session also must
+  // not hide the recovery menu indefinitely if native playback never started.
+  if (!local.fileExists(ownerPath)) return false;
+  const owner = safeJSONParse(local.readString(ownerPath)).val;
+  if (!owner || Number(owner.deadline) <= Date.now()) return false;
+  // A task interval may fire while the preceding QR instance is still active.
+  // Its old playback marker must not release a menu before Engine handles it.
+  if (Number(entry.taskCheckFireTime) > 0 && Number(entry.taskCheckFireTime) <= nowEpoch()) return true;
+  const playbackPath = local.joinPath(local.cacheDirectory(), "calendar-alarms-playback-v1.json");
+  if (!local.fileExists(playbackPath)) return true;
+  const parsed = safeJSONParse(local.readString(playbackPath));
+  const playback = parsed.ok && parsed.val;
+  const key = JSON.stringify([entry.alarmName, entry.calcFireTime || 0,
+    entry.firstQRFireTime, entry.qrGeneration || 0, entry.qrCodeID]);
+  return !playback || playback.instanceID !== owner.id ||
+    playback.alarmKey !== key || playback.triggerID !== (entry.triggerActionID || "");
+}
+
+function menuDeferred(active) {
+  return {mode: "menu", hasActiveQR: true, activeName: String(active.alarmName ?? ""), shouldShowMenu: false};
+}
+
 async function runModeA(fm, paths) {
   const reg = await loadRegistry(fm, paths.registry);
-  const active = pickActiveQRAlarm(reg);
+  let active = pickActiveQRAlarm(reg);
 
   if (!active) {
     return { mode: "menu", hasActiveQR: false, activeName: "", shouldShowMenu: false };
   }
+  if (waitingForPlayback(active)) return menuDeferred(active);
 
   const menuOpenRaw = await safeReadString(fm, paths.menuOpenStatus, "false");
   const menuOpen = parseBoolish(menuOpenRaw);
@@ -299,6 +328,12 @@ async function runModeA(fm, paths) {
   const openedRecently = age >= 0 && age <= MENU_DEDUPE_SEC;
 
   const shouldShowMenu = !(menuOpenEffective || openedRecently);
+
+  // Refresh after the awaited menu-state reads. Task reset/scan can complete
+  // during those reads; don't claim a menu for an alarm that has since stopped.
+  active = pickActiveQRAlarm(await loadRegistry(fm, paths.registry));
+  if (!active) return {mode: "menu", hasActiveQR: false, activeName: "", shouldShowMenu: false};
+  if (waitingForPlayback(active)) return menuDeferred(active);
 
   if (shouldShowMenu) {
     // Claim the menu slot

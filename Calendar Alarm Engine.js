@@ -622,13 +622,18 @@ function getCompletedTaskMetricIDs(taskLogResponseRaw) {
   const ids = [];
   const seen = new Set();
   for (const metric of response.metricsByID) {
-    if (!metric || typeof metric !== "object" || metric.found === false || metric.complete !== true) continue;
+    if (!taskMetricIsComplete(metric)) continue;
     const metricID = String(metric.metricID ?? "").trim();
     if (!metricID || seen.has(metricID)) continue;
     seen.add(metricID);
     ids.push(metricID);
   }
   return { ids, error: "" };
+}
+
+function taskMetricIsComplete(metric) {
+  return metric && typeof metric === "object" && metric.found !== false && metric.complete === true &&
+    metric.status !== "error" && (metric.errors == null || (Array.isArray(metric.errors) && metric.errors.length === 0));
 }
 
 async function applyTaskLogCompletions(input, registryAfter) {
@@ -639,7 +644,7 @@ async function applyTaskLogCompletions(input, registryAfter) {
   }
   if (!parsed.ids.length) return;
   const report = JSON.parse(input.taskLogResponseRaw);
-  const explicitlyIncomplete = new Set(report.metricsByID.filter((m) => m && m.complete !== true)
+  const explicitlyIncomplete = new Set(report.metricsByID.filter((m) => m && !taskMetricIsComplete(m))
     .map((m) => String(m.metricID || "").trim()));
   const completedIDs = new Set(parsed.ids);
   for (const entry of registryAfter) {
@@ -1505,6 +1510,12 @@ async function checkTaskIDsCompleteFailOpen(taskIDs) {
   if (!Array.isArray(taskIDs) || !taskIDs.length) return true;
   const cachePath = ensureLockoutCachePathInitialized();
   if (!cachePath) return false;
+  // Completion is optional suppression data. Native refresh owns downloading;
+  // don't stall the alarm on an old iCloud placeholder before task reset runs.
+  if (fm.fileExists(cachePath) && fm.isFileStoredIniCloud?.(cachePath) && !fm.isFileDownloaded(cachePath)) {
+    output.debug.taskCacheUnavailable = true;
+    return false;
+  }
   const raw = await safeReadString(fm, cachePath, "");
   const parsed = safeJSONParse(raw);
   const byID = parsed.ok && parsed.val?.ok !== false ? parsed.val?.reminderState?.byID : null;
@@ -1723,6 +1734,11 @@ function rescheduleDeadline(entry) {
   return Number(entry.calcFireTime) + entry.rescheduleWindowMinutes * 60;
 }
 
+function hasContextRetryTiming(entry) {
+  return entry.rescheduleMode ? Number(entry.rescheduleIntervalMinutes) > 0
+    : normalizeReschedMinutesRange(entry.reschedMinutes).min > 0;
+}
+
 async function findSmartCalendarTime(entry, fireEpoch, candidate, deadline) {
   const names = Array.isArray(entry.conflictingCalendars) ? entry.conflictingCalendars : [];
   if (!names.length || entry.contextEnabled === false) return candidate;
@@ -1899,6 +1915,7 @@ function beginQRLoop(entry, baseEpoch, iosAlarms) {
     entry.qrGeneration = (Number(entry.qrGeneration) || 0) + 1;
   }
   entry.qrActive = true;
+  if (hasTaskLoop(entry)) entry.qrMenuAfterPlayback = true;
   entry.qrPending = false;
   entry.qrPendingSince = 0;
   continueActiveQRLoop(entry, baseEpoch, iosAlarms);
@@ -1934,16 +1951,21 @@ async function isRescheduledForContextGates(entry, fireEpoch, input) {
   const conflictReady = await findConflictReadyAt(entry, fireEpoch);
   if (conflictReady !== null) return true;
 
+  return isLocationGated(entry, input.currentLocation);
+}
+
+function isLocationGated(entry, currentLocation) {
+  if (!entryUsesLocation(entry)) return false;
   const locationMode = String(entry.locationMode ?? "off").toLowerCase();
   if (
     (locationMode === "whitelist" || locationMode === "blacklist") &&
     Array.isArray(entry.locations) &&
     entry.locations.length > 0
   ) {
-    const cur = input.currentLocation;
+    const cur = currentLocation;
 
     // If location is required for gating but unavailable, do NOT treat that as "passed".
-    // This keeps task loops from starting when location could not be verified.
+    // Suppress this firing's actions/QR; a future task check may still be kept.
     if (!cur) return true;
 
     const defaultRadius = Number(entry.radiusMeters ?? 50);
@@ -1996,6 +2018,17 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     return {handled: true};
   }
 
+  const skipTaskCheck = hasTask && shouldSkipTaskCheckOnInitialFire(entry);
+  if (hasTask && !skipTaskCheck && await checkTaskIDsCompleteFailOpen(taskIDs)) {
+    const previous = ownedAlarmSlots(entry, true);
+    output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
+    entry.taskSatisfied = true;
+    entry.taskCheckFirstFireHandled = true;
+    setTaskCheck(entry, 0);
+    cancelQRLoop(entry);
+    retireReplacedAlarms(entry, previous, input.iosAlarms);
+    return {handled: true};
+  }
   await ensureInputLocationForEntry(input, entry);
   if (hasTask) {
     const previous = ownedAlarmSlots(entry, true);
@@ -2004,8 +2037,14 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     const contextGated = await isRescheduledForContextGates(entry, now, input);
     if (contextGated) {
       output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
-      const next = loopsRemaining > 0 ? await computeRescheduleTime(
+      let next = loopsRemaining > 0 ? await computeRescheduleTime(
         entry, now, input.currentFocus, input.currentLocation, false) : null;
+      // A failed/blocked location must not discard the task cadence when
+      // context postponement is off. Keep the shared limit and time window.
+      if (!Number.isFinite(next) && loopsRemaining > 0 && taskLoopMin > 0 &&
+          isLocationGated(entry, input.currentLocation) && !hasContextRetryTiming(entry)) {
+        next = await computeRescheduleTime(entry, now, input.currentFocus, input.currentLocation, true);
+      }
       setTaskCheck(entry, Number.isFinite(next) ? next : 0);
       cancelQRLoop(entry);
       if (Number.isFinite(next)) {
@@ -2018,12 +2057,10 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
     }
 
     entry.taskLoopEligible = true;
-    const skip = shouldSkipTaskCheckOnInitialFire(entry);
-    const complete = !skip && await checkTaskIDsCompleteFailOpen(taskIDs);
-    if (hasQR || complete || entry.silenceAlarm) output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
-    if (complete || taskLoopMin <= 0) {
-      if (complete) entry.taskSatisfied = true;
-      else addError(`ERR: taskIDs set but taskLoopMin<=0 for "${name}". Task loop cannot continue.`);
+    const skip = skipTaskCheck;
+    if (hasQR || entry.silenceAlarm) output.alarmsToDelete.push({name, hh: firedHH, mm: firedMM});
+    if (taskLoopMin <= 0) {
+      addError(`ERR: taskIDs set but taskLoopMin<=0 for "${name}". Task loop cannot continue.`);
       entry.taskCheckFirstFireHandled = true;
       setTaskCheck(entry, 0);
       cancelQRLoop(entry);

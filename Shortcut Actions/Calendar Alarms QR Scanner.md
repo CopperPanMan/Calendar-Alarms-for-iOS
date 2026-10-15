@@ -1,6 +1,6 @@
 # Calendar Alarms QR Scanner
 
-Full replacement action readout, 2026-10-14, for the Scanner core and Runtime in this branch. Includes both menu and scan paths. Updating this file does not update the published iCloud Shortcut.
+Full replacement action readout, 2026-10-15, for the Scanner core and Runtime in this branch. Includes both menu and scan paths. Updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
@@ -8,15 +8,19 @@ The core returns JSON **Text**; convert it explicitly to a Dictionary in both pa
 
 Menu cancellation can still leave the core's open flag set until its 120-second lease expires. This readout retains that bounded behavior. Runtime `scanner_touch` supplies the existing silence timestamp; it does not redesign the menu lease.
 
+Task QR menus remain deferred through reset/trigger actions until Runtime grants the first matching playback permission. The existing `shouldShowMenu` Boolean carries that decision; no new native action is needed. The 180-second deadline and 90 repeats below replace the earlier 50-second/10-repeat limits so a slow reset has time to finish. Completion before playback exits without a menu, and direct scans remain available. Permission is immediately followed by Play Sound; it cannot confirm that iOS actually emitted sound.
+
+Deferral applies while the Runtime session is live. Legacy playback without a Runtime session keeps its existing menu behavior; a session that expires before playback releases the menu for recovery.
+
 ```jsx
 IF: Shortcut Input does not have any value
     CURRENT DATE:
         → Started
     ADJUST DATE:
-        Add 50 seconds to Started
+        Add 180 seconds to Started
         → Deadline
     WAIT: 2 seconds
-    REPEAT: 10 times
+    REPEAT: 90 times
         CURRENT DATE:
             → Now
         IF: Now is after Deadline
