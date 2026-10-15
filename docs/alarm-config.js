@@ -26,6 +26,7 @@
     rescheduleIntervalMinutes: 10,
     rescheduleWindowMinutes: 120,
     maxReschedules: 2,
+    taskLoopEnabled: false,
     taskIDs: [],
     taskLoopMin: 30,
     checkTasksFirstTime: true,
@@ -117,6 +118,8 @@
       ? alarm.conflictingCalendars.map((name) => String(name))
       : [];
     alarm.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id)) : [];
+    alarm.taskLoopEnabled = typeof raw?.taskLoopEnabled === 'boolean' ? raw.taskLoopEnabled
+      : alarm.taskIDs.some((id) => id.trim());
     alarm.taskLoopMin = finiteNumber(alarm.taskLoopMin, 30);
     alarm.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;
     alarm.contextEnabled = typeof raw?.contextEnabled === 'boolean' ? raw.contextEnabled
@@ -189,6 +192,7 @@
       if (typeof alarm.reschedMinutes === 'number' && !alarm.reschedType) cleaned.reschedMinutes = alarm.reschedMinutes;
     }
     if (Number.isFinite(Number(alarm.maxReschedules))) cleaned.maxReschedules = Number(alarm.maxReschedules);
+    cleaned.taskLoopEnabled = alarm.taskLoopEnabled !== false;
     cleaned.taskIDs = Array.isArray(alarm.taskIDs) ? alarm.taskIDs.map((id) => String(id).trim()).filter(Boolean) : [];
     cleaned.taskLoopMin = Number.isFinite(Number(alarm.taskLoopMin)) ? Number(alarm.taskLoopMin) : 30;
     cleaned.checkTasksFirstTime = typeof alarm.checkTasksFirstTime === 'boolean' ? alarm.checkTasksFirstTime : true;

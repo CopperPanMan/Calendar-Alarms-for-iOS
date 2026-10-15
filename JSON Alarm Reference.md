@@ -140,9 +140,12 @@ Requires the [OpenHabits integration](Guides/OpenHabits%20Integration.md), inclu
 
 | Field | Meaning | Engine default / limits |
 | --- | --- | --- |
+| `taskLoopEnabled` | Apply task checks and repetitions; false preserves metric IDs and settings without applying them | `true` when omitted; Editor starts new alarms at `false` |
 | `taskIDs` | Exact metric IDs; all must be complete to stop the chain | `[]`; array of strings, not a display name or row number |
 | `taskLoopMin` | Minutes between task checks after context gates pass | `0`; supply a positive integer, up to 500, when task IDs are used |
 | `checkTasksFirstTime` | Check completion at the initial eligible fire | `true`; `false` skips that first check only |
+
+Update the Engine, QR Scanner and Runtime scripts before using `taskLoopEnabled: false`; older scripts ignore the flag. Omitting it preserves existing metric-based task behavior.
 
 A missing metric, stale cache, or failed refresh does not prove completion. Current task checks use explicit completion flags in `reminderState.byID`. The runtime refreshes task state through **Calendar Alarms Actions**; do not configure a `TASK_WEBAPP_ID` in the Engine.
 

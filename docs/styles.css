@@ -48,7 +48,7 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 textarea, input, select, button { font: inherit; }
 textarea, input, select { width: 100%; margin-top: 0.35rem; border-radius: 8px; border: 1px solid var(--control-border); background: var(--control-bg); color: var(--control-text); padding: 0.55rem; }
 select option { background: var(--option-bg); color: var(--control-text); }
-textarea:focus, input:focus, select:focus, button:focus-visible, .help:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 2px; }
+textarea:focus, input:focus, select:focus, button:focus-visible, summary:focus-visible, .help:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 2px; }
 ::placeholder { color: var(--muted); opacity: 1; }
 input[type='checkbox'] { width: auto; transform: scale(1.2); margin-left: 0.4rem; }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -71,8 +71,15 @@ input[type='checkbox'] { width: auto; transform: scale(1.2); margin-left: 0.4rem
 
 details { margin-top: 0.8rem; }
 summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
-.advanced-panel { display: grid; gap: 1rem; }
-.advanced-group { border: 1px solid var(--card-border); border-radius: 8px; padding: 0.8rem; }
+.advanced-panel { display: grid; gap: 1rem; margin-top: 0.8rem; }
+.advanced-group { border: 1px solid var(--card-border); border-radius: 8px; padding: 0.8rem; position: relative; min-width: 0; }
+.advanced-group > details { margin: 0; }
+.advanced-group > details > summary { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.section-title { font-weight: 600; }
+.section-summary { display: block; margin: 0.3rem 0 0 1rem; color: var(--muted); font-size: 0.85rem; }
+.section-content { margin-top: 0.8rem; }
+.advanced-group > .section-switch { position: absolute; top: 0.8rem; right: 0.8rem; }
+.section-switch + details > summary { padding-right: 3.2rem; }
 .advanced-group h4 { margin: 0 0 0.7rem; }
 .advanced-group h5 { margin: 0.9rem 0 0.6rem; font-size: 0.95rem; }
 
@@ -146,11 +153,9 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
 .action-heading { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
 .sub-card-header { gap: 0.6rem; flex-wrap: wrap; }
 .sub-card-header > .button-row { margin-left: auto; }
-.rules-header { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
-.rules-header h4 { margin: 0; }
 .switch-row { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; position: relative; }
 .switch-row > input { position: absolute; opacity: 0; width: 2.4rem; height: 1.4rem; margin: 0; }
-.switch-track { width: 2.4rem; height: 1.4rem; border-radius: 1rem; background: #64748b; position: relative; flex-shrink: 0; }
+.switch-track { width: 2.4rem; height: 1.4rem; border-radius: 1rem; background: #64748b; position: relative; flex-shrink: 0; pointer-events: none; }
 .switch-track::after { content: ''; width: 1rem; height: 1rem; background: white; border-radius: 50%; position: absolute; left: 0.2rem; top: 0.2rem; }
 .switch-row > input:checked + .switch-track { background: var(--primary); }
 .switch-row > input:checked + .switch-track::after { left: 1.2rem; }

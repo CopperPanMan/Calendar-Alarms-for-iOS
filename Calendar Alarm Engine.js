@@ -648,6 +648,7 @@ async function applyTaskLogCompletions(input, registryAfter) {
     .map((m) => String(m.metricID || "").trim()));
   const completedIDs = new Set(parsed.ids);
   for (const entry of registryAfter) {
+    if (entry.taskLoopEnabled === false) continue;
     const taskIDs = Array.isArray(entry?.taskIDs)
       ? entry.taskIDs.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
     if (!taskIDs.length || !taskIDs.some((id) => completedIDs.has(id))) continue;
@@ -878,6 +879,7 @@ function normalizeCalendarAlarmObject(rawObj) {
   const rescheduleWindowMinutes = rescheduleNumber(rawObj.rescheduleWindowMinutes, 120, 0, 1440);
   const reschedMinutes = parseReschedMinutes(rawObj.reschedMinutes);
   const taskLoopMin = intInRange(rawObj.taskLoopMin, 0, 0, 500);
+  const taskLoopEnabled = rawObj.taskLoopEnabled !== false;
   const taskIDs = Array.isArray(rawObj.taskIDs)
     ? rawObj.taskIDs.filter((x) => typeof x === "string" && x.trim())
     : [];
@@ -911,6 +913,7 @@ function normalizeCalendarAlarmObject(rawObj) {
       rescheduleIntervalMinutes,
       rescheduleWindowMinutes,
       taskLoopMin,
+      taskLoopEnabled,
       taskIDs,
       checkTasksFirstTime,
       maxReschedules,
@@ -1008,6 +1011,7 @@ function ensureRegistryEntryShape(entry) {
   entry.rescheduleIntervalMinutes = rescheduleNumber(entry.rescheduleIntervalMinutes, 10, 0, 500);
   entry.rescheduleWindowMinutes = rescheduleNumber(entry.rescheduleWindowMinutes, 120, 0, 1440);
   if (!Number.isFinite(Number(entry.taskLoopMin))) entry.taskLoopMin = 0;
+  entry.taskLoopEnabled = entry.taskLoopEnabled !== false;
   if (!Array.isArray(entry.taskIDs)) {
     if (Number.isFinite(Number(entry.taskRow)) && Number(entry.taskRow) > 0) {
       entry.taskIDs = [String(entry.taskRow)];
@@ -1057,7 +1061,7 @@ function ensureRegistryEntryShape(entry) {
 }
 
 function hasTaskLoop(entry) {
-  return Array.isArray(entry?.taskIDs) && entry.taskIDs.length > 0;
+  return entry?.taskLoopEnabled !== false && Array.isArray(entry?.taskIDs) && entry.taskIDs.length > 0;
 }
 
 function setTaskCheck(entry, epoch) {
@@ -2005,7 +2009,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
 
   const hasQR = String(entry.qrCodeID ?? "").trim() !== "";
   const taskIDs = Array.isArray(entry.taskIDs) ? entry.taskIDs : [];
-  const hasTask = taskIDs.length > 0;
+  const hasTask = hasTaskLoop(entry);
 
   const purposes = fired.purposes || (fired.firedSource === "qrBackupFireTime" ? ["qrBackup"] : [hasTask ? "task" : "calendar"]);
   const qrOnly = hasQR && !purposes.includes("task") &&
@@ -2321,7 +2325,7 @@ async function runVerifier(input, registryAfter) {
   const calendarFields = ["status", "offsetMin", "reference", "qrCodeID", "qrSoundPath", "qrSoundLen", "qrVol",
     "qrShortcutsOnScan", "shortcutsOnTrigger", "silenceAlarm", "locationMode", "locations", "radiusMeters",
     "silenceIfDriving", "conflictingCalendars", "reschedMinutes", "contextEnabled", "rescheduleMode",
-    "rescheduleIntervalMinutes", "rescheduleWindowMinutes", "taskLoopMin", "taskIDs", "checkTasksFirstTime"];
+    "rescheduleIntervalMinutes", "rescheduleWindowMinutes", "taskLoopMin", "taskLoopEnabled", "taskIDs", "checkTasksFirstTime"];
   for (const [key, entry] of registry) {
     const previous = ownedAlarmSlots(entry, true);
     const qrExpired = entry.qrActive && (!(Number(entry.firstQRFireTime) > 0) || now - Number(entry.firstQRFireTime) > QR_TIMEOUT_SEC);
