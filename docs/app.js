@@ -15,7 +15,7 @@ const SOUND_PREVIEW_URL = 'https://raw.githubusercontent.com/CopperPanMan/Calend
 
 let alarms = [];
 let activeDrag = null;
-let openAdvancedByIndex = [];
+const openSectionsByAlarm = new WeakMap();
 let history = [];
 let historyIndex = -1;
 let isNavigatingHistory = false;
@@ -189,12 +189,56 @@ function setupQrGenerator(card, alarm) {
   });
 }
 
-function preserveAdvancedState() {
+function preserveSectionState() {
   const cards = Array.from(alarmsContainer.querySelectorAll('.alarm-card'));
-  openAdvancedByIndex = cards.map((card) => {
-    const advancedToggle = card.querySelector('details');
-    return !!advancedToggle?.open;
+  cards.forEach((card, index) => {
+    const state = Object.fromEntries(Array.from(card.querySelectorAll('[data-disclosure]'),
+      (details) => [details.dataset.disclosure, details.open]));
+    openSectionsByAlarm.set(card.alarm, state);
+    // History restores new objects; carry the current view over by position.
+    if (isNavigatingHistory && alarms[index]) openSectionsByAlarm.set(alarms[index], state);
   });
+}
+
+function updateAlarmSections(card, alarm) {
+  const count = (items) => items.filter((item) => String(item).trim()).length;
+  const summary = (section, text) => {
+    card.querySelector(`[data-section-summary="${section}"]`).textContent = text;
+  };
+  const qrID = String(alarm.qrCodeID ?? '').trim();
+  summary('qr', qrID ? `Scan to dismiss · ${qrID}` : 'No QR code');
+  summary('behavior', alarm.silenceAlarm ? 'Automatically dismiss' : 'Ring normally');
+  const actions = alarm.shortcutsOnTrigger.length;
+  summary('actions', actions ? `${actions} action${actions === 1 ? '' : 's'} on trigger` : 'No actions');
+  const rules = [];
+  if (alarm.silenceIfDriving === 'ON') rules.push('Driving');
+  if (alarm.locationMode !== 'off') rules.push(`${alarm.locations.length} location${alarm.locations.length === 1 ? '' : 's'}`);
+  const calendars = count(alarm.conflictingCalendars);
+  if (calendars) rules.push(`${calendars} calendar${calendars === 1 ? '' : 's'}`);
+  summary('rescheduling', alarm.contextEnabled
+    ? `On · ${rules.join(' · ') || 'Choose rules'}`
+    : `Off${rules.length || alarm.locations.length ? ' · Rules saved' : ''}`);
+  const tasks = count(alarm.taskIDs);
+  summary('task', alarm.taskLoopEnabled
+    ? `On · ${tasks ? `${tasks} metric${tasks === 1 ? '' : 's'} · Every ${alarm.taskLoopMin} min` : 'Add Metric IDs to repeat'}`
+    : `Off${tasks ? ` · ${tasks} saved metric${tasks === 1 ? '' : 's'}` : ''}`);
+  summary('limits', `Up to ${alarm.maxReschedules} follow-ups · ${alarm.rescheduleMode === 'legacy'
+    ? 'Existing timing' : `${alarm.rescheduleWindowMinutes} min window`}`);
+  card.querySelector('[data-task-settings]').hidden = !alarm.taskLoopEnabled;
+  card.querySelector('[data-section="limits"]').hidden = !alarm.contextEnabled && !alarm.taskLoopEnabled;
+}
+
+function setupAlarmSections(card, alarm) {
+  const saved = openSectionsByAlarm.get(alarm) || {};
+  card.querySelectorAll('[data-disclosure]').forEach((details) => {
+    details.open = !!saved[details.dataset.disclosure];
+  });
+  card.addEventListener('input', (event) => {
+    const section = {contextEnabled: 'rescheduling', taskLoopEnabled: 'task'}[event.target.dataset.field];
+    if (section && event.target.checked) card.querySelector(`[data-disclosure="${section}"]`).open = true;
+    updateAlarmSections(card, alarm);
+  });
+  updateAlarmSections(card, alarm);
 }
 
 function setStatus(el, message, type = '') {
@@ -639,7 +683,7 @@ function setRescheduleForm(card, alarm) {
     const legacy = mode.value === 'legacy';
     mode.querySelector('option[value="legacy"]').hidden = !legacy;
     card.querySelector('[data-context-settings]').hidden = !toggle.checked;
-    card.querySelector('[data-timing-settings]').hidden = !toggle.checked && !alarm.taskIDs.length;
+    card.querySelector('[data-timing-settings]').hidden = !toggle.checked && !alarm.taskLoopEnabled;
     card.querySelectorAll('[data-new-timing]').forEach((el) => { el.hidden = legacy; });
     card.querySelector('[data-legacy-note]').hidden = !legacy;
     card.querySelector('[data-legacy-settings]').hidden = !legacy;
@@ -652,6 +696,7 @@ function setRescheduleForm(card, alarm) {
   };
   updateVisibility();
   toggle.addEventListener('input', updateVisibility);
+  card.querySelector('[data-field="taskLoopEnabled"]').addEventListener('input', updateVisibility);
   mode.addEventListener('input', () => {
     if (alarm.rescheduleMode === 'legacy' && mode.value !== 'legacy') {
       alarm.rescheduleIntervalMinutes = fixed ? alarm.reschedFixed : alarm.reschedMin;
@@ -666,7 +711,7 @@ function setRescheduleForm(card, alarm) {
 
 function render() {
   stopSoundPreview();
-  preserveAdvancedState();
+  preserveSectionState();
   alarmsContainer.innerHTML = '';
   emptyState.style.display = alarms.length ? 'none' : 'block';
 
@@ -674,7 +719,6 @@ function render() {
     const fragment = alarmTemplate.content.cloneNode(true);
     const card = fragment.querySelector('.alarm-card');
     const titleName = fragment.querySelector('.alarm-title-name');
-    const advancedToggle = fragment.querySelector('details');
     fragment.querySelector('.alarm-number').textContent = `Alarm ${index + 1}`;
     const updateTitleName = () => {
       titleName.textContent = alarm.alarmName ? ` — ${alarm.alarmName}` : '';
@@ -682,7 +726,7 @@ function render() {
     updateTitleName();
 
     card.dataset.index = index;
-    advancedToggle.open = !!openAdvancedByIndex[index];
+    card.alarm = alarm;
 
     card.querySelectorAll('[data-field]').forEach((input) => {
       const key = input.dataset.field;
@@ -707,6 +751,7 @@ function render() {
     renderLocations(card.querySelector('[data-list="locations"]'), alarm, index);
     renderConflictCalendars(card.querySelector('[data-list="conflictingCalendars"]'), alarm, index);
     renderTaskIDs(card.querySelector('[data-list="taskIDs"]'), alarm, index);
+    setupAlarmSections(card, alarm);
 
     card.querySelectorAll('.add-list-item').forEach((button) => {
       button.addEventListener('click', () => {

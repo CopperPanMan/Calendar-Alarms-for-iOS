@@ -78,115 +78,145 @@
           </label>
         </div>
 
-        <details>
+        <details data-disclosure="advanced">
           <summary>Advanced Settings</summary>
+          <p class="hint">Expand a section to explore its settings. Collapsing it saves space without changing the alarm. Use the switches to turn rescheduling or task looping on or off.</p>
           <div class="advanced-panel">
-            <section class="advanced-group">
-              <h4>QR Alarm Properties <span class="help" tabindex="0" data-tip="Fill these properties in for an alarm that you want to require a QR scan to turn off.">?</span></h4>
-              <div class="grid two-col">
-                <label>QR Code ID <span class="help" tabindex="0" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
-                <label>QR Sound File <span class="help" tabindex="0" data-tip="Choose an installed sound or enter an MP3 path relative to Alarm Tones, including subfolders. Files live in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones.">?</span>
-                  <span class="sound-picker">
-                    <input data-field="qrSoundPath" type="text" list="qrBuiltInSounds" placeholder="Choose or enter an MP3 filename" />
-                    <button type="button" class="sound-preview-btn" aria-label="Play QR sound preview" title="Play sound preview">▶</button>
-                  </span>
-                  <span class="sound-preview-status" aria-live="polite"></span>
-                </label>
-                <label>QR Sound Length <span class="help" tabindex="0" data-tip="Legacy sound length in seconds. Current cached-audio Shortcut readouts measure duration automatically; older versions may use this setting.">?</span><input data-field="qrSoundLen" type="number" min="0.01" step="any" /></label>
-                <label>QR Volume (1-100) <span class="help" tabindex="0" data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
-              </div>
-              <div class="qr-generator">
-                <button type="button" class="btn small qr-toggle-btn" aria-expanded="false">Show QR Code</button>
-                <div class="qr-preview-panel" hidden>
-                  <p class="qr-message status" aria-live="polite"></p>
-                  <div class="qr-preview" aria-label="Generated QR code"></div>
-                  <p class="qr-shared-note hint"></p>
-                  <label>QR destination
-                    <input class="qr-url" type="text" readonly />
-                  </label>
-                  <div class="button-row">
-                    <button type="button" class="btn small qr-download-png">Download PNG</button>
-                    <button type="button" class="btn small secondary qr-download-svg">Download SVG</button>
-                    <button type="button" class="btn small secondary qr-print">Print</button>
-                    <button type="button" class="btn small secondary qr-copy-link">Copy Link</button>
-                  </div>
-                </div>
-              </div>
-              <div data-list="qrShortcutsOnScan" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="qrShortcutsOnScan">+ Add QR Action on Scan</button>
-              <span class="help helper-inline" data-tip="Choose a built-in action or a custom Apple Shortcut to run when the QR code is scanned.">?</span>
-            </section>
-
-            <section class="advanced-group">
-              <h4>Alarm behavior</h4>
-              <label class="checkbox-row">Automatically dismiss alarm <span class="help" tabindex="0" data-tip="Dismiss the Clock alarm when its automation runs. It may ring briefly first. QR alarms still require a scan.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
-              <p class="hint">Configured actions still run.</p>
-            </section>
-            <section class="advanced-group">
-              <h4>Actions</h4>
-              <div data-list="shortcutsOnTrigger" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Action on Trigger</button>
-            </section>
-
-            <section class="advanced-group">
-              <div class="rules-header">
-                <h4>Rescheduling Rules</h4>
-                <label class="switch-row"><input data-field="contextEnabled" type="checkbox" role="switch" /><span class="switch-track" aria-hidden="true"></span>Turn on Rescheduling <span class="help" tabindex="0" data-tip="When the alarm fires, check the driving, location and calendar rules below. If blocked, dismiss this fire and schedule another attempt when allowed. Turning this off preserves your rules.">?</span></label>
-              </div>
-              <div data-context-settings hidden>
-              <div class="grid two-col">
-                <label>Location Mode <span class="help" tabindex="0" data-tip="Run only at listed locations, avoid them, or ignore location. In Smart mode, arrival retries use a distance-based travel estimate plus 14 minutes.">?</span>
-                  <select data-field="locationMode"><option value="off">Ignore location</option><option value="whitelist">Run only at these locations</option><option value="blacklist">Avoid these locations</option></select>
-                </label>
-                <label>Reschedule if in Driving <span class="help" tabindex="0" data-tip="Checks whether Driving Focus is active when the alarm fires. If active, dismiss this fire and reschedule according to your timing mode.">?</span>
-                  <select data-field="silenceIfDriving"><option value="OFF">OFF</option><option value="ON">ON</option></select>
-                </label>
-              </div>
-              <h5>Locations <span class="help" tabindex="0" data-tip="Each location is a circle around its coordinates. Choose whether the alarm runs only inside these circles or avoids them.">?</span></h5>
-              <div data-list="locations" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="locations">+ Add Location</button>
-              <h5>Avoid events in these calendars <span class="help" tabindex="0" data-tip="In Smart mode, reschedule at least 10 minutes after meetings end, including consecutive meetings. Fixed mode checks again at your interval. Attempts must fit within the rescheduling window.">?</span></h5>
-              <div data-list="conflictingCalendars" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="conflictingCalendars">+ Add Conflicting Calendar</button>
-              </div>
-              <div data-timing-settings hidden>
-                <div class="grid two-col">
-                  <label>Rescheduling mode <span class="help" tabindex="0" data-tip="Fixed uses your exact interval for blocked alarms. Smart uses arrival and meeting estimates, with your interval as a minimum. Task repetitions keep their own interval.">?</span>
-                    <select data-field="rescheduleMode"><option value="legacy">Keep existing timing</option><option value="fixed">Fixed</option><option value="smart">Smart</option></select>
-                  </label>
-                  <label data-new-timing><span data-interval-label>Minimum reschedule interval (minutes)</span><span class="help" tabindex="0" data-tip="Fixed retries after this many minutes. Smart never retries sooner and uses this interval when there is no estimate. Zero in Smart mode allows estimates only.">?</span><input data-field="rescheduleIntervalMinutes" type="number" min="0" max="500" step="1" /></label>
-                  <label data-new-timing>Rescheduling window (minutes) <span class="help" tabindex="0" data-tip="No context retry or task repetition may be scheduled beyond this window after the original alarm time. Both share the follow-up limit. QR prompting keeps its separate scan-to-dismiss behavior.">?</span><input data-field="rescheduleWindowMinutes" type="number" min="0" max="1440" step="1" /></label>
-                </div>
-                <p class="hint" data-legacy-note hidden>Existing timing is preserved. Choose Fixed or Smart to use a rescheduling window.</p>
-                <details data-legacy-settings hidden>
-                  <summary>Existing timing settings</summary>
+            <section class="advanced-group" data-section="qr">
+              <details data-disclosure="qr">
+                <summary><span class="section-title">QR Alarm Properties</span><span class="section-summary" data-section-summary="qr"></span></summary>
+                <div class="section-content">
+                  <p class="hint">Require a QR scan to turn this alarm off.</p>
                   <div class="grid two-col">
-                    <label data-resched="fixed">Legacy interval (minutes)<input data-field="reschedFixed" type="number" min="0" max="500" step="1" /></label>
-                    <label data-resched="min">Legacy fallback (minutes)<input data-field="reschedMin" type="number" min="0" max="500" step="1" /></label>
-                    <label data-resched="max">Legacy conflict/travel limit (minutes)<input data-field="reschedMax" type="number" min="0" max="500" step="1" /></label>
+                    <label>QR Code ID <span class="help" tabindex="0" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
+                    <label>QR Sound File <span class="help" tabindex="0" data-tip="Choose an installed sound or enter an MP3 path relative to Alarm Tones, including subfolders. Files live in Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones.">?</span>
+                      <span class="sound-picker">
+                        <input data-field="qrSoundPath" type="text" list="qrBuiltInSounds" placeholder="Choose or enter an MP3 filename" />
+                        <button type="button" class="sound-preview-btn" aria-label="Play QR sound preview" title="Play sound preview">▶</button>
+                      </span>
+                      <span class="sound-preview-status" aria-live="polite"></span>
+                    </label>
+                    <label>QR Sound Length <span class="help" tabindex="0" data-tip="Legacy sound length in seconds. Current cached-audio Shortcut readouts measure duration automatically; older versions may use this setting.">?</span><input data-field="qrSoundLen" type="number" min="0.01" step="any" /></label>
+                    <label>QR Volume (1-100) <span class="help" tabindex="0" data-tip="Playback volume for QR alarm loops.">?</span><input data-field="qrVol" type="number" min="1" max="100" step="1" /></label>
                   </div>
-                </details>
-              </div>
+                  <div class="qr-generator">
+                    <button type="button" class="btn small qr-toggle-btn" aria-expanded="false">Show QR Code</button>
+                    <div class="qr-preview-panel" hidden>
+                      <p class="qr-message status" aria-live="polite"></p>
+                      <div class="qr-preview" aria-label="Generated QR code"></div>
+                      <p class="qr-shared-note hint"></p>
+                      <label>QR destination
+                        <input class="qr-url" type="text" readonly />
+                      </label>
+                      <div class="button-row">
+                        <button type="button" class="btn small qr-download-png">Download PNG</button>
+                        <button type="button" class="btn small secondary qr-download-svg">Download SVG</button>
+                        <button type="button" class="btn small secondary qr-print">Print</button>
+                        <button type="button" class="btn small secondary qr-copy-link">Copy Link</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div data-list="qrShortcutsOnScan" class="list-block"></div>
+                  <button type="button" class="btn small add-list-item" data-add="qrShortcutsOnScan">+ Add QR Action on Scan</button>
+                  <span class="help helper-inline" data-tip="Choose a built-in action or a custom Apple Shortcut to run when the QR code is scanned.">?</span>
+                </div>
+              </details>
             </section>
 
-            <section class="advanced-group">
-              <h4>Rescheduling and Task Loop Limit</h4>
-              <label>Maximum follow-ups <span class="help" tabindex="0" data-tip="Shared limit for condition-based rescheduling and task repetitions. The original alarm does not count. QR restarts and backups do not use this limit.">?</span><input data-field="maxReschedules" type="number" min="0" max="10" step="1" /></label>
-            </section>
-            <section class="advanced-group">
-              <h4>Task Looping <span class="help" tabindex="0" data-tip="Requires the OpenHabits Metrics cache integration. See Feature Reference → OpenHabits Integration for connection steps.">?</span></h4>
-              <p class="hint">Repeat until all listed OpenHabits metrics are complete, up to the shared follow-up limit.</p>
-              <details>
-                <summary>Where to find your Metric ID</summary>
-                <p>In the OpenHabits Metrics configuration editor, open <strong>Metrics → Metric ID</strong> and copy the ID for each metric you want to check. Use IDs from your own configuration.</p>
-                <p><a href="https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/blob/main/Guides/OpenHabits%20Integration.md#find-your-metric-ids">Metric ID instructions</a></p>
+            <section class="advanced-group" data-section="behavior">
+              <details data-disclosure="behavior">
+                <summary><span class="section-title">Alarm behavior</span><span class="section-summary" data-section-summary="behavior"></span></summary>
+                <div class="section-content">
+                  <label class="checkbox-row">Automatically dismiss alarm <span class="help" tabindex="0" data-tip="Dismiss the Clock alarm when its automation runs. It may ring briefly first. QR alarms still require a scan.">?</span><input data-field="silenceAlarm" type="checkbox" /></label>
+                  <p class="hint">Configured actions still run.</p>
+                </div>
               </details>
-              <div data-list="taskIDs" class="list-block"></div>
-              <button type="button" class="btn small add-list-item" data-add="taskIDs">+ Add Metric ID</button>
-              <div class="grid two-col">
-                <label>Task Loop Min <span class="help" tabindex="0" data-tip="Minutes between task-check loops.">?</span><input data-field="taskLoopMin" type="number" min="0" step="1" /></label>
-                <label class="checkbox-row">Check Tasks First Time <span class="help" tabindex="0" data-tip="if unchecked (ie false), it will not check task completion status the first time this alarm runs.">?</span><input data-field="checkTasksFirstTime" type="checkbox" /></label>
-              </div>
+            </section>
+            <section class="advanced-group" data-section="actions">
+              <details data-disclosure="actions">
+                <summary><span class="section-title">Actions</span><span class="section-summary" data-section-summary="actions"></span></summary>
+                <div class="section-content">
+                  <div data-list="shortcutsOnTrigger" class="list-block"></div>
+                  <button type="button" class="btn small add-list-item" data-add="shortcutsOnTrigger">+ Add Action on Trigger</button>
+                </div>
+              </details>
+            </section>
+
+            <section class="advanced-group" data-section="rescheduling">
+              <label class="switch-row section-switch"><input data-field="contextEnabled" type="checkbox" role="switch" aria-label="Enable rescheduling" /><span class="switch-track" aria-hidden="true"></span></label>
+              <details data-disclosure="rescheduling">
+                <summary><span class="section-title">Rescheduling Rules</span><span class="section-summary" data-section-summary="rescheduling"></span></summary>
+                <div class="section-content">
+                  <p class="hint">When driving, location or calendar rules block an alarm, try again later. Turning this off preserves your rules.</p>
+                  <div data-context-settings hidden>
+                  <div class="grid two-col">
+                    <label>Location Mode <span class="help" tabindex="0" data-tip="Run only at listed locations, avoid them, or ignore location. In Smart mode, arrival retries use a distance-based travel estimate plus 14 minutes.">?</span>
+                      <select data-field="locationMode"><option value="off">Ignore location</option><option value="whitelist">Run only at these locations</option><option value="blacklist">Avoid these locations</option></select>
+                    </label>
+                    <label>Reschedule if in Driving <span class="help" tabindex="0" data-tip="Checks whether Driving Focus is active when the alarm fires. If active, dismiss this fire and reschedule according to your timing mode.">?</span>
+                      <select data-field="silenceIfDriving"><option value="OFF">OFF</option><option value="ON">ON</option></select>
+                    </label>
+                  </div>
+                  <h5>Locations <span class="help" tabindex="0" data-tip="Each location is a circle around its coordinates. Choose whether the alarm runs only inside these circles or avoids them.">?</span></h5>
+                  <div data-list="locations" class="list-block"></div>
+                  <button type="button" class="btn small add-list-item" data-add="locations">+ Add Location</button>
+                  <h5>Avoid events in these calendars <span class="help" tabindex="0" data-tip="In Smart mode, reschedule at least 10 minutes after meetings end, including consecutive meetings. Fixed mode checks again at your interval. Attempts must fit within the rescheduling window.">?</span></h5>
+                  <div data-list="conflictingCalendars" class="list-block"></div>
+                  <button type="button" class="btn small add-list-item" data-add="conflictingCalendars">+ Add Conflicting Calendar</button>
+                  </div>
+                </div>
+              </details>
+            </section>
+
+            <section class="advanced-group" data-section="limits" hidden>
+              <details data-disclosure="limits">
+                <summary><span class="section-title">Rescheduling and Task Loop Limit</span><span class="section-summary" data-section-summary="limits"></span></summary>
+                <div class="section-content">
+                  <p class="hint">These limits apply to rescheduling and task repetitions. Task looping uses its own repeat interval.</p>
+                  <label>Maximum follow-ups <span class="help" tabindex="0" data-tip="Shared limit for condition-based rescheduling and task repetitions. The original alarm does not count. QR restarts and backups do not use this limit.">?</span><input data-field="maxReschedules" type="number" min="0" max="10" step="1" /></label>
+                  <div data-timing-settings hidden>
+                    <div class="grid two-col">
+                      <label>Rescheduling mode <span class="help" tabindex="0" data-tip="Fixed uses your exact interval for blocked alarms. Smart uses arrival and meeting estimates, with your interval as a minimum. Task repetitions keep their own interval.">?</span>
+                        <select data-field="rescheduleMode"><option value="legacy">Keep existing timing</option><option value="fixed">Fixed</option><option value="smart">Smart</option></select>
+                      </label>
+                      <label data-new-timing><span data-interval-label>Minimum reschedule interval (minutes)</span><span class="help" tabindex="0" data-tip="Fixed retries after this many minutes. Smart never retries sooner and uses this interval when there is no estimate. Zero in Smart mode allows estimates only.">?</span><input data-field="rescheduleIntervalMinutes" type="number" min="0" max="500" step="1" /></label>
+                      <label data-new-timing>Rescheduling window (minutes) <span class="help" tabindex="0" data-tip="No context retry or task repetition may be scheduled beyond this window after the original alarm time. Both share the follow-up limit. QR prompting keeps its separate scan-to-dismiss behavior.">?</span><input data-field="rescheduleWindowMinutes" type="number" min="0" max="1440" step="1" /></label>
+                    </div>
+                    <p class="hint" data-legacy-note hidden>Existing timing is preserved. Choose Fixed or Smart to use a rescheduling window.</p>
+                    <details data-legacy-settings data-disclosure="legacy-timing" hidden>
+                      <summary>Existing timing settings</summary>
+                      <div class="grid two-col">
+                        <label data-resched="fixed">Legacy interval (minutes)<input data-field="reschedFixed" type="number" min="0" max="500" step="1" /></label>
+                        <label data-resched="min">Legacy fallback (minutes)<input data-field="reschedMin" type="number" min="0" max="500" step="1" /></label>
+                        <label data-resched="max">Legacy conflict/travel limit (minutes)<input data-field="reschedMax" type="number" min="0" max="500" step="1" /></label>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              </details>
+            </section>
+            <section class="advanced-group" data-section="task">
+              <label class="switch-row section-switch"><input data-field="taskLoopEnabled" type="checkbox" role="switch" aria-label="Enable task looping" /><span class="switch-track" aria-hidden="true"></span></label>
+              <details data-disclosure="task">
+                <summary><span class="section-title">Task Looping</span><span class="section-summary" data-section-summary="task"></span></summary>
+                <div class="section-content">
+                  <p class="hint">Requires the <a href="https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/blob/main/Guides/OpenHabits%20Integration.md">OpenHabits Metrics integration</a>. Turning this off preserves your metric IDs and repeat settings.</p>
+                  <p class="hint">Repeat until all listed OpenHabits metrics are complete, up to the shared follow-up limit.</p>
+                  <div data-task-settings hidden>
+                  <details data-disclosure="metric-help">
+                    <summary>Where to find your Metric ID</summary>
+                    <p>In the OpenHabits Metrics configuration editor, open <strong>Metrics → Metric ID</strong> and copy the ID for each metric you want to check. Use IDs from your own configuration.</p>
+                    <p><a href="https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/blob/main/Guides/OpenHabits%20Integration.md#find-your-metric-ids">Metric ID instructions</a></p>
+                  </details>
+                  <div data-list="taskIDs" class="list-block"></div>
+                  <button type="button" class="btn small add-list-item" data-add="taskIDs">+ Add Metric ID</button>
+                  <div class="grid two-col">
+                    <label>Repeat interval (minutes) <span class="help" tabindex="0" data-tip="Minutes between task-check loops.">?</span><input data-field="taskLoopMin" type="number" min="1" max="500" step="1" /></label>
+                    <label class="checkbox-row">Check completion on the first alarm <span class="help" tabindex="0" data-tip="if unchecked (ie false), it will not check task completion status the first time this alarm runs.">?</span><input data-field="checkTasksFirstTime" type="checkbox" /></label>
+                  </div>
+                  </div>
+                </div>
+              </details>
             </section>
           </div>
         </details>

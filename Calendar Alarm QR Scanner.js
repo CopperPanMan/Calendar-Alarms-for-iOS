@@ -350,7 +350,7 @@ async function runModeA(fm, paths) {
 }
 
 function hasTaskLoop(entry) {
-  return Array.isArray(entry.taskIDs) && entry.taskIDs.some((id) => typeof id === "string" && id.trim());
+  return entry.taskLoopEnabled !== false && Array.isArray(entry.taskIDs) && entry.taskIDs.some((id) => typeof id === "string" && id.trim());
 }
 
 function clockSlot(epoch, storedHHMM) {

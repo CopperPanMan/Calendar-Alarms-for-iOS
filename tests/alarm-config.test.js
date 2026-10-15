@@ -235,6 +235,27 @@ test('zero conflict/travel maximum survives export', () => {
   assert.deepEqual(cleanAlarm(alarm).reschedMinutes, {min: 0, max: 0});
 });
 
+test('task looping starts off for new alarms and preserves legacy metric-based activation', () => {
+  assert.equal(normalizeAlarm(defaultAlarm()).taskLoopEnabled, false);
+  assert.equal(normalizeAlarm({taskIDs: ['floss']}).taskLoopEnabled, true);
+  assert.equal(normalizeAlarm({taskIDs: [' ']}).taskLoopEnabled, false);
+  assert.equal(normalizeAlarm({taskLoopEnabled: true}).taskLoopEnabled, true);
+});
+
+test('task toggle retains disabled metrics, cadence and first-check settings across export and reload', () => {
+  const alarm = normalizeAlarm({taskIDs: ['floss', 'walk'], taskLoopMin: 21,
+    checkTasksFirstTime: false, maxReschedules: 4});
+  alarm.taskLoopEnabled = false;
+  const restored = normalizeAlarm(cleanAlarm(alarm));
+  assert.equal(restored.taskLoopEnabled, false);
+  assert.deepEqual(restored.taskIDs, ['floss', 'walk']);
+  assert.equal(restored.taskLoopMin, 21);
+  assert.equal(restored.checkTasksFirstTime, false);
+  assert.equal(restored.maxReschedules, 4);
+  restored.taskLoopEnabled = true;
+  assert.deepEqual(cleanAlarm(restored).taskIDs, ['floss', 'walk']);
+});
+
 
 test('legacy timing stays in its original form unless a mode is explicitly chosen', () => {
   for (const value of [30, {min: 0, max: 500}]) {

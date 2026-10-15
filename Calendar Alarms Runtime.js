@@ -144,7 +144,7 @@ async function triggerCheck(raw) {
   const entry = rows.find(e => `${e.alarmName}|||${e.calcFireTime}` === trigger.triggerKey &&
     e.triggerActionID === trigger.triggerID);
   if (!entry || entry.taskSatisfied) return {run: 0};
-  if (!trigger.taskReset && Array.isArray(entry.taskIDs) && entry.taskIDs.length) {
+  if (!trigger.taskReset && entry.taskLoopEnabled !== false && Array.isArray(entry.taskIDs) && entry.taskIDs.length) {
     try {
       const c = await cache(true);
       if (currentTaskCache(c) && entry.taskIDs.every(id =>
@@ -181,7 +181,7 @@ function qrCleanup(rows) {
     return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
   };
   for (const entry of rows) {
-    const task = Array.isArray(entry.taskIDs) && entry.taskIDs.length > 0;
+    const task = entry.taskLoopEnabled !== false && Array.isArray(entry.taskIDs) && entry.taskIDs.length > 0;
     const fields = [];
     if (!entry.taskSatisfied && (task || !Number(entry.firstQRFireTime))) fields.push(['nextFireTime', 'nextFireHHMM']);
     if (!entry.taskSatisfied && task) fields.push(['taskCheckFireTime', 'taskCheckHHMM']);
@@ -196,7 +196,7 @@ function qrCleanup(rows) {
     if (!entry.qrActive && !entry.qrPending) clearTriggerReady(entry);
     if (entry.qrActive || entry.qrPending || !(Number(entry.firstQRFireTime) > 0)) continue;
     const fields = [['qrRestartFireTime', 'qrRestartHHMM'], ['qrFallbackFireTime', 'qrFallbackHHMM'], ['qrBackupFireTime', 'qrBackupHHMM']];
-    if (!Array.isArray(entry.taskIDs) || !entry.taskIDs.length) fields.push(['nextFireTime', 'nextFireHHMM']);
+    if (entry.taskLoopEnabled === false || !Array.isArray(entry.taskIDs) || !entry.taskIDs.length) fields.push(['nextFireTime', 'nextFireHHMM']);
     for (const [time, mirror] of fields) {
       const clock = hhmm(entry, time, mirror), key = entry.alarmName + '|||' + clock;
       if (!clock || protectedTimes.has(key)) continue;

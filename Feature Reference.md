@@ -104,13 +104,13 @@ Depending on your configuration, the alarm can wait and try again later if:
 
 This is useful for context-dependent reminders such as “Review my day plan once I get to work.”
 
-See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, follow-up limits, and tests. Choose Fixed intervals or Smart estimates, bounded by an overall window from the original alarm time. Task repetitions share the same window and **Maximum follow-ups** count under **Rescheduling and Task Loop Limit**. Imported timing stays unchanged until a new mode is selected.
+See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, follow-up limits, and tests. Choose Fixed intervals or Smart estimates, bounded by an overall window from the original alarm time. Task repetitions share the same window and **Maximum follow-ups** count under **Rescheduling and Task Loop Limit**, which appears whenever rescheduling or task looping is on. Imported timing stays unchanged until a new mode is selected.
 
 ---
 
 ## Task Looping
 
-Use **Task Looping** when an alarm should keep returning until you complete one or more tasks.
+Use **Task Looping** when an alarm should keep returning until you complete one or more tasks. In the Editor, turn on its switch to reveal the settings. Turning it off preserves your metric IDs, repeat interval and first-check preference, including when you export and reload the alarm.
 
 - This feature uses [OpenHabits Metrics](https://github.com/CopperPanMan/OpenHabits-Metrics), a habit-tracking system with optional app protection that lets you log metrics and habits to Google Sheets. You must connect OpenHabits Metrics to use this feature.
 - Any alarm type can loop when a task (that is, a metric) has not been completed, up to the configured `maxReschedules` limit.
@@ -132,7 +132,9 @@ You can combine multiple behaviors in a single alarm. For example, one alarm can
 - Reschedule while you are driving.
 - Keep looping until a task is complete.
 
-For most users, the best approach is to start simply, test the alarm once, and then add advanced behavior as needed.
+For most users, the best approach is to start simply, test the alarm once, and then add advanced behavior as needed. Each advanced section can be expanded or collapsed independently; its summary shows the current configuration. Collapsing a section keeps its behavior active. Use the rescheduling and task-looping switches to disable those behaviors while keeping their settings.
+
+Update **Calendar Alarm Engine**, **Calendar Alarm QR Scanner** and **Calendar Alarms Runtime** in Scriptable before using saved disabled task loops. Older scripts ignore `taskLoopEnabled: false`. Existing alarm JSON without this field continues to use its metric IDs as before. The missing-file installer does not replace existing scripts.
 
 ---
 
