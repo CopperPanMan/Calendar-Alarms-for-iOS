@@ -206,6 +206,112 @@ function qrCleanup(rows) {
   }
   return Array.from(result.values());
 }
+// QR interaction timing. Both values are seconds and can be tuned together.
+const QR_UX = Object.freeze({notificationReturnSeconds: 10, silenceSeconds: 15});
+const QR_NOTIFICATION_ID = 'calendar-alarms-qr-menu-v1';
+const qrUXPath = local.joinPath(local.cacheDirectory(), 'calendar-alarms-qr-menu-v1.json');
+
+function qrUXState() {
+  try {
+    if (!local.fileExists(qrUXPath)) return {};
+    const value = JSON.parse(local.readString(qrUXPath));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (_) { return {}; }
+}
+function saveQRUXState(value) { local.writeString(qrUXPath, JSON.stringify(value)); }
+async function removeQRNotification() {
+  if (typeof Notification === 'undefined') return;
+  await Notification.removePending([QR_NOTIFICATION_ID]);
+  await Notification.removeDelivered([QR_NOTIFICATION_ID]);
+}
+async function clearQRUX() {
+  // Clear the mute deadline synchronously before awaiting notification cleanup.
+  if (local.fileExists(qrUXPath)) {
+    saveQRUXState({});
+    write('scannerLastOpened.txt', new Date(0).toISOString());
+    write('menuOpenStatus.txt', 'false');
+  }
+  await removeQRNotification();
+  return {ok: 1, error: '', activeCount: 0};
+}
+function qrMenuDetails(rows) {
+  return {ok: 1, error: '', activeCount: rows.length,
+    activeName: rows.map(a => String(a.alarmName || 'QR alarm')).join(', '),
+    silenceSeconds: QR_UX.silenceSeconds,
+    notificationReturnSeconds: QR_UX.notificationReturnSeconds};
+}
+async function scheduleQRNotification(rows, state) {
+  if (typeof Notification === 'undefined') throw new Error('Notifications are unavailable.');
+  await removeQRNotification();
+  // A Silence request may arrive while notification removal is awaited.
+  // Respect its latest return deadline instead of posting an early banner.
+  state = qrUXState();
+  // Track the initial notification too, so a later poll with no active QR can
+  // remove it even if the user never opened the menu or pressed Silence.
+  saveQRUXState(state);
+  const n = new Notification();
+  n.identifier = QR_NOTIFICATION_ID;
+  n.title = rows.length === 1 ? String(rows[0].alarmName || 'QR alarm') : 'QR alarms active';
+  n.body = rows.length === 1
+    ? 'Scan your QR code to stop the alarm. Tap for Scan or Silence for ' + QR_UX.silenceSeconds + ' seconds.'
+    : 'Scan to stop: ' + rows.map(a => String(a.alarmName || 'QR alarm')).join(', ') + '. Tap for options.';
+  n.sound = null;
+  n.openURL = 'shortcuts://run-shortcut?name=' + encodeURIComponent('Calendar Alarms QR Scanner');
+  if (Number(state.reminderAt) > Date.now()) n.setTriggerDate(new Date(Number(state.reminderAt)));
+  await n.schedule();
+  // Completion can happen while the system accepts the notification request.
+  if (!(await active()).length) return clearQRUX();
+  return {ok: 1, activeCount: rows.length, scheduledAt: Math.max(Date.now(), Number(state.reminderAt) || 0)};
+}
+async function qrUXOperation(r) {
+  // These UI operations fail separately from the alarm/sound engine.
+  try {
+    const rows = await active();
+    if (!rows.length) return await clearQRUX();
+    if (r.op === 'scanner_menu') {
+      const state = qrUXState();
+      state.reminderAt = 0;
+      saveQRUXState(state);
+      await removeQRNotification();
+      return qrMenuDetails(rows);
+    }
+    if (r.op === 'scanner_silence' || r.op === 'scanner_scan_begin') {
+      const state = qrUXState();
+      const now = Date.now();
+      state.silenceUntil = now + QR_UX.silenceSeconds * 1000;
+      state.reminderAt = r.op === 'scanner_silence' ? now + QR_UX.notificationReturnSeconds * 1000 : 0;
+      saveQRUXState(state);
+      // Retain the existing timestamp for older shortcut flows.
+      write('scannerLastOpened.txt', new Date(now).toISOString());
+      write('menuOpenStatus.txt', 'false');
+      if (r.op === 'scanner_silence') await scheduleQRNotification(rows, state);
+      else await removeQRNotification();
+      return {...qrMenuDetails(rows), silenceUntil: state.silenceUntil, reminderAt: state.reminderAt};
+    }
+    if (r.op === 'qr_notification') {
+      if (r.cleanupOnly === true) return {...qrMenuDetails(rows), kept: 1};
+      if (r.session && !owns(r.session)) return {ok: 1, skipped: 'superseded'};
+      // An engine restart must not replace the user's ten-second return timer.
+      if (Number(qrUXState().reminderAt) > Date.now()) return {...qrMenuDetails(rows), kept: 1};
+    }
+    return await scheduleQRNotification(rows, qrUXState());
+  } catch (error) {
+    return {ok: 0, activeCount: 0, activeName: '', error: String(error)};
+  }
+}
+
+function releaseCompletedPlayback(session, token) {
+  if (!token || !session || !local.fileExists(playbackPath)) return;
+  try {
+    const reservation = JSON.parse(local.readString(playbackPath));
+    // Only a completed native Play Sound can acknowledge this exact lease.
+    // An old instance must never release a successor's reservation.
+    if (reservation.instanceID !== session.id || reservation.playbackToken !== token) return;
+    local.writeString(playbackPath, JSON.stringify({...reservation, expectedEndAt: 0}));
+  } catch (_) {} // A failed acknowledgement leaves the short expiry as fallback.
+}
+
+
 async function qrState(session) {
   const reason = sessionStopReason(session);
   if (reason) return stopped(session, reason);
@@ -217,9 +323,13 @@ async function qrState(session) {
     (Number(a.firstQRFireTime) || 0) - (Number(b.firstQRFireTime) || 0));
   const changed = sessionStopReason(session);
   if (changed) return stopped(session, changed);
-  if (!alarms.length) return {...stopped(session, 'no_active_qr_alarm'), alarmsToDelete: qrCleanup(rows)};
+  if (!alarms.length) {
+    if (local.fileExists(qrUXPath)) { try { await clearQRUX(); } catch (_) {} }
+    return {...stopped(session, 'no_active_qr_alarm'), alarmsToDelete: qrCleanup(rows)};
+  }
   const age = Date.now() - opened;
-  return {stop: false, play: !triggerPending(alarms[0]) && !(age >= 0 && age < 13000) && !playbackBusy(), alarm: alarms[0]};
+  return {stop: false, play: !triggerPending(alarms[0]) && !(age >= 0 && age < 13000)
+    && !(Number(qrUXState().silenceUntil) > Date.now()) && !playbackBusy(), alarm: alarms[0]};
 }
 function qrSoundRelativePath(name) {
   let relative = String(name || 'ringtone.mp3').replace(/\\/g, '/');
@@ -236,7 +346,8 @@ function qrSoundRelativePath(name) {
     throw new Error('Invalid QR sound path.');
   return relative;
 }
-async function qrPoll(session) {
+async function qrPoll(session, completedPlaybackToken) {
+  releaseCompletedPlayback(session, completedPlaybackToken);
   const state = await qrState(session);
   if (state.stop) return state;
   if (!state.play) return {stop: false, play: false};
@@ -269,7 +380,9 @@ async function qrPermit(r) {
   // Keep the final check and reservation together, without an intervening await.
   // The allowance covers the handoff to Set Volume and native Play Sound.
   const reservedAt = Date.now();
+  const playbackToken = UUID.string();
   local.writeString(playbackPath, JSON.stringify({
+    playbackToken,
     instanceID: r.session.id,
     alarmKey: key,
     triggerID: a.triggerActionID || '',
@@ -279,7 +392,7 @@ async function qrPermit(r) {
   // If superseded during the write, leave the brief reservation to expire.
   // Never clear it here: a successor may already be relying on it.
   const permitted = owns(r.session);
-  return permitted ? {stop: false, play: true}
+  return permitted ? {stop: false, play: true, playbackToken}
     : stopped(r.session, sessionStopReason(r.session));
 }
 function scanInput(raw, fromScan) {
@@ -493,18 +606,29 @@ function wakePlan(r) {
 }
 async function main(r) {
   // Shortcuts may serialize a dictionary placed in a request field as JSON text.
-  if ((r.op === 'qr_poll' || r.op === 'qr_permit') && typeof r.session === 'string') {
+  if ((r.op === 'qr_poll' || r.op === 'qr_permit' || r.op === 'qr_notification') && typeof r.session === 'string') {
     r.session = JSON.parse(r.session);
   }
   switch (r.op) {
     case 'clock_guard': return guard();
     case 'engine_begin':
       return text(r.input) === 'Clock' ? {clock: 1, ...await guard()} : {clock: 0, ...begin(r.input)};
-    case 'qr_poll': return qrOutput(await qrPoll(r.session));
+    case 'qr_poll':
+      // The native playback loop supplies its existing counter: notify only on
+      // its first poll, inside this invocation, before checking playback again.
+      // Older shortcut copies omit the counter and keep their existing behavior.
+      if (Number(r.notificationPollIndex) === 1 && owns(r.session))
+        await qrUXOperation({op: 'qr_notification', session: r.session});
+      return qrOutput(await qrPoll(r.session, r.completedPlaybackToken));
     case 'qr_permit': return qrOutput(await qrPermit(r));
     case 'trigger_check': return triggerCheck(r.trigger);
     case 'trigger_finish': return triggerFinish(r.trigger);
     case 'sound_file': return soundFile(r.file);
+    case 'qr_notification':
+    case 'scanner_menu':
+    case 'scanner_silence':
+    case 'scanner_scan_begin':
+    case 'scanner_scan_finished': return qrUXOperation(r);
     case 'scanner_touch':
       write('scannerLastOpened.txt', new Date().toISOString());
       write('menuOpenStatus.txt', 'false');

@@ -22,13 +22,15 @@ iOS can delay, skip, or terminate Shortcut executions. Backup triggers improve r
 
 ### The scan menu does not appear
 
-Confirm the alarm-trigger automation runs **Calendar Alarms QR Scanner**. The current Scanner retains a menu-open flag after cancellation; it can suppress a later menu for up to two minutes. Scan with Camera and tap the Shortcuts link, or run the Scanner manually after that interval. Do not rename the Scanner without also regenerating its QR links.
+Run **Calendar Alarm Engine** from the alarm automation, and disable/remove the older automatic Scanner invocation. Tap the Scriptable notification body to open Scanner, or run Scanner manually. Check Scriptable notification permission and Notification Center. The current native menu has Scan, Silence for 15 seconds, and Dismiss, and runs only when requested; it does not loop inside the automation. Do not rename Scanner without regenerating its QR links.
+
+If scanning reports “Alarm data is busy”, scan again after other alarm work finishes. The Scanner now retries lock acquisition for up to three seconds between awaited file operations, returns a clear retry message if unsuccessful, and explicitly completes its Scriptable invocation. This budget cannot interrupt an iCloud file operation already in progress.
 
 ### The sound is missing, pauses, or reports a file error
 
 Check the file at `Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones`, its exact relative path, and QR Volume. Use an installed tone to rule out a custom-file problem. The current playback flow errors if the file is missing; rerunning setup restores missing built-in tones.
 
-Sound can pause while the scan controls are used, while a new execution starts, or when an action stalls. The sound cache reduces file work, but continuous playback is not guaranteed. Follow the [update instructions](#update-an-existing-installation) if your Engine Shortcut predates cached playback or the new cleanup block.
+For observed overlap/interference failures and the adopted 20-second controls, see [QR reliability limits](QR%20Alarms.md#reliability-limits-observed-on-device). Sound can pause while the scan controls are used, while a new execution starts, or when an action stalls. The sound cache reduces file work, but continuous playback is not guaranteed. Follow the [update instructions](#update-an-existing-installation) if your Engine Shortcut predates cached playback or the new cleanup block.
 
 ### It rings again after a successful scan
 
@@ -56,9 +58,9 @@ Test with the phone unlocked. The integration reads `OpenHabits/OpenHabits Metri
 
 ## Wake Times cannot find Sleep
 
-Use the exact event title **Sleep**, a timed event for your next sleep period, and a calendar that is not excluded. Avoid multiple nearby Sleep events. The repository helper currently searches event starts from nine hours ago to fourteen hours ahead. An event outside that search or several matching events produces an error.
+Use the exact event title **Sleep**, a timed event for your next sleep period, and a calendar that is not excluded. Avoid multiple nearby Sleep events. The repository helper currently searches event starts from ten hours ago to fourteen hours ahead. An event outside that search or several matching events produces an error.
 
-Keep the duration-preserving **CA Wake Times** version when updating. The repository's older manual readout still delegates dates to a helper that calculates eight hours; see [the developer version note](../Development/README.md#wake-times-version-note) before rebuilding it.
+Use the current [CA Wake Times readout](../Shortcut%20Actions/CA%20Wake%20Times.md). It validates candidate event dates individually rather than combining native start/end equality filters, then sets Start Date first and End Date last on the saved event. End-first editing was observed to enlarge duration. Restore any already-enlarged event manually once; the helper preserves its current elapsed duration.
 
 ## Update an existing installation
 
@@ -66,8 +68,8 @@ Rerunning **Calendar Alarms Actions** installs missing scripts and tones. **It d
 
 1. Read the relevant change notes. For the current QR update, see [QR Scheduling Fixes](../Development/QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
 2. Save copies of any Scriptable scripts or Shortcuts you customized.
-3. Replace existing Scriptable source with the matching repository version, keeping its script name. For the full QR update, replace **Calendar Alarm Engine**, **Calendar Alarms Runtime**, and **Calendar Alarm QR Scanner**. If Engine and Runtime are already current, only the Scanner script needs replacing for the scan cleanup fix.
-4. Install the corresponding updated shared Shortcuts when available, or apply the specified [manual action readout](../Shortcut%20Actions/README.md). Source changes in GitHub do not update a shared Shortcut automatically. Preserve the corrected Wake Times duration behavior if using its older readout.
+3. Replace existing Scriptable source with the matching repository version, keeping its script name. For the full QR update, replace **Calendar Alarm Engine**, **Calendar Alarms Runtime**, and **Calendar Alarm QR Scanner**. The notification/menu and playback acknowledgement update needs the matching Runtime and native Engine/Scanner flows. The Scanner completion fix also requires its updated script.
+4. Install the corresponding updated shared Shortcuts when available, or apply the specified [manual action readout](../Shortcut%20Actions/README.md). Source changes in GitHub do not update a shared Shortcut automatically. Use the corrected Wake Times matcher and start-first/end-last edit order.
 5. Reconnect imported **Run Shortcut** actions and confirm your version's automations. Run Engine once, preferably without an active QR alarm, then repeat the demo and test the features you use.
 
 Preserve the registry, settings, and custom tones; do not delete them to force an update. The updated Engine migrates known QR schedules. A runtime script normally appears in Scriptable without its `.js` extension; for example, **Calendar Alarms Runtime**.

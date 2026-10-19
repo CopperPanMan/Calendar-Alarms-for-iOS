@@ -1,6 +1,6 @@
 # Calendar Alarms Actions
 
-Full replacement action readout, 2026-10-14, for Calendar Alarms Runtime in this branch and OpenHabits Runtime 1.2.2. It includes setup and every supported action kind. Updating this file does not update the published iCloud Shortcut.
+Full replacement action readout, 2026-10-19, for Calendar Alarms Runtime in this branch and OpenHabits Runtime 1.2.2. It includes setup and every supported action kind. Updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
@@ -25,7 +25,7 @@ IF: Shortcut Input does not have any value
         Dictionary: Settings
         Key: welcome
         → SettingsWelcome (Text)
-    IF: SettingsWelcome has any value
+    IF: SettingsWelcome is not [blank]
         SHOW RESULT: SettingsWelcome
     END IF
     REPEAT: 5 times
@@ -281,7 +281,7 @@ IF: PlanKind is task_alarm_reset
                 Dictionary: CleanupResult
                 Key: errorRegistry
                 → CleanupErrors (Text)
-            IF: CleanupErrors does not have any value
+            IF: CleanupErrors is [blank]
                 SHOW NOTIFICATION:
                     Body: Alarm Reset due to Task Completion.
             END IF

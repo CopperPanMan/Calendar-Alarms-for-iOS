@@ -1,6 +1,6 @@
 # Calendar Alarm Engine
 
-Full replacement action readout, 2026-10-14, for the Engine and Runtime in this branch. It incorporates the audited shared Shortcut's native actions and the completion/trigger fixes. This is the flow to rebuild; updating this file does not update the published iCloud Shortcut.
+Full replacement action readout, 2026-10-19, for the Engine and Runtime in this branch. It reflects the clean installed Engine, including the tunable restart buffer, volume cadence, first-poll notification, and playback acknowledgement. This is the flow to rebuild; updating this file does not update the published iCloud Shortcut.
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
 
@@ -8,9 +8,17 @@ Install the matching Engine and Runtime scripts when rebuilding. Empty input or 
 
 The Engine core returns JSON **Text**; the explicit Get Dictionary action is required. Runtime returns a Dictionary. `clock`, `completionOnly`, `run`, `lastInGroup`, and QR `stop`/`play` are **Numbers** (0/1). Preserve `CurrentTrigger` as a Dictionary, including its occurrence/invocation metadata. Finish the last action in each group even if it was skipped. Speak Text actions in called Shortcuts must have **Wait Until Finished On** to delay QR sound until speech completes.
 
-`fileName` is relative to Alarm Tones and preserves subfolders. Cache file and duration on the first playable Poll and when the path changes. Duration is in seconds. Set Volume precedes Permit; Play Sound immediately follows granted permission. The playback stop path removes QR retries while preserving future task checks.
+`fileName` is relative to Alarm Tones and preserves subfolders. Cache file and duration on the first playable Poll and when the path changes. Duration is in seconds. When due, Set Volume precedes Permit; Play Sound immediately follows granted permission. The playback stop path removes QR retries while preserving future task checks.
+
+The two leading Numbers are the tuning controls: **Restart Buffer Seconds = 20** and **Volume Correction Interval Seconds = 20**. The buffer shortens only the local playback session, not the two-minute Clock restart schedule. Poll/Permit already account for clip duration when enforcing that deadline. Corrections are checked between clips and measured from the previous Set Volume completion; each invocation initializes its own timer. There is no Get Current Volume action, unconditional wait after a successful clip, or trace logger. Idle/denied playback waits one second.
+
+The first existing QR poll carries `notificationPollIndex`; do not add a separate Scriptable notification call. `Completed Playback Token` is initially empty and is updated only after native Play Sound returns successfully. Keep the non-QR outputs used by other shortcuts; the ordinary QR stop is a plain Stop This Shortcut.
 
 ```jsx
+NUMBER: 20
+SET VARIABLE: Restart Buffer Seconds to Number
+NUMBER: 20
+SET VARIABLE: Volume Correction Interval Seconds to Number
 DICTIONARY:
     op: engine_begin (Text)
     input: Shortcut Input
@@ -117,7 +125,7 @@ GET DICTIONARY VALUE:
     Dictionary: Engine
     Key: errorRegistry
     → EngineErrorRegistry (Text)
-IF: EngineErrorRegistry has any value
+IF: EngineErrorRegistry is not [blank]
     SHOW NOTIFICATION:
         Body: EngineErrorRegistry
 END IF
@@ -191,21 +199,50 @@ REPEAT WITH EACH: EngineTriggerShortcutsToRunDetailed
     END IF
 END REPEAT
 
-// No nextLoopStart cutoff. The runtime checks actual ownership and elapsed time.
-// Check the live registry even when a verifier run returned qrLoop=false.
+// Apply the buffer once to the existing runtime session deadline.
+// Continue checking the live registry; ownership and duration checks stay in Runtime.
 GET DICTIONARY VALUE:
     Dictionary: Begin
     Key: session
     → BeginSession (Dictionary)
+GET DICTIONARY VALUE:
+    Dictionary: Engine
+    Key: nextLoopStart
+    → Next Scheduled QR Restart (Text)
+IF: Next Scheduled QR Restart is [blank]
+    STOP AND OUTPUT: Engine (Dictionary)
+END IF
+GET TIME BETWEEN DATES:
+    From: 1970-01-01T00:00:00Z
+    To: Next Scheduled QR Restart (Date coercion)
+    Unit: Seconds
+    → Restart Unix Seconds
+CALCULATE EXPRESSION: ([Restart Unix Seconds] - [Restart Buffer Seconds]) * 1000
+    → Buffered Session Deadline (Number; epoch milliseconds)
+SET DICTIONARY VALUE:
+    Dictionary: BeginSession
+    Key: deadline
+    Value: Buffered Session Deadline (Number)
+    → QR Session With Buffer (Dictionary)
 TEXT:
     [empty — leave the text field blank]
 SET VARIABLE:
     Name: CachedSoundPath
     Value: preceding empty Text
+CURRENT DATE:
+    → Volume Schedule Start
+ADJUST DATE:
+    Subtract 1 day from Volume Schedule Start
+    → Initial Volume Correction Due
+SET VARIABLE: Next Volume Correction At to Initial Volume Correction Due
+TEXT: [empty]
+SET VARIABLE: Completed Playback Token to preceding empty Text
 REPEAT: 180 times
     DICTIONARY:
         op: qr_poll (Text)
-        session: BeginSession (Dictionary)
+        session: QR Session With Buffer (Dictionary)
+        completedPlaybackToken: Completed Playback Token (Text)
+        notificationPollIndex: this 180-repeat's Repeat Index (Number)
         → PollRequest
     RUN SCRIPT: Calendar Alarms Runtime
         Parameter: PollRequest
@@ -253,13 +290,23 @@ REPEAT: 180 times
                 Dictionary: Poll
                 Key: volume
                 → PollVolume (Number)
-            SET VOLUME:
-                Media volume: PollVolume
+            CURRENT DATE:
+                → Volume Check Time
+            IF: Volume Check Time is after Next Volume Correction At
+                SET VOLUME:
+                    Media volume: PollVolume
+                CURRENT DATE:
+                    → Volume Correction Finished
+                ADJUST DATE:
+                    Add Volume Correction Interval Seconds to Volume Correction Finished
+                    → Next Volume Correction Due
+                SET VARIABLE: Next Volume Correction At to Next Volume Correction Due
+            END IF
             DICTIONARY:
                 op: qr_permit (Text)
                 alarmKey: PollAlarmKey (Text)
                 duration: CachedDuration (Number)
-                session: BeginSession (Dictionary)
+                session: QR Session With Buffer (Dictionary)
                 → PermitRequest
             RUN SCRIPT: Calendar Alarms Runtime
                 Parameter: PermitRequest
@@ -271,7 +318,16 @@ REPEAT: 180 times
                 → PermitPlay (Number)
             IF: PermitPlay is 1
                 PLAY SOUND: CachedAudioFile
+                GET DICTIONARY VALUE:
+                    Dictionary: Permit
+                    Key: playbackToken
+                    → Completed Native Playback Token (Text)
+                SET VARIABLE: Completed Playback Token to Completed Native Playback Token
+            OTHERWISE
+                WAIT: 1 second
             END IF
+        OTHERWISE
+            WAIT: 1 second
         END IF
     END IF
     GET DICTIONARY VALUE:
@@ -307,10 +363,8 @@ REPEAT: 180 times
                 DELETE ALARMS: CleanupAlarms
             END IF
         END REPEAT
-        STOP AND OUTPUT:
-            Output: Engine (Dictionary)
+        STOP THIS SHORTCUT
     END IF
-    WAIT: 1 second
 END REPEAT
 STOP AND OUTPUT:
     Output: Engine (Dictionary)

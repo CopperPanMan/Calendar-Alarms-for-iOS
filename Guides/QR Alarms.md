@@ -18,7 +18,7 @@ The six installed tones are **marimba, ocean, siren, sonar, marimba electric, an
 
 ## Test the scan
 
-Schedule the alarm a few minutes ahead and keep the code visible on another device or on paper. When it fires, choose **Scan Code** in the menu. You can also scan the code with the iPhone Camera app and tap its Shortcuts link.
+Schedule the alarm a few minutes ahead and keep the code visible on another device or on paper. When it fires, tap the QR notification, then choose **Scan QR Code** in the menu. You can also scan the code with the iPhone Camera app and tap its Shortcuts link.
 
 A matching active alarm produces vibration feedback and stops that QR instance. Codes are case-sensitive. Several alarms can share an ID; scanning it stops all currently active QR alarms with that ID. Use different IDs if they need separate dismissal.
 
@@ -28,7 +28,13 @@ To run something after scanning, choose **+ Add QR Action on Scan** under **QR A
 
 The current Engine schedules a restart **two minutes later** and a backup **four minutes later**. Each successful QR restart renews those times. The sound repeats between triggers, subject to iOS execution delays.
 
-**Silence for 12s** pauses playback briefly without completing the alarm. Opening the scanner also briefly mutes playback so you can scan. Dismissing the menu does not complete the alarm; the current menu state can suppress another menu for up to two minutes. Use Camera if the menu is missing.
+Engine posts a regular Scriptable notification from its first existing QR poll once per run. Tap the notification body to open **Scan QR Code**, **Silence for 15 seconds**, or **Dismiss**. The banner disappears normally, but the notification can remain in Notification Center. If it is missing, open Scanner manually or scan with Camera. Enable Scriptable notifications and grant the required Shortcut permissions.
+
+**Silence for 15 seconds** pauses new clips without completing the alarm. A new notification is scheduled after **10 seconds**, rather than reopening the menu. Opening the camera briefly mutes new playback too. A clip already playing finishes normally. Dismiss does not complete or silence the alarm. Expanded notification buttons are not used.
+
+The Engine corrects media volume before its first eligible clip, then only after at least **20 seconds** since the previous Set Volume completed. Checks happen between clips, so turning down the volume can buy temporary silence and actual spacing can be longer. Avoid extremely short tones when testing: they execute more native actions per minute. No fixed Apple volume-action quota has been established.
+
+The clean native Engine uses a tunable **20-second restart buffer**, measured against the next scheduled two-minute restart. A clip that cannot finish before the buffered deadline is not started. It has no unconditional wait after a successful clip; the fallback playback reservation is released by the next existing poll using that clip's completion token. There is still normal native/Scriptable overhead between clips. The leading two Number actions in the Engine control buffer and volume-correction seconds independently. Neither changes the restart or backup schedule.
 
 Keep the separate **CA qrClockCloser** Shortcut and Clock-open automation on both iOS 26 and iOS 27 if you want Clock to send you Home during an active QR alarm. This discourages disabling upcoming retries; it is not a tamper-proof lock.
 
@@ -36,9 +42,13 @@ After scanning, the Scanner Shortcut deletes the owned QR restart and backup eve
 
 When [task looping](OpenHabits%20Integration.md#repeat-until-a-task-is-complete) is also enabled, scanning stops the current QR prompt **without completing the task**. Its separate task check stays scheduled and can start another QR instance if the task remains incomplete. A task check that shares a Clock time with a QR retry is intentionally retained.
 
-For task-looping QR alarms, the automatic Scanner menu waits until reset/trigger actions finish and the Engine hands off the first sound clip to native playback. This gives task reset a chance to cancel the alarm without opening a menu. A task completed before that handoff opens no automatic menu. You can still scan directly using Camera or a QR ID input while the menu is deferred. Install the matching Engine, Runtime, and Scanner scripts and use the updated Scanner readout's wait limits.
+The automatic alarm path presents a notification rather than waiting for a menu. Direct Camera/QR-ID scans remain available while task reset/trigger work is running. Legacy Scanner core menu operations remain compatible for older native flows, but they are not used by this setup.
 
-An expired playback session releases the menu for recovery if the sound never began. Older native playback without a Runtime session retains its existing menu behavior until the corresponding native flow is updated.
+## Reliability limits observed on device
+
+The clean Engine running directly from Any Alarm Goes Off passed consecutive cycles with the phone both locked and unlocked. Other trials intermittently alternated successful and failed restarts, including a temporary recurrence after restoring the same 20-second buffer with fresh sessions and no interfering alarm. It later resumed working without an identified source change. These settings are the adopted production configuration, not a proven cure for iOS execution failures.
+
+An unrelated Clock alarm, or another QR-related alarm firing close to an existing run (roughly a minute apart in the observed tests), can stop playback and prevent the following restart from deleting its alarm or starting sounds. The proximity is an observation, not a measured safe minimum. Avoid overlapping QR sessions where practical and retain backup alarms. The four-minute backup is recovery assistance, not a guarantee. A caller, extra logging, an output change, and a one-second successful-play wait did not establish a repeatable fix; none is required by this production setup. No hidden Apple concurrency/action-count limit has been proven.
 
 ## Use your own sound
 

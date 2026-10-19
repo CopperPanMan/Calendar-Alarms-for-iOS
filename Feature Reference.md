@@ -51,7 +51,7 @@ The Engine schedules the next 24 hours of alarms. If an edit was made on another
 
 Use a QR alarm when you want to require physical action to turn off an alarm.
 
-In the Editor, open **Advanced Settings** and complete **QR Alarm Properties**. Once enabled, the alarm prompts you to scan the correct QR code with the iPhone Camera app or the on-screen prompt displayed during a QR alarm. Playback can pause or miss restarts when iOS delays an automation.
+In the Editor, open **Advanced Settings** and complete **QR Alarm Properties**. Once enabled, the alarm prompts you to scan the correct QR code with the iPhone Camera app or by tapping the QR notification and choosing Scan QR Code. Playback can pause or miss restarts when iOS delays an automation.
 
 - Each QR alarm has a matching QR code that turns it off. In the Editor, enter the alarm’s `qrCodeID` and select **Show QR Code** to preview, download, or print the matching code. Multiple alarms can share a code.
 - QR codes store text in image form. Here, that text is a Shortcuts URL that launches **Calendar Alarms QR Scanner** with the `qrCodeID` as input.

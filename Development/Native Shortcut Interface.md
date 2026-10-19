@@ -17,14 +17,30 @@ Future changes must retain existing command names, required keys, field types, u
 | Runtime `qr_poll` / `qr_permit` | `stop` and `play` Numbers 0/1; deletion plans remain Lists. Pass the whole session Dictionary; serialized session JSON remains accepted |
 | Runtime `action` | `refresh`, `speak`, `show`, `ok`, and `allComplete` are Booleans when present; `kind` is Text; successful task planning returns `engineInput` JSON Text |
 | Runtime `sound_file` | File/path output consumed by native Play Sound, not a Dictionary |
-| Scanner input/result | Empty input requests the menu; a QR ID requests scan completion. Output is JSON Text; `shouldShowMenu`, `hasActiveQR`, and `vibrate` are Booleans |
+| Scanner core input/result (legacy menu adapter) | Empty input requests the legacy menu; a QR ID requests scan completion. Output is JSON Text; `shouldShowMenu`, `hasActiveQR`, and `vibrate` are Booleans |
 
 `fileName` is relative to Alarm Tones; audio duration is seconds and playback volume is 0–1. The existing native branches for `kind` remain supported. Implement new behavior using existing native operations where possible. For a new device capability, a separately configured custom Shortcut can preserve the Engine's existing named-Shortcut dispatch.
 
-## Ownership and menu handoff
+## Optional QR playback and notification extensions (October 2026)
 
-The Engine marks new task QR instances with registry-only `qrMenuAfterPlayback`. While a Runtime playback session is live, the Scanner defers automatic menus until the Runtime grants playback permission for that occurrence, QR generation, and trigger group. The existing local playback reservation carries the alarm/group identity; a superseded owner's reservation cannot release a menu. Native Play Sound immediately follows permission, so this is a handoff signal, not proof that iOS emitted audible sound. Legacy native playback without a Runtime owner retains its existing menu; an expired/abandoned session releases the menu for recovery rather than hiding it indefinitely.
+Existing operations and their defaults remain supported. Updated native flows opt in with these additions:
 
-No new native actions or request fields are required for this handshake. The Scanner readout's existing wait limits become 180 seconds/90 iterations so it can wait through a slow reset without exiting after roughly 20 seconds. Manual/direct scans remain available while the automatic menu is deferred. Older registry entries without the marker keep their prior menu behavior. Menu cancellation retains the existing bounded lease behavior.
+| Call/field | Meaning |
+| --- | --- |
+| `qr_poll.completedPlaybackToken` (optional Text) | Acknowledges a completed native Play Sound. Only a matching instance/token reservation can be released; stale tokens cannot clear a newer clip's lease. Omission retains expiry-based fallback. |
+| `qr_permit.playbackToken` (additional Text output) | Save it only after native Play Sound completes, and send it on the next existing poll. |
+| `qr_poll.notificationPollIndex` (optional Number or numeric Text) | Value 1 posts the QR notification inside the existing poll, after checking session ownership. Other/absent values do not post. Native repeats provide 1 only once per invocation. Notification errors are isolated from playback state. |
+| `session.deadline` | Epoch milliseconds. Updated native Engine replaces its own session deadline with `(nextLoopStart Unix seconds - Restart Buffer Seconds) * 1000`. Poll/Permit retain the existing clip-duration admission check. |
+| `scanner_menu` | Returns `activeCount` Number, `activeName` Text, `error` Text, and timing seconds. Removes this system's notification. It does not claim the old blocking-menu lease or renew mute. |
+| `scanner_silence` | Mutes new playback for 15 seconds and schedules a notification after 10 seconds; returns the absolute millisecond deadlines. |
+| `scanner_scan_begin` | Temporarily mutes new playback and cancels the pending menu reminder before native Camera scanning. |
+| `scanner_scan_finished` | Clears QR UI state if no active QR remains, otherwise posts a notification for remaining alarms. |
+| `qr_notification` | Compatible explicit notification operation; the production Engine invokes it internally from the first poll, not through another native Scriptable action. |
+
+The shared notification identifier is `calendar-alarms-qr-menu-v1`; only that notification's pending/delivered entries are removed. UX state lives in Scriptable local cache, separate from the shared alarm registry. Runtime constants `QR_UX.notificationReturnSeconds` and `QR_UX.silenceSeconds` set 10/15 seconds. The old `scanner_touch` and no-input Scanner core menu remain for older shortcuts. Task-loop disablement in newer repository sources remains honored.
+
+The native Scanner uses Runtime `scanner_menu` for a user-invoked menu and the Scanner core only for QR IDs. No Scanner Any Alarm Goes Off automation is used. There is no native menu polling loop or native wait during Silence. Legacy `qrMenuAfterPlayback`/`shouldShowMenu` handshakes still support older native callers; they are not an instruction to restore the automatic menu.
+
+Scanner lock acquisition has a 3000 ms retry budget checked around file operations, retains the existing stale-lock rules, and returns a retry message without registry/scan changes if acquisition fails. A file operation may exceed the budget because it cannot be cancelled by that timer. Scriptable's `Timer.schedule` argument is milliseconds; the Scanner passes milliseconds and calls `Script.complete()` after setting output. The Engine core's separate existing timer implementation is outside this update.
 
 `tests/fixtures/native-shortcut-v1.json` records native request examples. `tests/native-shortcut-compatibility.test.cjs` executes the public script entry points and checks the return fields/types consumed by installed native actions. Scheduling/menu regressions cover the state transitions; native audio and iOS execution limits still need device verification. Change these fixtures only for an intentional, documented native migration, not to accommodate an accidental breaking script change.

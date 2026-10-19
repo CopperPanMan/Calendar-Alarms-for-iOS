@@ -17,7 +17,7 @@ const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
 
 const LOCK_STALE_SEC = 30;
 const LOCK_RETRY_DELAY_MS = 500;
-const LOCK_HARD_TIMEOUT_MS = 30000;
+const LOCK_HARD_TIMEOUT_MS = 3000;
 
 const MENU_DEDUPE_SEC = 9;        // avoid duplicate menu overlays
 const MENU_STALE_SEC = 120;        // stuck-rescue
@@ -78,8 +78,8 @@ function normalizeShortcutActionList(raw) {
 }
 
 function sleep(ms) {
-  const seconds = Math.max(0, Number(ms) / 1000);
-  return new Promise((resolve) => Timer.schedule(seconds, false, () => resolve()));
+  // Scriptable Timer intervals are milliseconds.
+  return new Promise((resolve) => Timer.schedule(Math.max(0, Number(ms)), false, () => resolve()));
 }
 
 function nowEpoch() {
@@ -213,10 +213,13 @@ async function loadRegistry(fm, registryPath) {
 // ---------- Locking ----------
 async function acquireLock(fm, lockPath) {
   const myId = `${nowEpoch()}-${Math.floor(Math.random() * 1e9)}`;
-  const startMs = Date.now();
+  const deadlineMs = Date.now() + LOCK_HARD_TIMEOUT_MS;
+  const remainingMs = () => Math.max(0, deadlineMs - Date.now());
 
-  while (Date.now() - startMs < LOCK_HARD_TIMEOUT_MS) {
+  while (remainingMs() > 0) {
     const raw = await safeReadString(fm, lockPath, "");
+    // An iCloud read may itself be slow; never start a claim after the budget.
+    if (remainingMs() === 0) break;
     let lockObj = null;
 
     if (raw && raw.trim()) {
@@ -233,20 +236,25 @@ async function acquireLock(fm, lockPath) {
     const age = now - ts;
 
     if (lockObj && Number.isFinite(ts) && age >= 0 && age < LOCK_STALE_SEC) {
-      await sleep(LOCK_RETRY_DELAY_MS);
+      await sleep(Math.min(LOCK_RETRY_DELAY_MS, remainingMs()));
       continue;
     }
 
     const claim = { id: myId, timestamp: now };
     await safeWriteString(fm, lockPath, JSON.stringify(claim));
 
-    await sleep(LOCK_RETRY_DELAY_MS);
+    await sleep(Math.min(LOCK_RETRY_DELAY_MS, remainingMs()));
     const verifyRaw = await safeReadString(fm, lockPath, "");
     const verify = safeJSONParse(verifyRaw);
-    if (verify.ok && verify.val && verify.val.id === myId) return { ok: true, id: myId };
+    if (verify.ok && verify.val && verify.val.id === myId) {
+      if (Date.now() <= deadlineMs) return { ok: true, id: myId };
+      // A delayed verification must not leave our expired claim behind.
+      await safeWriteString(fm, lockPath, "");
+      break;
+    }
   }
 
-  addError("ERR: registry lock timeout (30s). No registry write performed.");
+  addError("Alarm data is busy. Please scan the QR code again. No alarm changes were made.");
   return { ok: false, id: null };
 }
 
@@ -557,3 +565,4 @@ try {
 
 result.errorRegistry = finalizeErrorRegistry(errors);
 Script.setShortcutOutput(JSON.stringify(result));
+Script.complete();
