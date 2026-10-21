@@ -4,14 +4,16 @@ The Engine now schedules a QR restart at **+2 minutes**, a fallback at **+4 minu
 
 ## Updating an existing installation
 
-Update these four items together:
+For the current production UI/playback changes, also follow the [current native readouts](../Shortcut%20Actions/README.md) and [QR guide](../Guides/QR%20Alarms.md). The scheduling migration below remains required.
+
+Update these components together:
 
 1. Replace the contents of the **Calendar Alarm Engine** Scriptable script with [Calendar Alarm Engine.js](../Calendar%20Alarm%20Engine.js).
 2. Replace the contents of the **Calendar Alarms Runtime** Scriptable script with [Calendar Alarms Runtime.js](../Calendar%20Alarms%20Runtime.js).
 3. Update the QR playback section of the **Calendar Alarm Engine** Shortcut from the [action readout](../Shortcut%20Actions/Calendar%20Alarm%20Engine.md). Its scheduling/deletion/actions section remains the same. In the playback section, Set Volume precedes Permit, `LoopState` caches Poll/Permit output, and one shared stop block deletes the returned `alarmsToDelete` before stopping.
 4. Replace the contents of the **Calendar Alarm QR Scanner** Scriptable script with [Calendar Alarm QR Scanner.js](../Calendar%20Alarm%20QR%20Scanner.js). It now returns all owned QR retry deletions directly on scan, including a task alarm's separate QR restart. If the other QR components are already current, only this Scanner script needs replacing for the scan cleanup fix.
 
-The Scanner Shortcut's deletion wiring and menu lease remain unchanged. Existing installer behavior is also unchanged: it skips scripts that already exist, so rerunning it does not apply these updates. The action readout is a manual rebuild guide; no replacement shared `.shortcut` link is supplied.
+The Scanner Shortcut's deletion plan remains supported. Its current native readout replaces the automatic blocking-menu loop with a user-opened notification menu; remove its Any Alarm Goes Off automation. Existing installer behavior is also unchanged: it skips scripts that already exist, so rerunning it does not apply these updates. The action readout is a manual rebuild guide; no replacement shared `.shortcut` link is supplied.
 
 Run the Engine once after updating, preferably with no active QR alarm. It migrates known registry schedules without deleting configuration or resetting remaining reschedules. Preserve your registry and settings. Clock alarms left by older bugs whose times are already absent from the registry cannot be identified safely; remove any such known obsolete alarms manually.
 
@@ -33,7 +35,7 @@ Run the Engine once after updating, preferably with no active QR alarm. It migra
 
 The Scanner Shortcut applies the returned deletion plan immediately, without requiring a running Engine playback loop. Schedule pointers remain in the registry so the next Engine pass can reconcile Clock state and recover if a native deletion action was skipped. The Engine Shortcut's playback stop block remains an additional cleanup path.
 
-A failed Scanner registry commit returns no Clock deletions, scan actions, vibration, or success message; retry the scan. Scanner menu suppression remains outside this change. Native Clock actions can still fail independently of a successful registry commit.
+A failed Scanner registry commit returns no Clock deletions, scan actions, vibration, or success message; retry the scan. The Scanner core retains legacy menu suppression for older native callers; the current native menu uses Runtime instead. Native Clock actions can still fail independently of a successful registry commit.
 
 ## Registry fields
 

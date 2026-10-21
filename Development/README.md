@@ -7,7 +7,7 @@ For installation and feature setup, start with [Setup Guide](../Setup%20Guide.md
 | Component | Responsibility |
 | --- | --- |
 | [Calendar Alarm Engine.js](../Calendar%20Alarm%20Engine.js) | Parse calendar definitions, reconcile owned Clock schedules, context gates, independent task/QR deadlines, completion and cleanup |
-| [Calendar Alarm QR Scanner.js](../Calendar%20Alarm%20QR%20Scanner.js) | Match codes, stop active QR state, queue scan actions, and return its native deletion plan; retains the existing menu lease |
+| [Calendar Alarm QR Scanner.js](../Calendar%20Alarm%20QR%20Scanner.js) | Match codes, stop active QR state, queue scan actions, and return its native deletion plan; retains a legacy menu adapter for older shortcuts |
 | [Calendar Alarms Runtime.js](../Calendar%20Alarms%20Runtime.js) | Playback polling/permission, Clock guard, settings, action planning, reminders, and Wake Times helpers |
 | [Inline installer](../Inline%20Scriptable/Calendar%20Alarms%20Installer.js) | Download missing root scripts and six tones; never overwrite existing files |
 | [Shortcut action readouts](../Shortcut%20Actions/README.md) | Native action wiring and manual rebuild material; not exported Shortcuts or a verified dump of every shared link |
@@ -20,14 +20,16 @@ The **Shortcuts** Scriptable bookmark points to **iCloud Drive/Shortcuts**. Cale
 - [QR Scheduling Fixes](QR%20Scheduling%20Fixes.md) describes +2/+4 retries, independent task checks, scan cleanup, migration, and the required Engine Shortcut update.
 - [JSON Alarm Reference](../JSON%20Alarm%20Reference.md) defines user-supplied event fields; registry fields are not event configuration.
 - [Actions JSON Schema](../Calendar%20Alarms%20Actions%20Schema.md) defines one action per invocation. Native operations execute in the Actions Shortcut after runtime planning.
-- [Runtime Checkpoint](Runtime%20Checkpoint.md) is historical. Its pending scheduling proposals were superseded by the QR fix; its Scanner menu cancellation and native wiring caveats still matter.
+- [Runtime Checkpoint](Runtime%20Checkpoint.md) is historical. Its scheduling proposals and automatic Scanner menu were superseded; use the current native readouts for production wiring.
 - [Archive](Archive/README.md) preserves the superseded requirements and older inline helpers.
 
 ## Wake Times version note
 
-The owner reports that the current **CA Wake Times** Shortcut was corrected to preserve the original Sleep event's duration. User documentation describes that behavior. The repository's older [Wake Times readout](../Shortcut%20Actions/CA%20Wake%20Times.md) still uses `wake_plan.start`, and the checked-in runtime calculates that as eight hours before the selected end.
+Use the current [Wake Times readout](../Shortcut%20Actions/CA%20Wake%20Times.md): preserve actual elapsed duration, search bounded start-date candidates and validate each snapshot individually, require exactly one match, then edit Start Date first and End Date last on the saved event. The native combined date filter and end-first edit order both failed controlled reproductions. Runtime retains its legacy `endFirst` return field for compatibility, but this readout does not use it to order edits.
 
-Do not rebuild that older flow and assume it includes the on-phone fix. The corrected native flow or matching runtime update must be captured before publishing an updated readout. This documentation change does not modify the runtime or invent an export of the owner's Shortcut.
+## QR production configuration, October 2026
+
+Use the clean Engine directly from the alarm automation, no trace caller, and no automatic Scanner menu. The first existing QR poll posts the notification. Buffer and volume-correction controls default to 20 seconds, two-minute restart/four-minute backup remain unchanged, and native playback completion is acknowledged on the next poll. See [QR reliability limits](../Guides/QR%20Alarms.md#reliability-limits-observed-on-device). Automated script tests do not simulate native audio, OS suspension, alarm automation lifecycle, or notification permission behavior.
 
 ## Verification
 

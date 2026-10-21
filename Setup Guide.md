@@ -72,41 +72,39 @@ Automations tell your phone to run shortcuts at various times or under specific 
 <details>
 <summary><strong>iOS 27 and Newer</strong></summary>
 
-Turn on the automations inside the following three shortcuts. Open each shortcut, tap **Edit** to view its actions, expand each automation action, and turn it on.
+Turn on the automations inside the following two shortcuts. Open each shortcut, tap **Edit** to view its actions, expand each automation action, and turn it on.
 
 - **Calendar Alarm Engine**
   - **When Any Alarm Goes Off** — handles active alarm behavior
   - **When Calendar Is Closed** — syncs Calendar changes to Clock
   - **At 12:10 a.m.** — performs a daily backup sync
-- **Calendar Alarms QR Scanner**
-  - **When Any Alarm Goes Off** — displays the QR controls when applicable
 - **CA qrClockCloser** (recommended)
   - **When Clock Is Opened** — discourages disabling upcoming QR retries
 
-Once you’ve turned on the four core automations—and the fifth if you installed **CA qrClockCloser**—you’re finished with this section.
+Once you’ve turned on the three core automations—and the fourth if you installed **CA qrClockCloser**—you’re finished with this section.
 
 </details>
 
 <details>
 <summary><strong>iOS 26 and Earlier</strong></summary>
 
-Create the first **four automations** below in the Shortcuts app by tapping **Automation** at the bottom, followed by the **+** button. If you installed **CA qrClockCloser**, create the optional fifth automation as well:
+Create the first **three automations** below in the Shortcuts app by tapping **Automation** at the bottom, followed by the **+** button. If you installed **CA qrClockCloser**, create the optional fourth automation as well:
 
 1. **Time of Day (12:10 a.m.)** → **Repeat Daily** → **Run Immediately** → run **Calendar Alarm Engine**
    - Performs a daily backup sync.
 2. **Alarm** → **When Any Alarm Goes Off** → **Run Immediately** → run **Calendar Alarm Engine**
    - Handles active alarm behavior.
-3. **Alarm** → **When Any Alarm Goes Off** → **Run Immediately** → run **Calendar Alarms QR Scanner**
-   - Displays the QR controls when applicable.
-4. **App** → when **Calendar** is closed → **Run Immediately** → run **Calendar Alarm Engine**
+3. **App** → when **Calendar** is closed → **Run Immediately** → run **Calendar Alarm Engine**
    - Syncs Calendar changes to Clock.
    - **Note:** You can use a different calendar app for this automation, but it may not work correctly if your edited event has not yet synced to Apple Calendar when you close that app.
-5. *(Optional, recommended for QR alarms)* **App** → when **Clock** is opened → **Run Immediately** → run **CA qrClockCloser**
+4. *(Optional, recommended for QR alarms)* **App** → when **Clock** is opened → **Run Immediately** → run **CA qrClockCloser**
    - Discourages disabling upcoming QR retries in Clock.
 
-Once you’ve created the first four automations—and the fifth if you installed **CA qrClockCloser**—you’re finished with this section.
+Once you’ve created the first three automations—and the fourth if you installed **CA qrClockCloser**—you’re finished with this section.
 
 </details>
+
+**QR controls:** do not run **Calendar Alarms QR Scanner** from an alarm automation. Disable/remove an older Scanner alarm automation when migrating. Engine posts a notification whose body opens the Scanner menu. Scanner remains available manually and through Camera QR links. The production setup runs Engine directly; no caller or trace shortcuts are required. Use the matching updated [native readouts](Shortcut%20Actions/README.md) until the published downloads are refreshed.
 
 ### E) Run “Calendar Alarms Actions” to Finish Installation
 

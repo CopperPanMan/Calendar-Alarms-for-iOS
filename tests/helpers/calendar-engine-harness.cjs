@@ -32,11 +32,12 @@ class Harness {
       reminderState: {byID: Object.fromEntries(Object.entries(values).map(([id, complete]) => [id, {found: true, complete}]))},
       metricState: {allByID: Object.fromEntries(Object.entries(values).map(([id]) => [id, {value: false}]))}}));
   }
-  context(input) {
+  context(input, scriptName) {
     const h = this;
     class Clock extends Date { constructor(...args) {super(...(args.length ? args : [h.now]));} static now() {return h.now;} }
     return {Date: Clock, FileManager: {iCloud: () => h.fm, local: () => h.fm},
-      Timer: {schedule(seconds, repeat, fn) {h.now += seconds * 1000; fn(); return {invalidate() {}};}},
+      // Engine core still converts to seconds; Scanner passes Scriptable milliseconds.
+      Timer: {schedule(seconds, repeat, fn) {h.now += scriptName === 'Calendar Alarm QR Scanner.js' ? seconds : seconds * 1000; fn(); return {invalidate() {}};}},
       CalendarEvent: {between: async () => {
         if (h.options.calendarFails) throw Error('calendar fetch failed');
         return [{title: 'Tasks', startDate: new Clock(h.start), endDate: new Clock(h.start + 3600000), notes: JSON.stringify(h.definitions)}];
@@ -48,7 +49,7 @@ class Harness {
   }
   async run(name, input) {
     this.output = undefined;
-    await vm.runInNewContext('(async()=>{' + source(name) + '})()', this.context(input));
+    await vm.runInNewContext('(async()=>{' + source(name) + '})()', this.context(input, name));
     return typeof this.output === 'string' ? JSON.parse(this.output) : JSON.parse(JSON.stringify(this.output));
   }
   apply(plan) {
