@@ -18,6 +18,10 @@ const CALENDAR_ALARMS_DIRNAME = "Calendar Alarms";
 const LOCK_STALE_SEC = 30;
 const LOCK_RETRY_DELAY_MS = 500;
 const LOCK_HARD_TIMEOUT_MS = 3000;
+// Keep work after lock acquisition short too. Filesystem calls are synchronous
+// and cannot be interrupted, so check again before committing alarm changes.
+const SCANNER_WORK_BUDGET_MS = 4500;
+const scannerDeadlineMs = Date.now() + SCANNER_WORK_BUDGET_MS;
 
 const MENU_DEDUPE_SEC = 9;        // avoid duplicate menu overlays
 const MENU_STALE_SEC = 120;        // stuck-rescue
@@ -135,24 +139,36 @@ function resolveCalendarAlarmsDir(fm, shortcutsRoot) {
   );
 }
 
-async function ensureFile(fm, path, defaultContent) {
-  try {
-    if (!fm.fileExists(path)) fm.writeString(path, defaultContent);
-  } catch (e) {
-    addError(`ERR: ensureFile failed (${path}): ${String(e)}`);
+function checkWorkBudget() {
+  if (Date.now() >= scannerDeadlineMs) {
+    throw new Error("Scanner took too long. No alarm changes were made. Please scan again.");
   }
 }
 
-async function safeReadString(fm, path, fallback) {
+function requireDownloaded(fm, path, allowMissing = false) {
+  const name = String(path).split("/").pop();
+  if (!fm.fileExists(path)) {
+    if (allowMissing) return false;
+    throw new Error(`${name} is missing. Run Calendar Alarm Engine before scanning. No alarm changes were made.`);
+  }
+  if (typeof fm.isFileDownloaded === "function" && !fm.isFileDownloaded(path)) {
+    throw new Error(`${name} is not downloaded. Download the Calendar Alarms folder in Files, then scan again. No alarm changes were made.`);
+  }
+  return true;
+}
+
+function safeReadString(fm, path, fallback) {
   try {
-    if (!fm.fileExists(path)) return fallback;
-    if (fm.isFileStoredIniCloud && fm.isFileStoredIniCloud(path)) {
-      if (!fm.isFileDownloaded(path)) await fm.downloadFileFromiCloud(path);
+    // A fallback is only for a genuinely absent optional file. A failed read
+    // must never become an empty registry or an apparently unlocked lock.
+    if (!requireDownloaded(fm, path, fallback !== undefined)) return fallback;
+    const value = fm.readString(path);
+    if (typeof value !== "string") {
+      throw new Error("The file could not be read as text.");
     }
-    return fm.readString(path);
+    return value;
   } catch (e) {
-    addError(`ERR: read failed (${path}): ${String(e)}`);
-    return fallback;
+    throw new Error(`Read failed (${String(path).split("/").pop()}): ${String(e)}`);
   }
 }
 
@@ -191,7 +207,8 @@ function parseTimestampToEpochSec(s) {
 }
 
 async function loadRegistry(fm, registryPath) {
-  const raw = await safeReadString(fm, registryPath, "[]");
+  const raw = await safeReadString(fm, registryPath);
+  checkWorkBudget();
   const p = safeJSONParse(raw);
   if (!p.ok) {
     addError(`ERR: registry.txt corrupt; treating as empty. (${p.err})`);
@@ -218,38 +235,47 @@ async function acquireLock(fm, lockPath) {
 
   while (remainingMs() > 0) {
     const raw = await safeReadString(fm, lockPath, "");
-    // An iCloud read may itself be slow; never start a claim after the budget.
+    // Never start a claim after a slow local read exhausted the budget.
     if (remainingMs() === 0) break;
     let lockObj = null;
 
     if (raw && raw.trim()) {
       const p = safeJSONParse(raw);
-      if (p.ok && p.val && typeof p.val === "object") lockObj = p.val;
-      else {
-        addError("WARN: registryLock.txt corrupt; treating as stale.");
-        lockObj = null;
+      if (!p.ok || !p.val || typeof p.val !== "object" || Array.isArray(p.val) ||
+          typeof p.val.id !== "string" || !p.val.id ||
+          typeof p.val.timestamp !== "number" || !Number.isFinite(p.val.timestamp)) {
+        throw new Error("registryLock.txt is invalid. No alarm changes were made. Run Calendar Alarm Engine, then scan again.");
       }
+      lockObj = p.val;
     }
 
     const now = nowEpoch();
     const ts = Number(lockObj?.timestamp ?? 0);
     const age = now - ts;
 
-    if (lockObj && Number.isFinite(ts) && age >= 0 && age < LOCK_STALE_SEC) {
+    if (lockObj && Number.isFinite(ts) && age < LOCK_STALE_SEC) {
       await sleep(Math.min(LOCK_RETRY_DELAY_MS, remainingMs()));
       continue;
     }
 
     const claim = { id: myId, timestamp: now };
-    await safeWriteString(fm, lockPath, JSON.stringify(claim));
+    if (!(await safeWriteString(fm, lockPath, JSON.stringify(claim)))) return { ok: false, id: null };
 
-    await sleep(Math.min(LOCK_RETRY_DELAY_MS, remainingMs()));
-    const verifyRaw = await safeReadString(fm, lockPath, "");
+    let verifyRaw;
+    try {
+      await sleep(Math.min(LOCK_RETRY_DELAY_MS, remainingMs()));
+      verifyRaw = safeReadString(fm, lockPath, "");
+    } catch (e) {
+      releaseLock(fm, lockPath, myId);
+      throw e;
+    }
     const verify = safeJSONParse(verifyRaw);
     if (verify.ok && verify.val && verify.val.id === myId) {
       if (Date.now() <= deadlineMs) return { ok: true, id: myId };
       // A delayed verification must not leave our expired claim behind.
-      await safeWriteString(fm, lockPath, "");
+      // Verification and this write are synchronous: do not yield ownership
+      // between confirming our ID and clearing the expired claim.
+      fm.writeString(lockPath, "");
       break;
     }
   }
@@ -258,8 +284,19 @@ async function acquireLock(fm, lockPath) {
   return { ok: false, id: null };
 }
 
-async function releaseLock(fm, lockPath) {
-  await safeWriteString(fm, lockPath, "");
+function ownsLock(fm, lockPath, id) {
+  const parsed = safeJSONParse(safeReadString(fm, lockPath, ""));
+  return !!(parsed.ok && parsed.val && parsed.val.id === id);
+}
+
+function releaseLock(fm, lockPath, id) {
+  try {
+    // No await between checking ownership and clearing the claim. Never erase
+    // a successor's lock, or write when the current claim cannot be read.
+    if (ownsLock(fm, lockPath, id)) fm.writeString(lockPath, "");
+  } catch (e) {
+    addError(`ERR: Could not release scanner lock: ${String(e)}`);
+  }
 }
 
 function pickActiveQRAlarm(registryArr) {
@@ -344,6 +381,7 @@ async function runModeA(fm, paths) {
   if (waitingForPlayback(active)) return menuDeferred(active);
 
   if (shouldShowMenu) {
+    checkWorkBudget();
     // Claim the menu slot
     await safeWriteString(fm, paths.menuOpenStatus, "true");
     await safeWriteString(fm, paths.menuLastOpened, new Date().toISOString());
@@ -422,11 +460,15 @@ async function runModeB(fm, paths, qrCodeID) {
     alarmsToDelete: [],
   };
 
+  // Do not create an empty registry during cold start or iCloud eviction.
+  requireDownloaded(fm, paths.registry);
+  checkWorkBudget();
   const lock = await acquireLock(fm, paths.lock);
   if (!lock.ok) return out;
 
   try {
-    const regRaw = await safeReadString(fm, paths.registry, "[]");
+    const regRaw = await safeReadString(fm, paths.registry);
+    checkWorkBudget();
     const pj = safeJSONParse(regRaw);
     let reg = [];
 
@@ -506,13 +548,20 @@ async function runModeB(fm, paths, qrCodeID) {
       out.shortcutToRunInput = out.shortcutsToRunDetailed[0]?.input || [];
     }
 
-    if (!(await safeWriteString(fm, paths.registry, JSON.stringify(reg)))) {
+    const savedRegistry = JSON.stringify(reg);
+    if (!ownsLock(fm, paths.lock, lock.id)) {
+      throw new Error("Alarm data changed during scanning. No alarm changes were made. Please scan again.");
+    }
+    checkWorkBudget();
+    // An unmatched scan has no registry changes to commit.
+    if (out.identifiedAlarms === 0) return out;
+    if (!(await safeWriteString(fm, paths.registry, savedRegistry))) {
       return { ...out, identifiedAlarms: 0, shortcutsToRun: [], shortcutsToRunDetailed: [],
         shortcutToRun: "", shortcutToRunInput: [], vibrate: false, alarmsToDelete: [],
         notification: "Could not save alarm cleanup. Please scan again." };
     }
   } finally {
-    await releaseLock(fm, paths.lock);
+    releaseLock(fm, paths.lock, lock.id);
   }
 
   return out;
@@ -520,9 +569,9 @@ async function runModeB(fm, paths, qrCodeID) {
 
 // ---------- MAIN ----------
 const result = {};
-const fm = getFileManager();
 
 try {
+  const fm = getFileManager();
   const shortcutsRoot = resolveShortcutsRootOrThrow(fm);
   const baseDir = resolveCalendarAlarmsDir(fm, shortcutsRoot);
 
@@ -533,12 +582,6 @@ try {
     menuLastOpened: fm.joinPath(baseDir, FILES.menuLastOpened),
     menuOpenStatus: fm.joinPath(baseDir, FILES.menuOpenStatus),
   };
-
-  await ensureFile(fm, paths.registry, "[]");
-  await ensureFile(fm, paths.lock, "");
-  await ensureFile(fm, paths.scannerLastOpened, new Date(0).toISOString());
-  await ensureFile(fm, paths.menuLastOpened, new Date(0).toISOString());
-  await ensureFile(fm, paths.menuOpenStatus, "false");
 
   const rawInput = String(args.shortcutParameter ?? "");
   const trimmed = rawInput.trim();
@@ -560,6 +603,7 @@ try {
     result.shortcutToRunInput = [];
     result.notification = "";
     result.vibrate = false;
+    result.alarmsToDelete = [];
   }
 }
 

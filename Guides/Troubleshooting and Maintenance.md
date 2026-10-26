@@ -24,13 +24,13 @@ iOS can delay, skip, or terminate Shortcut executions. Backup triggers improve r
 
 Run **Calendar Alarm Engine** from the alarm automation, and disable/remove the older automatic Scanner invocation. Tap the Scriptable notification body to open Scanner, or run Scanner manually. Check Scriptable notification permission and Notification Center. The current native menu has Scan, Silence for 15 seconds, and Dismiss, and runs only when requested; it does not loop inside the automation. Do not rename Scanner without regenerating its QR links.
 
-If scanning reports “Alarm data is busy”, scan again after other alarm work finishes. The Scanner now retries lock acquisition for up to three seconds between awaited file operations, returns a clear retry message if unsuccessful, and explicitly completes its Scriptable invocation. This budget cannot interrupt an iCloud file operation already in progress.
+If scanning reports “Alarm data is busy”, scan again after other alarm work finishes. The Scanner retries lock acquisition for up to three seconds within a cooperative 4.5-second work budget, returns a clear retry message if unsuccessful, and explicitly completes its Scriptable invocation. These budgets cannot interrupt a synchronous file operation already in progress. State files must be locally available; open Files to download them if an error identifies a missing local copy.
 
 ### The sound is missing, pauses, or reports a file error
 
 Check the file at `Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones`, its exact relative path, and QR Volume. Use an installed tone to rule out a custom-file problem. The current playback flow errors if the file is missing; rerunning setup restores missing built-in tones.
 
-For observed overlap/interference failures and the adopted 20-second controls, see [QR reliability limits](QR%20Alarms.md#reliability-limits-observed-on-device). Sound can pause while the scan controls are used, while a new execution starts, or when an action stalls. The sound cache reduces file work, but continuous playback is not guaranteed. Follow the [update instructions](#update-an-existing-installation) if your Engine Shortcut predates cached playback or the new cleanup block.
+For the October 26 device result, five-second restart buffer and unchanged twenty-second volume cadence, see [QR reliability limits](QR%20Alarms.md#reliability-limits-observed-on-device). Consecutive looping improved in the reported test, but a few timeout messages remained around three minutes after starting. Record the exact shortcut/action and timing of a future message; its cause is unresolved. Sound can pause while the scan controls are used or an action stalls. The sound cache and fewer calls reduce repeated work, but continuous playback is not guaranteed. Follow the [update instructions](#update-an-existing-installation) for the specifically documented changes; do not add diagnostic actions to the playback loop.
 
 ### It rings again after a successful scan
 
@@ -56,6 +56,8 @@ Run **Update Lockout Cache** without input and confirm it succeeds. Check that I
 
 Test with the phone unlocked. The integration reads `OpenHabits/OpenHabits Metrics/lockoutCache.json`; it needs a successful cache with reminder completion state. Unknown IDs and cache failures do not mean a task is complete. A reminder can be empty when its metrics are complete, unscheduled, or expired.
 
+Completion cleanup now matches an exact alarm occurrence or a valid OpenHabits tracking-day window, rather than every future alarm with the same metric ID. This prevents tonight's completion from cancelling tomorrow's occurrence. See the [completion fix and validation limits](../Development/October%2026%20Reliability%20Update.md#completion-scope). Intentional task checks, cache refreshes and spoken trigger actions still run before QR sound; their startup time is not removed by this update.
+
 ## Wake Times cannot find Sleep
 
 Use the exact event title **Sleep**, a timed event for your next sleep period, and a calendar that is not excluded. Avoid multiple nearby Sleep events. The repository helper currently searches event starts from ten hours ago to fourteen hours ahead. An event outside that search or several matching events produces an error.
@@ -66,10 +68,10 @@ Use the current [CA Wake Times readout](../Shortcut%20Actions/CA%20Wake%20Times.
 
 Rerunning **Calendar Alarms Actions** installs missing scripts and tones. **It does not overwrite existing files or update your installed Shortcut actions.**
 
-1. Read the relevant change notes. For the current QR update, see [QR Scheduling Fixes](../Development/QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
+1. Read the relevant change notes. For the current reductions, see [October 26 Reliability Update](../Development/October%2026%20Reliability%20Update.md). Earlier scheduling changes are documented in [QR Scheduling Fixes](../Development/QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
 2. Save copies of any Scriptable scripts or Shortcuts you customized.
-3. Replace existing Scriptable source with the matching repository version, keeping its script name. For the full QR update, replace **Calendar Alarm Engine**, **Calendar Alarms Runtime**, and **Calendar Alarm QR Scanner**. The notification/menu and playback acknowledgement update needs the matching Runtime and native Engine/Scanner flows. The Scanner completion fix also requires its updated script.
-4. Install the corresponding updated shared Shortcuts when available, or apply the specified [manual action readout](../Shortcut%20Actions/README.md). Source changes in GitHub do not update a shared Shortcut automatically. Use the corrected Wake Times matcher and start-first/end-last edit order.
+3. Replace existing Scriptable source with the matching repository version, keeping its script name. For the October 26 changes, replace **Calendar Alarm Engine**, **Calendar Alarms Runtime**, and **Calendar Alarm QR Scanner**. The 148-action Engine requires a Runtime supporting `qr_step`; do not restore an older Runtime underneath that native flow.
+4. Apply only the corresponding Engine/Scanner changes in the [manual action readouts](../Shortcut%20Actions/README.md), or use matching updated shared Shortcuts when available. Source changes in GitHub do not update a shared Shortcut automatically. The published iCloud links still identify older flows. Preserve existing shortcut identities and automation bindings when editing the current flows.
 5. Reconnect imported **Run Shortcut** actions and confirm your version's automations. Run Engine once, preferably without an active QR alarm, then repeat the demo and test the features you use.
 
 Preserve the registry, settings, and custom tones; do not delete them to force an update. The updated Engine migrates known QR schedules. A runtime script normally appears in Scriptable without its `.js` extension; for example, **Calendar Alarms Runtime**.

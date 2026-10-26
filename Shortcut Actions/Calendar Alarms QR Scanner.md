@@ -1,10 +1,12 @@
 # Calendar Alarms QR Scanner
 
-Full replacement action readout, 2026-10-19, matching the installed notification/menu flow. Updating this file does not update a published iCloud Shortcut. Run this shortcut from the notification, Camera QR link, or manually; **remove its Any Alarm Goes Off automation**. Only Engine runs automatically on alarm firings.
+Action readout, 2026-10-26, for the approved installed **88-action Scanner**, derived from the restored 91-action October 26 baseline. Its only native change is removal of original actions 58–60: the post-core `scanner_scan_finished` request, Runtime call and Dictionary conversion. This readout describes that flow, not the older published iCloud Shortcut; updating this file does not update a published Shortcut. The October 26 phone result covered Engine looping; Scanner device validation has not yet been reported. Run this shortcut from the notification, Camera QR link, or manually; only Engine runs automatically on alarm firings.
 
 Arrows name magic variables. All Scriptable calls use Run in App Off. Runtime calls return a Dictionary: explicitly follow Run Script with Get Dictionary from Input and use that result. The named Scanner core returns JSON **Text**, also requiring Get Dictionary. Text guards use `is [blank]` / `is not [blank]` with the comparison field truly empty and the value coerced to Text. Do not type the word blank or use Dictionary Value “has any value”. Counts are Numbers; `fromScan` and `vibrate` are Booleans.
 
 The menu opens once per user invocation and exits on Scan, Silence, or Dismiss. Silence mutes for 15 seconds and schedules a returning **notification** after 10 seconds; no native Wait or automatic menu reopening is involved. Dismissing/cancelling a user-opened menu no longer holds the alarm automation open. Expanded notification action buttons are not used. Camera cancellation may abort that manual invocation; use Camera or reopen Scanner to recover.
+
+Successful direct scans use one Scriptable call; successful manual camera scans use four, including the nested direct scan. Invalid-scan cleanup remains. Removing successful-scan notification cleanup lets the core result proceed directly to error handling, Clock deletion, feedback and configured scan actions. A notification may remain stale until later Engine/Runtime upkeep; the final camera-silence deadline can remain for the rest of its 15-second period. This update does not add a replacement call or change that menu behavior.
 
 ```jsx
 IF: Shortcut Input does not have any value
@@ -13,7 +15,9 @@ IF: Shortcut Input does not have any value
         → MenuRequest
     RUN SCRIPT: Calendar Alarms Runtime
         Parameter: MenuRequest
-        → MenuState (Dictionary; explicitly normalize)
+        → MenuStateRaw
+    GET DICTIONARY FROM INPUT: MenuStateRaw
+        → MenuState (Dictionary)
     GET DICTIONARY VALUE: error from MenuState
         → MenuErrors (Text)
     IF: MenuErrors is not [blank]
@@ -34,7 +38,9 @@ IF: Shortcut Input does not have any value
                 → CameraRequest
             RUN SCRIPT: Calendar Alarms Runtime
                 Parameter: CameraRequest
-                → CameraPreparation (Dictionary; explicitly normalize)
+                → CameraPreparationRaw
+            GET DICTIONARY FROM INPUT: CameraPreparationRaw
+                → CameraPreparation (Dictionary)
             GET DICTIONARY VALUE: error from CameraPreparation
                 → CameraError (Text)
             IF: CameraError is not [blank]
@@ -54,25 +60,33 @@ IF: Shortcut Input does not have any value
                 → DecodeRequest
             RUN SCRIPT: Calendar Alarms Runtime
                 Parameter: DecodeRequest
-                → Decoded (Dictionary; explicitly normalize)
+                → DecodedRaw
+            GET DICTIONARY FROM INPUT: DecodedRaw
+                → Decoded (Dictionary)
             GET DICTIONARY VALUE: code from Decoded
                 → DecodedCode (Text)
             IF: DecodedCode is not [blank]
-                RUN SHORTCUT: Calendar Alarms QR Scanner
+                TEXT: Calendar Alarms QR Scanner
+                    → Calendar Alarms QR ScannerName
+                RUN SHORTCUT: Calendar Alarms QR ScannerName
                     Input: DecodedCode
             OTHERWISE
                 SHOW NOTIFICATION: That is not a Calendar Alarms QR code. Please scan the configured code.
                 DICTIONARY: op = scanner_scan_finished (Text)
                 RUN SCRIPT: Calendar Alarms Runtime
                     Parameter: preceding Dictionary
-                    → UnmatchedScanNotification (Dictionary; explicitly normalize)
+                    → UnmatchedScanNotificationRaw
+                GET DICTIONARY FROM INPUT: UnmatchedScanNotificationRaw
+                    → UnmatchedScanNotification (Dictionary)
             END IF
             STOP THIS SHORTCUT
         Silence for 15 seconds:
             DICTIONARY: op = scanner_silence (Text)
             RUN SCRIPT: Calendar Alarms Runtime
                 Parameter: preceding Dictionary
-                → SilenceResult (Dictionary; explicitly normalize)
+                → SilenceResultRaw
+            GET DICTIONARY FROM INPUT: SilenceResultRaw
+                → SilenceResult (Dictionary)
             GET DICTIONARY VALUE: error from SilenceResult
                 → SilenceError (Text)
             IF: SilenceError is not [blank]
@@ -90,10 +104,6 @@ OTHERWISE
         → ScanJSON
     GET DICTIONARY FROM INPUT: ScanJSON
         → ScanResult
-    DICTIONARY: op = scanner_scan_finished (Text)
-    RUN SCRIPT: Calendar Alarms Runtime
-        Parameter: preceding Dictionary
-        → ScanNotificationCleanup (Dictionary; explicitly normalize)
     GET DICTIONARY VALUE:
         Dictionary: ScanResult
         Key: errorRegistry
@@ -167,4 +177,4 @@ END IF
 STOP THIS SHORTCUT
 ```
 
-The Scanner core retries registry lock acquisition for at most 3 seconds between awaited file operations, then returns a clear retry message without changing alarms or dispatching scan actions. This does not cancel an iCloud file operation already in progress. It outputs the result and explicitly calls `Script.complete()`. Legacy no-input core/menu operations remain for older shortcuts; this native flow uses Runtime `scanner_menu` instead.
+The matching Scanner core uses a three-second lock-acquisition budget and requires locally available registry/lock state instead of waiting for iCloud downloads. A failed read or lock attempt returns a retry error without alarm changes or scan-action dispatch. The budget cannot preempt a stalled system file operation. The core outputs its result and explicitly calls `Script.complete()`. Legacy no-input core/menu operations remain for older shortcuts; this native flow uses Runtime `scanner_menu` instead.
