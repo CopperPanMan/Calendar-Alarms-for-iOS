@@ -392,8 +392,8 @@ test('Engine action readout has balanced blocks and requests permission after se
     if (s === 'END REPEAT') assert.equal(stack.pop(), 'REPEAT');
   }
   assert.deepEqual(stack, []);
-  assert.ok(code.lastIndexOf('SET VOLUME:') < code.indexOf('op: qr_permit'));
-  assert.ok(code.indexOf('op: qr_permit') < code.indexOf('PLAY SOUND: CachedAudioFile'));
+  assert.ok(code.lastIndexOf('SET VOLUME:') < code.indexOf('op: qr_step'));
+  assert.ok(code.indexOf('op: qr_step') < code.indexOf('PLAY SOUND: CachedAudioFile'));
   assert.match(code, /Dictionary: LoopState\s+Key: alarmsToDelete/);
 });
 

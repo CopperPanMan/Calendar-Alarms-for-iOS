@@ -37,8 +37,8 @@ const SETTINGS_FILENAME = "settings.json";
 // Constants
 const CONFLICT_BUFFER_MIN = 10;
 const LOCK_STALE_SEC = 30;
-const LOCK_RETRY_DELAY_MS = 500;
-const LOCK_HARD_TIMEOUT_MS = 30000;
+const LOCK_RETRY_DELAY_MS = 100;
+const LOCK_HARD_TIMEOUT_MS = 1500;
 
 const WINDOW_PAST_SEC = 60 * 60;        // now - 1h
 const WINDOW_FUTURE_SEC = 24 * 60 * 60; // now + 24h
@@ -50,7 +50,11 @@ const QR_BACKUP_MULTIPLIER = 2;
 const QR_BACKUP_INTERVAL_SEC = QR_LOOP_INTERVAL_SEC * QR_BACKUP_MULTIPLIER;
 const RESCHED_CLAMP_FUTURE_SEC = 4 * 60 * 60;
 const LOCATION_CACHE_KEY = "calendar_alarms_last_location_v1";
-const LOCATION_TIMEOUT_MS = 4500;
+const LOCATION_TIMEOUT_MS = 2500;
+const LOCATION_TOTAL_BUDGET_MS = 2500;
+const ENGINE_STARTED_AT_MS = Date.now();
+const LOCATION_STARTUP_DEADLINE_MS = 3500;
+const TRIGGER_ACTION_HOLD_SEC = 60;
 const LOCATION_MAX_ATTEMPTS = 2;
 const FIRED_ALARM_GRACE_SEC = 15 * 60;
 const CLEANUP_GRACE_SEC = 5 * 60;
@@ -79,10 +83,14 @@ function addError(line) {
 
 const output = {
   alarmsToDelete: [],
+  alarmsToDeleteBeforeAdd: [],
+  alarmsToDeleteBeforePlayback: [],
+  qrFallbackAlarmsToVerify: [],
   alarmsToAdd: [],
   triggerShortcutsToRun: [],
   triggerShortcutsToRunDetailed: [],
   completionOnly: false,
+  qrHandoffVersion: 0,
   qrLoop: false,
   nextLoopStart: "",
   debug: {},
@@ -92,6 +100,7 @@ const output = {
 let lockoutCachePath = "";
 let lockoutCachePathAttempted = false;
 let disabledCalendarNames = [];
+const deferredQRDeletes = new Map();
 
 function normalizeShortcutInputArray(raw) {
   if (Array.isArray(raw)) {
@@ -140,7 +149,7 @@ function queueTriggerShortcuts(rawList, entry) {
   const triggerID = UUID.string();
   entry.triggerActionID = triggerID;
   // A terminated Shortcut must not leave playback blocked indefinitely.
-  entry.triggerActionsUntil = nowEpoch() + 180;
+  entry.triggerActionsUntil = nowEpoch() + TRIGGER_ACTION_HOLD_SEC;
   const triggerKey = registryKey(entry);
   actions.forEach((action, index) => {
     const payload = safeJSONParse(String(action.input[0] || ""));
@@ -192,7 +201,7 @@ function writeLocationCache(loc) {
 async function withTimeout(promise, ms) {
   let timer = null;
   const timeoutPromise = new Promise((_, reject) => {
-    timer = Timer.schedule(ms / 1000, false, () => {
+    timer = Timer.schedule(ms, false, () => {
       reject(new Error(`TIMEOUT_AFTER_${ms}MS`));
     });
   });
@@ -208,9 +217,9 @@ async function withTimeout(promise, ms) {
 }
 
 function sleep(ms) {
-  const seconds = Math.max(0, Number(ms) / 1000);
+  const milliseconds = Math.max(0, Number(ms));
   return new Promise((resolve) => {
-    Timer.schedule(seconds, false, () => resolve());
+    Timer.schedule(milliseconds, false, () => resolve());
   });
 }
 
@@ -485,19 +494,30 @@ async function safeReadString(fm, path, fallback) {
   }
 }
 
+function readRequiredState(fm, path) {
+  if (!fm.fileExists(path)) throw new Error(`Required alarm state is missing: ${path}`);
+  if (fm.isFileStoredIniCloud?.(path) && !fm.isFileDownloaded(path)) {
+    throw new Error(`Required alarm state is not downloaded: ${path}. Open Files to download it, then retry.`);
+  }
+  const raw = fm.readString(path);
+  if (typeof raw !== "string") throw new Error(`Required alarm state could not be read: ${path}`);
+  return raw;
+}
+
 async function loadDisabledCalendarNames(fm, settingsPath) {
-  const raw = await safeReadString(fm, settingsPath, "{}");
+  // An absent settings file means no calendar exclusions. An existing file
+  // must be available locally: never wait for iCloud or guess its exclusions.
+  if (!fm.fileExists(settingsPath)) return [];
+  const raw = readRequiredState(fm, settingsPath);
   const parsed = safeJSONParse(raw);
 
   if (!parsed.ok || !parsed.val || typeof parsed.val !== "object" || Array.isArray(parsed.val)) {
-    addError(`WARN: settings.json is not a valid JSON dictionary; all calendars will be included. (${parsed.err ?? "invalid root value"})`);
-    return [];
+    throw new Error(`settings.json is not a valid JSON dictionary. (${parsed.err ?? "invalid root value"})`);
   }
 
   if (typeof parsed.val.disabledCalendars === "undefined") return [];
   if (!Array.isArray(parsed.val.disabledCalendars)) {
-    addError("WARN: settings.json disabledCalendars must be a list; all calendars will be included.");
-    return [];
+    throw new Error("settings.json disabledCalendars must be a list.");
   }
 
   return parsed.val.disabledCalendars;
@@ -519,16 +539,16 @@ async function acquireLock(fm, lockPath) {
   const startMs = Date.now();
 
   while (Date.now() - startMs < LOCK_HARD_TIMEOUT_MS) {
-    const raw = await safeReadString(fm, lockPath, "");
+    const raw = readRequiredState(fm, lockPath);
     let lockObj = null;
 
     if (raw && raw.trim()) {
       const p = safeJSONParse(raw);
-      if (p.ok && p.val && typeof p.val === "object") {
+      if (p.ok && p.val && typeof p.val === "object" && !Array.isArray(p.val) &&
+          typeof p.val.id === "string" && p.val.id && Number.isFinite(Number(p.val.timestamp)) && Number(p.val.timestamp) > 0) {
         lockObj = p.val;
       } else {
-        addError("WARN: registryLock.txt corrupt; treating as stale.");
-        lockObj = null;
+        throw new Error("registryLock.txt is corrupt. No alarm state was changed.");
       }
     }
 
@@ -542,22 +562,25 @@ async function acquireLock(fm, lockPath) {
     }
 
     const claim = { id: myId, timestamp: now };
-    await safeWriteString(fm, lockPath, JSON.stringify(claim));
+    if (!await safeWriteString(fm, lockPath, JSON.stringify(claim))) return {ok: false, id: null};
 
     await sleep(LOCK_RETRY_DELAY_MS);
-    const verifyRaw = await safeReadString(fm, lockPath, "");
+    const verifyRaw = readRequiredState(fm, lockPath);
     const verify = safeJSONParse(verifyRaw);
     if (verify.ok && verify.val && verify.val.id === myId) {
       return { ok: true, id: myId };
     }
   }
 
-  addError("ERR: registry lock timeout (30s). No registry write performed.");
+  addError(`ERR: registry lock timeout (${LOCK_HARD_TIMEOUT_MS}ms). No registry write performed.`);
   return { ok: false, id: null };
 }
 
-async function releaseLock(fm, lockPath) {
-  await safeWriteString(fm, lockPath, "");
+async function releaseLock(fm, lockPath, ownerID) {
+  try {
+    const parsed = safeJSONParse(readRequiredState(fm, lockPath));
+    if (parsed.ok && parsed.val?.id === ownerID) await safeWriteString(fm, lockPath, "");
+  } catch (e) { addError(`WARN: registry lock release deferred: ${String(e)}`); }
 }
 
 // ---------- Dictionary input parsing (index-aligned) ----------
@@ -595,6 +618,7 @@ function parseEngineInput(value) {
     currentFocus: currentFocus.trim(),
     taskLogResponseRaw: taskLogResponse,
     completionOnly: taskLogResponse.trim().length > 0,
+    reliableQRHandoff: value.reliableQRHandoff === true,
     currentLocation: null,
     locationAttempted: false,
   };
@@ -636,6 +660,88 @@ function taskMetricIsComplete(metric) {
     metric.status !== "error" && (metric.errors == null || (Array.isArray(metric.errors) && metric.errors.length === 0));
 }
 
+function completionDayKey(epochMs, timezone = "") {
+  if (!Number.isFinite(epochMs)) return "";
+  if (timezone) {
+    const offset = String(timezone).match(/^([+-])(\d{2}):(\d{2})$/);
+    if (offset && Number(offset[2]) <= 23 && Number(offset[3]) < 60) {
+      const minutes = (Number(offset[2]) * 60 + Number(offset[3])) * (offset[1] === "-" ? -1 : 1);
+      return new Date(epochMs + minutes * 60000).toISOString().slice(0, 10);
+    }
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {timeZone: timezone,
+        year: "numeric", month: "2-digit", day: "2-digit"}).formatToParts(new Date(epochMs));
+      const value = type => parts.find(part => part.type === type)?.value;
+      return `${value("year")}-${value("month")}-${value("day")}`;
+    } catch (_) { return ""; }
+  }
+  const date = new Date(epochMs);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function completionScopeForReport(report) {
+  const now = Date.now();
+  if (report.alarmOccurrence !== undefined) {
+    const occurrence = report.alarmOccurrence;
+    if (!occurrence || typeof occurrence.alarmName !== "string" || !occurrence.alarmName ||
+        !Number.isFinite(Number(occurrence.calcFireTime)) || Number(occurrence.calcFireTime) <= 0) {
+      return {error: "invalid alarm occurrence in completion report"};
+    }
+    return {occurrence: {alarmName: occurrence.alarmName, calcFireTime: Number(occurrence.calcFireTime)}};
+  }
+  const explicit = report.completionScope !== undefined;
+  const scope = explicit ? report.completionScope : {};
+  if (!scope || typeof scope !== "object" || Array.isArray(scope)) return {error: "invalid completion scope"};
+  const evaluated = scope.evaluatedAtISO === undefined ? now : Date.parse(scope.evaluatedAtISO);
+  if (!Number.isFinite(evaluated) || evaluated > now + 30000 || now - evaluated > 15 * 60000) {
+    return {error: "outdated or invalid completion evaluation time"};
+  }
+  if (scope.windowStartISO !== undefined || scope.windowEndISO !== undefined) {
+    const start = Date.parse(scope.windowStartISO), end = Date.parse(scope.windowEndISO);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end - start > 48 * 3600000 ||
+        evaluated < start || evaluated >= end) return {error: "invalid completion day window"};
+    return {start, end};
+  }
+  const timezone = scope.timezone === undefined ? "" : String(scope.timezone);
+  const dayKey = completionDayKey(evaluated, timezone);
+  if (!dayKey) return {error: "invalid completion timezone"};
+  return {dayKey, timezone, evaluated, legacy: !explicit};
+}
+
+function completionAppliesToEntry(entry, scope) {
+  const fireMs = Number(entry.calcFireTime) * 1000;
+  if (!Number.isFinite(fireMs) || fireMs <= 0) return false;
+  if (scope.occurrence) return entry.alarmName === scope.occurrence.alarmName &&
+    Number(entry.calcFireTime) === scope.occurrence.calcFireTime;
+  if (scope.start !== undefined) return fireMs >= scope.start && fireMs < scope.end;
+  if (!scope.legacy && completionDayKey(fireMs, scope.timezone) === scope.dayKey) return true;
+  // Old loggers without a usable cache carry no evaluation window. Only past
+  // occurrences can be suppressed; future early completion needs a valid scope.
+  return scope.legacy && fireMs <= scope.evaluated && scope.evaluated - fireMs < 24 * 3600000;
+}
+
+function currentCachedCompletionScope(completedIDs) {
+  try {
+    const cachePath = ensureLockoutCachePathInitialized();
+    if (!cachePath || !fm.fileExists(cachePath)) return null;
+    const parsed = safeJSONParse(readRequiredState(fm, cachePath));
+    const cache = parsed.ok ? parsed.val : null;
+    const age = Date.now() - Date.parse(cache?.generatedAtISO);
+    if (!cache || cache.ok !== true || !(age >= 0 && age <= 90000)) return null;
+    if (!Array.isArray(completedIDs) || !completedIDs.length || !completedIDs.every(id => {
+      const metric = cache.reminderState?.byID?.[id];
+      return metric && metric.found !== false && metric.complete === true;
+    })) return null;
+    const day = cache.virtualDay;
+    if (day?.enabled === true) {
+      const scope = {evaluatedAtISO: cache.generatedAtISO, windowStartISO: day.windowStartISO,
+        windowEndISO: day.windowEndISO, timezone: day.timezone || cache.timezone || day.timezoneOffset || ""};
+      return completionScopeForReport({completionScope: scope}).error ? null : scope;
+    }
+    return {evaluatedAtISO: cache.generatedAtISO, timezone: cache.timezone || ""};
+  } catch (_) { return null; } // Optional data never authorizes a wider scope on failure.
+}
+
 async function applyTaskLogCompletions(input, registryAfter) {
   const parsed = getCompletedTaskMetricIDs(input.taskLogResponseRaw);
   if (parsed.error) {
@@ -644,11 +750,17 @@ async function applyTaskLogCompletions(input, registryAfter) {
   }
   if (!parsed.ids.length) return;
   const report = JSON.parse(input.taskLogResponseRaw);
+  if (report.alarmOccurrence === undefined && report.completionScope === undefined) {
+    const cachedScope = currentCachedCompletionScope(parsed.ids);
+    if (cachedScope) report.completionScope = cachedScope;
+  }
+  const scope = completionScopeForReport(report);
+  if (scope.error) { addError(`WARN: ${scope.error}; task loops were not reset.`); return; }
   const explicitlyIncomplete = new Set(report.metricsByID.filter((m) => m && !taskMetricIsComplete(m))
     .map((m) => String(m.metricID || "").trim()));
   const completedIDs = new Set(parsed.ids);
   for (const entry of registryAfter) {
-    if (entry.taskLoopEnabled === false) continue;
+    if (entry.taskLoopEnabled === false || !completionAppliesToEntry(entry, scope)) continue;
     const taskIDs = Array.isArray(entry?.taskIDs)
       ? entry.taskIDs.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
     if (!taskIDs.length || !taskIDs.some((id) => completedIDs.has(id))) continue;
@@ -1192,22 +1304,20 @@ function cleanupScannedQRLoops(registry, iosAlarms) {
 }
 
 async function loadRegistry(fm, registryPath) {
-  const raw = await safeReadString(fm, registryPath, "[]");
+  const raw = readRequiredState(fm, registryPath);
   const p = safeJSONParse(raw);
   if (!p.ok) {
-    addError(`ERR: registry.txt corrupt; treating as empty. (${p.err})`);
-    return [];
+    throw new Error(`registry.txt is corrupt. No alarm state was changed. (${p.err})`);
   }
   if (!Array.isArray(p.val)) {
-    addError("ERR: registry.txt not a JSON array; treating as empty.");
-    return [];
+    throw new Error("registry.txt is not a JSON array. No alarm state was changed.");
   }
 
   const out = [];
   for (const e of p.val) {
     const shaped = ensureRegistryEntryShape(e);
     if (shaped) out.push(shaped);
-    else addError("WARN: registry entry malformed; dropped.");
+    else throw new Error("registry.txt contains a malformed entry. No alarm state was changed.");
   }
   return out;
 }
@@ -1548,6 +1658,9 @@ function makeTaskResetterAction(entry, nextAlarmPayload) {
     : {};
   const payload = {
     action: "task_alarm_reset",
+    ...(typeof entry?.alarmName === "string" && Number(entry?.calcFireTime) > 0 ? {
+      alarmOccurrence: {alarmName: entry.alarmName, calcFireTime: Number(entry.calcFireTime)},
+    } : {}),
     taskLoopMetricIDs: taskIDs,
     qrCodeID: String(entry?.qrCodeID ?? ""),
     alarmToDelete: {
@@ -1835,14 +1948,14 @@ function reportLocationFailureOutcome(input, entry, fireEpoch, nextFireTime, ski
   if (Number.isFinite(nextFireTime)) {
     const delayMinutes = Math.max(1, Math.ceil((nextFireTime - fireEpoch) / 60));
     addError(
-      `WARN: Location could not be fetched after ${LOCATION_MAX_ATTEMPTS} attempts for "${name}". ` +
+      `WARN: Location could not be fetched within the startup time budget for "${name}". ` +
       `This alarm was rescheduled for ${delayMinutes} minute${delayMinutes === 1 ? "" : "s"} later (${epochToHHMMString(nextFireTime)}).`
     );
     return;
   }
 
   addError(
-    `WARN: Location could not be fetched after ${LOCATION_MAX_ATTEMPTS} attempts for "${name}". ` +
+    `WARN: Location could not be fetched within the startup time budget for "${name}". ` +
     `This alarm occurrence was skipped and no follow-up was scheduled${skippedReason ? ` (${skippedReason})` : ""}.`
   );
 }
@@ -1850,11 +1963,16 @@ function reportLocationFailureOutcome(input, entry, fireEpoch, nextFireTime, ski
 async function getCurrentLocation() {
   const cached = readLocationCache();
   let lastLocationError = null;
+  const deadline = Math.min(Date.now() + LOCATION_TOTAL_BUDGET_MS, ENGINE_STARTED_AT_MS + LOCATION_STARTUP_DEADLINE_MS);
+  let attempts = 0;
 
   for (let attempt = 1; attempt <= LOCATION_MAX_ATTEMPTS; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    attempts = attempt;
     try {
       Location.setAccuracyToHundredMeters();
-      const loc = await withTimeout(Location.current(), LOCATION_TIMEOUT_MS);
+      const loc = await withTimeout(Location.current(), Math.min(LOCATION_TIMEOUT_MS, remaining));
       if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
         writeLocationCache(loc);
         return { lat: loc.latitude, lon: loc.longitude };
@@ -1869,7 +1987,7 @@ async function getCurrentLocation() {
     current: null,
     reason: "currentLocation unavailable",
     decision: "failClosed",
-    attempts: LOCATION_MAX_ATTEMPTS,
+    attempts,
     cachedLocationAvailable: !!cached,
     lastError: lastLocationError ? String(lastLocationError) : "unknown",
   });
@@ -2054,6 +2172,9 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
       if (Number.isFinite(next)) {
         entry.maxReschedules = loopsRemaining - 1;
         queueAddIOSIfMissing(input.iosAlarms, name, next);
+      } else {
+        entry.nextFireTime = 0;
+        entry.nextFireHHMM = "";
       }
       reportLocationFailureOutcome(input, entry, fireEpoch, next, "no valid context reschedule was available");
       retireReplacedAlarms(entry, previous, input.iosAlarms);
@@ -2112,9 +2233,14 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
         entry.nextFireTime = next;
         entry.nextFireHHMM = epochToHHMMString(next);
         queueAddIOSIfMissing(input.iosAlarms, name, next);
+      } else {
+        entry.nextFireTime = 0;
+        entry.nextFireHHMM = "";
       }
       reportLocationFailureOutcome(input, entry, fireEpoch, next, "no valid context reschedule was available");
     } else {
+      entry.nextFireTime = 0;
+      entry.nextFireHHMM = "";
       reportLocationFailureOutcome(input, entry, fireEpoch, null, "no reschedules remaining");
     }
 
@@ -2208,6 +2334,9 @@ async function tryFastPath(input, registryAfter) {
     const previous = ownedAlarmSlots(entry, true);
     const starts = [output.alarmsToDelete.length, output.alarmsToAdd.length, output.triggerShortcutsToRunDetailed.length];
     await processFiredAlarm(input, registryAfter, fired, !hasQR || fired.registryIndex === qrOwnerIndex);
+    if (input.reliableQRHandoff && entry.qrActive && !entry.taskSatisfied) {
+      deferredQRDeletes.set(`${fired.ios.name}|||${fired.ios.hh}:${fired.ios.mm}`, registryKey(entry));
+    }
     entry.lastHandledFireTime = fired.firedEpoch;
     retireReplacedAlarms(entry, previous, input.iosAlarms);
     [output.alarmsToDelete, output.alarmsToAdd, output.triggerShortcutsToRunDetailed].forEach((list, i) => {
@@ -2397,11 +2526,72 @@ async function runVerifier(input, registryAfter) {
   return Array.from(registry.values());
 }
 
+function prepareReliableQRHandoff(registry) {
+  const key = alarm => `${alarm.name}|||${alarm.hh}:${alarm.mm}`;
+  const activeRows = registry.filter(entry => entry.qrActive && !entry.taskSatisfied);
+  // A previous native invocation may have failed after registry commit while
+  // the original Clock alarm is still ringing. Retrying must preserve that
+  // handoff even though lastHandledFireTime has already consumed its firing.
+  for (const entry of activeRows) {
+    const recent = ownedAlarmSlots(entry, true).concat(entry.retiredAlarmTimes || []);
+    if (Number(entry.lastHandledFireTime) > 0) recent.push({epoch: entry.lastHandledFireTime,
+      hhmm: epochToHHMMString(entry.lastHandledFireTime)});
+    for (const slot of recent) {
+      if (slot.epoch > nowEpoch() || nowEpoch() - slot.epoch > FIRED_ALARM_GRACE_SEC) continue;
+      const clock = `${entry.alarmName}|||${slot.hhmm}`;
+      if (output.alarmsToDelete.some(alarm => key(alarm) === clock)) deferredQRDeletes.set(clock, registryKey(entry));
+    }
+  }
+  const deferred = new Set([...deferredQRDeletes].filter(([, owner]) =>
+    activeRows.some(entry => registryKey(entry) === owner)).map(([clock]) => clock));
+  const recovery = new Map();
+  for (const entry of activeRows) {
+    for (const [time, mirror] of [["qrRestartFireTime", "qrRestartHHMM"], ["qrFallbackFireTime", "qrFallbackHHMM"]]) {
+      if (!(Number(entry[time]) > nowEpoch() + 2)) continue;
+      const clock = parseHHMMString(entry[mirror]) || epochToHHMM(entry[time]);
+      const alarm = {name: entry.alarmName, hh: clock.hh, mm: clock.mm};
+      if (!deferred.has(key(alarm))) recovery.set(key(alarm), alarm);
+    }
+  }
+  output.qrFallbackAlarmsToVerify = Array.from(recovery.values());
+  if (activeRows.length && !recovery.size) {
+    output.qrLoop = false;
+    addError("WARN: No separate QR recovery alarm is ready; existing Clock alarms were preserved.");
+  }
+  output.alarmsToDelete = output.alarmsToDelete.filter(alarm => {
+    if (!deferred.has(key(alarm))) return true;
+    const owner = deferredQRDeletes.get(key(alarm));
+    const entry = activeRows.find(row => registryKey(row) === owner);
+    const hasRecovery = entry && output.qrFallbackAlarmsToVerify.some(next => next.name === entry.alarmName);
+    if (hasRecovery) output.alarmsToDeleteBeforePlayback.push(alarm);
+    else {
+      output.qrLoop = false;
+      addError(`WARN: QR recovery alarm is unavailable for "${alarm.name}"; the ringing Clock alarm was preserved.`);
+    }
+    return false;
+  });
+  const addKey = alarm => {
+    const match = String(alarm.time).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return "";
+    const hour = Number(match[1]) % 12 + (match[3].toUpperCase() === "PM" ? 12 : 0);
+    return `${alarm.name}|||${pad2(hour)}:${match[2]}`;
+  };
+  // Never create a same-slot duplicate that the final handoff would delete.
+  output.alarmsToAdd = output.alarmsToAdd.filter(alarm => !deferred.has(addKey(alarm)));
+  const additions = new Set(output.alarmsToAdd.map(addKey));
+  output.alarmsToDelete = output.alarmsToDelete.filter(alarm => {
+    if (!additions.has(key(alarm))) return true;
+    output.alarmsToDeleteBeforeAdd.push(alarm);
+    return false;
+  });
+}
+
 // ---------- MAIN ----------
 let input;
 try {
   input = parseEngineInput(args.shortcutParameter);
   output.completionOnly = input.completionOnly;
+  output.qrHandoffVersion = input.reliableQRHandoff ? 1 : 0;
 } catch (e) {
   output.errorRegistry = `ERR: ${String(e)}`;
   Script.setShortcutOutput(JSON.stringify(output));
@@ -2429,15 +2619,16 @@ const menuLastOpenedPath = fm.joinPath(baseDir, FILES.menuLastOpened);
 const menuOpenStatusPath = fm.joinPath(baseDir, FILES.menuOpenStatus);
 const settingsPath = fm.joinPath(baseDir, SETTINGS_FILENAME);
 
+try {
+// Validate settings before changing state. Completion cleanup does not use calendars.
+if (!input.completionOnly) disabledCalendarNames = await loadDisabledCalendarNames(fm, settingsPath);
+
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
 await ensureFile(fm, lockPath, "");
 await ensureFile(fm, scannerLastOpenedPath, new Date(0).toISOString());
 await ensureFile(fm, menuLastOpenedPath, new Date(0).toISOString());
 await ensureFile(fm, menuOpenStatusPath, "false");
-
-// Settings are maintained by the Calendar Alarms Shortcut, so read but do not create the file.
-if (!input.completionOnly) disabledCalendarNames = await loadDisabledCalendarNames(fm, settingsPath);
 
 // Load registry
 let registryBefore = await loadRegistry(fm, registryPath);
@@ -2461,15 +2652,14 @@ if (registryMigrationNeeded || !registryEquals(registryBefore, registryAfter)) {
   const lock = await acquireLock(fm, lockPath);
 
   if (lock.ok) {
-    const onDiskNow = await loadRegistry(fm, registryPath);
-    const merged = applyRegistryPatch(onDiskNow, patch, input.iosAlarms);
-    const cleaned = dropRegistryDuplicatesRandom(merged);
-
     try {
+      const onDiskNow = await loadRegistry(fm, registryPath);
+      const merged = applyRegistryPatch(onDiskNow, patch, input.iosAlarms);
+      const cleaned = dropRegistryDuplicatesRandom(merged);
       commitOK = await safeWriteString(fm, registryPath, JSON.stringify(cleaned));
       if (commitOK) committedRegistry = cleaned;
     } finally {
-      await releaseLock(fm, lockPath);
+      await releaseLock(fm, lockPath, lock.id);
     }
   } else commitOK = false;
 } else committedRegistry = registryAfter;
@@ -2486,8 +2676,22 @@ if (!commitOK) {
   output.nextLoopStart = nextQR ? epochToShortcutTimestamp(nextQR) : "";
 }
 
+dedupeOutputOps();
+if (input.reliableQRHandoff && commitOK) prepareReliableQRHandoff(committedRegistry);
+
 // Finalize output
 dedupeOutputOps();
+} catch (e) {
+  addError(`ERR: alarm state unavailable; existing Clock alarms were preserved. ${String(e)}`);
+  output.alarmsToAdd = [];
+  output.alarmsToDelete = [];
+  output.alarmsToDeleteBeforeAdd = [];
+  output.alarmsToDeleteBeforePlayback = [];
+  output.qrFallbackAlarmsToVerify = [];
+  output.triggerShortcutsToRun = [];
+  output.triggerShortcutsToRunDetailed = [];
+  output.qrLoop = false;
+}
 function finalizeErrorRegistry(errLines) {
   if (!Array.isArray(errLines) || errLines.length === 0) return "";
 

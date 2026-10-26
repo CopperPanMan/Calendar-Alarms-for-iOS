@@ -18,10 +18,7 @@ async function fire({task = false, min = 10, max = 45, retries = 2, meetings = [
       : between();
     if (location) {
       context.Location = {setAccuracyToHundredMeters() {}, current: async () => ({latitude: location.lat, longitude: location.lon})};
-      const timer = context.Timer;
-      context.Timer = {schedule(seconds, repeat, callback) {
-        return seconds >= 4.5 ? {invalidate() {}} : timer.schedule(seconds, repeat, callback);
-      }};
+
     }
     return context;
   };

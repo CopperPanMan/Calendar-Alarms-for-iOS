@@ -94,7 +94,7 @@ test('an engine successor preserves both deadlines and opening the returning men
   const next=(await h.run({op:'engine_begin',input:''})).session;
   assert.equal((await h.run({op:'qr_notification',session:next})).kept,1);
   assert.equal(h.schedules.length,1);assert.equal(h.pending.get(ID).date,start+10000);
-  assert.equal((await h.run({op:'qr_poll',session:old})).reason,'superseded');
+  assert.equal((await h.run({op:'qr_poll',session:old})).stop,0); // pending successor preserves current player
   h.advance(6000);await h.run({op:'scanner_menu'});
   assert.equal(h.pending.has(ID),false);assert.equal(h.delivered.has(ID),false);
   assert.equal(JSON.parse(h.disk.get(UX)).silenceUntil,start+15000);
@@ -151,9 +151,9 @@ test('a completion during system notification scheduling cannot leave the new re
 test('notification failure does not throw or block playable alarm state',async()=>{
   const h=harness(),session=(await h.run({op:'engine_begin',input:''})).session;
   h.failSchedule();const result=await h.run({op:'qr_notification',session});
-  assert.equal(result.ok,0);assert.ok(result.error.includes('Notification denied'));
+  assert.equal(result.ok,1);assert.equal(result.activeCount,1);assert.ok(result.notificationWarning.includes('Notification denied'));
   assert.equal((await h.run({op:'qr_poll',session})).play,1);
-  const silenced=await h.run({op:'scanner_silence'});assert.equal(silenced.ok,0);
+  const silenced=await h.run({op:'scanner_silence'});assert.equal(silenced.ok,1);assert.equal(silenced.activeCount,1);
   assert.equal((await h.run({op:'qr_poll',session})).play,0);
 });
 
@@ -176,7 +176,7 @@ test('a superseded player may acknowledge its finished clip but cannot release a
   const permit=await h.run({op:'qr_permit',session:old,duration:6,alarmKey:p.alarmKey});h.advance(2000);
   const next=(await h.run({op:'engine_begin',input:''})).session;
   assert.equal((await h.run({op:'qr_poll',session:next})).play,0);h.advance(4000);
-  assert.equal((await h.run({op:'qr_poll',session:old,completedPlaybackToken:permit.playbackToken})).reason,'superseded');
+  assert.equal((await h.run({op:'qr_poll',session:old,completedPlaybackToken:permit.playbackToken})).stop,0); // successor has not committed yet
   const nextPoll=await h.run({op:'qr_poll',session:next});assert.equal(nextPoll.play,1);
   const nextPermit=await h.run({op:'qr_permit',session:next,duration:6,alarmKey:nextPoll.alarmKey});
   await h.run({op:'qr_poll',session:old,completedPlaybackToken:permit.playbackToken});
@@ -184,13 +184,15 @@ test('a superseded player may acknowledge its finished clip but cannot release a
   assert.equal((await h.run({op:'qr_poll',session:next})).play,0);
 });
 
-test('existing poll posts only on its first iteration; later polls do not reschedule',async()=>{
- const h=harness(),session=(await h.run({op:'engine_begin',input:''})).session;
+test('reliable poll never schedules notifications; explicit post-playback maintenance does',async()=>{
+ const h=harness(),session=(await h.run({op:'engine_begin',input:'',reliableQRHandoff:true})).session;
  const first=await h.run({op:'qr_poll',session:JSON.stringify(session),notificationPollIndex:'1'});
- assert.equal(first.play,1);assert.equal(h.schedules.length,1);assert.ok(h.schedules[0].openURL.includes('Calendar%20Alarms%20QR%20Scanner'));
+ assert.equal(first.play,1);assert.equal(h.schedules.length,0);
+ await h.run({op:'qr_notification',session});assert.equal(h.schedules.length,1);assert.ok(h.schedules[0].openURL.includes('Calendar%20Alarms%20QR%20Scanner'));
  await h.run({op:'qr_poll',session,notificationPollIndex:2});await h.run({op:'qr_poll',session,notificationPollIndex:'3'});assert.equal(h.schedules.length,1);
- h.advance(120000);const next=(await h.run({op:'engine_begin',input:''})).session;
- await h.run({op:'qr_poll',session:next,notificationPollIndex:'1'});assert.equal(h.schedules.length,2);
+ h.advance(120000);const next=(await h.run({op:'engine_begin',input:'',reliableQRHandoff:true})).session;
+ await h.run({op:'qr_poll',session:next,notificationPollIndex:'1'});assert.equal(h.schedules.length,1);
+ await h.run({op:'qr_notification',session:next});assert.equal(h.schedules.length,2);
 });
 test('legacy polls without the optional counter retain no-notification behavior',async()=>{
  const h=harness(),s=(await h.run({op:'engine_begin',input:''})).session;
@@ -199,6 +201,8 @@ test('legacy polls without the optional counter retain no-notification behavior'
 test('superseded and expired first polls never post',async()=>{
  const h=harness(),old=(await h.run({op:'engine_begin',input:''})).session;
  const current=(await h.run({op:'engine_begin',input:''})).session;
+ const plan=await h.run({op:'qr_poll',session:current});
+ await h.run({op:'qr_permit',session:current,alarmKey:plan.alarmKey,duration:2});
  assert.equal((await h.run({op:'qr_poll',session:old,notificationPollIndex:1})).reason,'superseded');assert.equal(h.schedules.length,0);
  h.advance(180000);assert.equal((await h.run({op:'qr_poll',session:current,notificationPollIndex:1})).reason,'deadline_expired');assert.equal(h.schedules.length,0);
 });
@@ -216,11 +220,14 @@ test('first poll preserves pending ten-second reminder and fifteen-second silenc
 });
 test('scan or ownership change during notification is checked before playback',async()=>{
  const h=harness(),s=(await h.run({op:'engine_begin',input:''})).session;h.onSchedule(()=>h.setRows([]));
+ await h.run({op:'qr_notification',session:s});
  assert.equal((await h.run({op:'qr_poll',session:s,notificationPollIndex:1})).reason,'no_active_qr_alarm');assert.equal(h.pending.size,0);
- const b=harness(),old=(await b.run({op:'engine_begin',input:''})).session;b.onSchedule(()=>b.run({op:'engine_begin',input:''}));
+ const b=harness(),old=(await b.run({op:'engine_begin',input:''})).session;b.onSchedule(async()=>{const next=(await b.run({op:'engine_begin',input:''})).session;const plan=await b.run({op:'qr_poll',session:next});await b.run({op:'qr_permit',session:next,alarmKey:plan.alarmKey,duration:2});});
+ await b.run({op:'qr_notification',session:old});
  assert.equal((await b.run({op:'qr_poll',session:old,notificationPollIndex:1})).reason,'superseded');
 });
 test('notification time counts against the existing buffered deadline',async()=>{
  const h=harness(),s=(await h.run({op:'engine_begin',input:''})).session;const bounded={...s,deadline:h.now+1000};h.onSchedule(()=>h.advance(1100));
+ await h.run({op:'qr_notification',session:bounded});
  assert.equal((await h.run({op:'qr_poll',session:bounded,notificationPollIndex:1})).reason,'deadline_expired');
 });

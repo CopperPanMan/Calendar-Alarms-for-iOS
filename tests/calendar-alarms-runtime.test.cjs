@@ -48,7 +48,7 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  check(disk.get(playbackPath)===reservation);
  let waiting=await run({op:'qr_poll',session:successor});check(!waiting.stop&&!waiting.play);
  check(!(await run({op:'qr_permit',session:successor,duration:2,alarmKey:key})).play);
- check((await run({op:'qr_poll',session:oldSession})).stop);
+ check(!(await run({op:'qr_poll',session:oldSession})).stop); // preparation does not supersede the owner
  check(disk.get(playbackPath)===reservation); // old instance cannot clear the marker
  now+=2999;check(!(await run({op:'qr_poll',session:successor})).play);
  now+=1;check((await run({op:'qr_poll',session:successor})).play);
@@ -74,8 +74,8 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  }
  p=await run({op:'action',input:{action:'notification',message:'Hi'}});check(p.show && !p.speak);
  p=await run({op:'action',input:{action:'display',operation:'brightness',percent:0}});check(p.kind==='brightness'&&p.level===0);
- await assert.rejects(()=>run({op:'action',input:{action:'audio',operation:'volume',percent:101}}));tests++;
- await assert.rejects(()=>run({op:'action',input:[{},{}]}));tests++;
+ check((await run({op:'action',input:{action:'audio',operation:'volume',percent:101}})).ok===0);tests++;
+ check((await run({op:'action',input:[{},{}]})).ok===0);tests++;
  const c={ok:true,generatedAtISO:new RealDate(now).toISOString(),reminderState:{todayPoints:10,byID:{
   done:{complete:true},normal:{displayName:'Floss',points:1,streak:2,complete:false,scheduledToday:true},
   urgent:{displayName:'Walk',points:2,dueProperties:{hasDeadline:true,status:'due',minutesRemaining:12}},
@@ -109,8 +109,8 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
   check((Date.parse(moved.end)-Date.parse(moved.start))===hours*3600000);
   check(moved.endFirst===endFirst);
  }
- await assert.rejects(()=>run({op:'wake_plan',sleep:{start:'invalid',end:'invalid'},time:'07:30'}));tests++;
- await assert.rejects(()=>run({op:'wake_plan',sleep:{start:'2026-10-02T10:30:00-04:00',end:'2026-10-02T01:00:00-04:00'},time:'07:30'}));tests++;
+ check((await run({op:'wake_plan',sleep:{start:'invalid',end:'invalid'},time:'07:30'})).ok===0);tests++;
+ check((await run({op:'wake_plan',sleep:{start:'2026-10-02T10:30:00-04:00',end:'2026-10-02T01:00:00-04:00'},time:'07:30'})).ok===0);tests++;
  const wakeNow=now;
  now=Date.parse('2026-10-02T12:00:00-04:00');
  set('settings.json',{disabledCalendars:[' Work Archive ']});
@@ -135,11 +135,13 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  check((await run({op:'qr_poll',session:{}})).reason==='invalid_session');
  check((await run({op:'qr_poll',session:{id:diagnosticSession.id,deadline:'bad'}})).reason==='invalid_session');
  const diagnosticOwnerPath='/local/calendar-alarms-loop-owner-v1.json';
+ await run({op:'qr_permit',session:diagnosticSession,duration:2,alarmKey:key});
  const savedOwner=disk.get(diagnosticOwnerPath);
+ disk.delete(playbackPath);
  disk.delete(diagnosticOwnerPath);
- check((await run({op:'qr_poll',session:diagnosticSession})).reason==='owner_missing');
+ check((await run({op:'qr_poll',session:{...diagnosticSession,pending:false}})).reason==='owner_missing');
  disk.set(diagnosticOwnerPath,savedOwner);
- check((await run({op:'qr_poll',session:{...diagnosticSession,id:'other'}})).reason==='superseded');
+ check((await run({op:'qr_poll',session:{...diagnosticSession,pending:false,id:'other'}})).reason==='superseded');
  const diagnosticNow=now; now=diagnosticSession.deadline;
  check((await run({op:'qr_poll',session:diagnosticSession})).reason==='deadline_expired');
  now=diagnosticNow;
@@ -172,7 +174,7 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  check((await run({op:'qr_poll',session:fresh})).fileName==='Other/ocean.mp3');
  for(const candidate of ['../ocean.mp3','Nature/../ocean.mp3','Alarm Tones/','Nature//ocean.mp3']) {
    set('registry.txt',[{...alarm,qrSoundPath:candidate}]);
-   await assert.rejects(()=>run({op:'qr_poll',session:fresh}));tests++;
+   check((await run({op:'qr_poll',session:fresh})).reason==='runtime_error');tests++;
  }
  set('registry.txt',[alarm]);
  p=await run({op:'qr_poll',session:fresh});

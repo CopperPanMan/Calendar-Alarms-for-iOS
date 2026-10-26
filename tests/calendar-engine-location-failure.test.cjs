@@ -19,10 +19,7 @@ async function start({task = true, retry = 0, limit = 2, mode = 'whitelist', fai
       if (failure === 'outside') return {latitude: 1, longitude: 1};
       throw Error('Location access denied');
     }};
-    c.Timer = {schedule(seconds, repeat, callback) {
-      if (seconds >= 4.5 && failure !== 'timeout') return {invalidate() {}};
-      return timer.schedule(seconds, repeat, callback);
-    }};
+
     return c;
   };
   await h.install(); if (complete) h.setCompletion({work: true});
@@ -33,7 +30,7 @@ async function start({task = true, retry = 0, limit = 2, mode = 'whitelist', fai
 for (const mode of ['whitelist', 'blacklist']) for (const failure of ['denied', 'timeout', 'invalid']) {
   test(`${mode}: ${failure} location keeps the task interval when rescheduling is off`, async () => {
     const {h, plan, calls} = await start({mode, failure});
-    assert.equal(calls, 2); assert.deepEqual(h.times(), ['12:20']);
+    assert.equal(calls, failure === 'timeout' ? 1 : 2); assert.deepEqual(h.times(), ['12:20']);
     assert.equal(h.registry()[0].maxReschedules, 1);
     assert.equal(h.registry()[0].qrActive, false);
     assert.deepEqual(plan.triggerShortcutsToRunDetailed, []); assert.equal(plan.qrLoop, false);

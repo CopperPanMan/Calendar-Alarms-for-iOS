@@ -1,6 +1,6 @@
 # Shortcut action readouts
 
-These are complete manual rebuild flows updated 2026-10-19 for the Engine, Scanner, and Runtime in this branch. They incorporate the audit of the current shared Shortcuts and the completion/trigger fixes. Replace the corresponding native action flows using these readouts; the repository retains older versions in Git history. The documents reflect the rebuilt native flows, with device-specific selections omitted; they are not byte-for-byte exports. Published iCloud links and installed Shortcuts are not changed by editing these files. Reported device checks and unresolved failures are documented in the QR guide; they do not guarantee native audio/automation reliability.
+These are complete manual action readouts. Engine and Scanner were updated on 2026-10-26 to match the approved installed **148-action Engine** and **88-action Scanner**; the other readouts retain their prior scope. The documents omit device-specific selections and are not byte-for-byte exports. Published iCloud links and installed Shortcuts are not changed by editing these files; the shared links still identify older flows. The user reported consecutive QR looping without the prior every-other-execution failure, while a few timeout messages remained around three minutes. See the [exact reductions and validation limits](../Development/October%2026%20Reliability%20Update.md). That result does not establish Scanner/completion behavior on the phone or guarantee future automation reliability.
 
 | Shortcut | Full readout |
 | --- | --- |
@@ -14,7 +14,7 @@ Install matching scripts and native flows together. Calendar Alarms Actions uses
 
 Keep established Shortcut names and the separate qrClockCloser automation on iOS 26 and 27. Each readout identifies native field types and explicit inputs. `→ Name` labels a magic variable; Set Variable is an actual action. Comments and empty-field markers are instructions, not literal text to pass to a script.
 
-Prefer fewer native actions and helper calls where they preserve the intended behavior. The shared links may still contain older flows until republished. Adopt a helper flow when its overall reliability/maintenance benefit justifies rebuilding, rather than expanding a working Shortcut for a small isolated improvement. Wake Times keeps selection/date calculations in the Runtime; the Engine retains native Clock operations and cached playback.
+Keep native action count and repeated Scriptable invocations as primary reliability constraints. Use a Scriptable call when it replaces substantial native work; avoid additional calls for optional diagnostics or architectural organization. Apply only the specifically reviewed Engine/Scanner reductions, preserving existing shortcut identities and automation bindings. Wake Times keeps selection/date calculations in the Runtime; the Engine retains native Clock operations and cached playback.
 
 The [native interface v1](../Development/Native%20Shortcut%20Interface.md) records the compatibility baseline for future script updates. Legacy Scanner core menus still defer task QR menus until playback permission; the production native flow uses user-opened notification menus. The scripts also retain task cadence on failed/blocked location checks when no context retry interval is configured, and avoid downloading optional completion data before task reset.
 

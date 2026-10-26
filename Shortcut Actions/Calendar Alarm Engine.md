@@ -1,21 +1,21 @@
 # Calendar Alarm Engine
 
-Full replacement action readout, 2026-10-19, for the Engine and Runtime in this branch. It reflects the clean installed Engine, including the tunable restart buffer, volume cadence, first-poll notification, and playback acknowledgement. This is the flow to rebuild; updating this file does not update the published iCloud Shortcut.
+Action readout, 2026-10-26, for the approved installed **148-action Engine**, derived from the restored 155-action October 26 baseline. This readout describes that flow with its matching Engine and Runtime scripts, not the older published iCloud Shortcut. Updating this file does not update a published Shortcut. The user reported consecutive looping without the previous every-other-execution failure; a few timeout messages around three minutes remain unresolved. See the [exact changes and verification limits](../Development/October%2026%20Reliability%20Update.md).
 
-`→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Unless specified otherwise, Run Script means Scriptable, Run in App Off, Output Type Dictionary. Clear parameters explicitly where specified.
+`→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Run Script means Scriptable, Run in App Off. Runtime calls return a Dictionary; retain each explicit Get Dictionary from Input shown below. Clear parameters explicitly where specified.
 
 Install the matching Engine and Runtime scripts when rebuilding. Empty input or `Calendar` runs the normal Engine; a metric/task response runs completion cleanup and returns before triggers or playback. `Clock` uses the guard only. All four Clock lists below must come from the same Find Alarms result. Delimiter-based Engine input is no longer accepted.
 
 The Engine core returns JSON **Text**; the explicit Get Dictionary action is required. Runtime returns a Dictionary. `clock`, `completionOnly`, `run`, `lastInGroup`, and QR `stop`/`play` are **Numbers** (0/1). Preserve `CurrentTrigger` as a Dictionary, including its occurrence/invocation metadata. Finish the last action in each group even if it was skipped. Speak Text actions in called Shortcuts must have **Wait Until Finished On** to delay QR sound until speech completes.
 
-`fileName` is relative to Alarm Tones and preserves subfolders. Cache file and duration on the first playable Poll and when the path changes. Duration is in seconds. When due, Set Volume precedes Permit; Play Sound immediately follows granted permission. The playback stop path removes QR retries while preserving future task checks.
+There is one initial `qr_poll` before Repeat and one `qr_step` per iteration after native preparation. `LoopState` supplies the next alarm key, relative sound path and requested volume. Cache the file and duration when its path changes; duration is in seconds. `qr_step` acknowledges the preceding completed clip, rereads live state, and permits audio only when the prepared alarm key, path and volume still match. A changed plan is returned with `play = 0` for preparation on the following iteration. The stop path removes QR retries while preserving future task checks.
 
-The two leading Numbers are the tuning controls: **Restart Buffer Seconds = 20** and **Volume Correction Interval Seconds = 20**. The buffer shortens only the local playback session, not the two-minute Clock restart schedule. Poll/Permit already account for clip duration when enforcing that deadline. Corrections are checked between clips and measured from the previous Set Volume completion; each invocation initializes its own timer. There is no Get Current Volume action, unconditional wait after a successful clip, or trace logger. Idle/denied playback waits one second.
+The two leading Numbers are the tuning controls: **Restart Buffer Seconds = 5** and **Volume Correction Interval Seconds = 20**. The buffer shortens only the local playback session, not the two-minute Clock restart schedule. Runtime admits complete clips within that deadline. The single volume condition uses **Any are true (OR)**: the correction is due, or the requested volume differs from `Prepared Volume`. Record `Prepared Volume` immediately after Set Volume succeeds. The first correction is already due because its initial date is yesterday; no separate initialization action is needed. Later corrections are measured from Set Volume completion. There is no Get Current Volume action, unconditional wait after successful playback, or trace logger. Denied/stopped playback waits one second; a returned stop is handled at the beginning of the following iteration.
 
-The first existing QR poll carries `notificationPollIndex`; do not add a separate Scriptable notification call. `Completed Playback Token` is initially empty and is updated only after native Play Sound returns successfully. Keep the non-QR outputs used by other shortcuts; the ordinary QR stop is a plain Stop This Shortcut.
+`Completed Playback Token` is initially empty and changes only after native Play Sound returns successfully. The following `qr_step` can perform bounded notification upkeep after acknowledging that clip; the initial poll does not request a pre-audio notification. No extra native notification call is added to playback. Existing Clock deletion/addition order, task refreshes, trigger actions and awaited speech are retained. Completion-only notification cleanup remains in its original branch. Keep the non-QR outputs used by other shortcuts; the ordinary QR stop is a plain Stop This Shortcut.
 
 ```jsx
-NUMBER: 20
+NUMBER: 5
 SET VARIABLE: Restart Buffer Seconds to Number
 NUMBER: 20
 SET VARIABLE: Volume Correction Interval Seconds to Number
@@ -25,6 +25,8 @@ DICTIONARY:
     → BeginRequest
 RUN SCRIPT: Calendar Alarms Runtime
     Parameter: BeginRequest
+    → BeginRaw
+GET DICTIONARY FROM INPUT: BeginRaw
     → Begin
 GET DICTIONARY VALUE:
     Dictionary: Begin
@@ -49,7 +51,7 @@ IF: BeginClock is 1
 END IF
 
 FIND ALARMS:
-    Label: is anything
+    Filters: none (all alarms)
     Limit: Off
     → Alarms
 GET CURRENT FOCUS:
@@ -119,6 +121,8 @@ REPEAT WITH EACH: EngineAlarmsToAdd
     CREATE ALARM:
         Time: ItemTime
         Label: ItemName2
+        Repeat: Never
+        Snooze: Off
 END REPEAT
 
 GET DICTIONARY VALUE:
@@ -134,6 +138,15 @@ GET DICTIONARY VALUE:
     Key: completionOnly
     → BeginCompletionOnly (Number)
 IF: BeginCompletionOnly is 1
+    DICTIONARY:
+        op: qr_notification (Text)
+        cleanupOnly: Yes (Boolean)
+        → Completion Notification Cleanup Request
+    RUN SCRIPT: Calendar Alarms Runtime
+        Parameter: Completion Notification Cleanup Request
+        → Completion Notification Cleanup Raw
+    GET DICTIONARY FROM INPUT: Completion Notification Cleanup Raw
+        → Completion Notification Cleanup
     STOP AND OUTPUT:
         Output: Engine (Dictionary)
 END IF
@@ -155,6 +168,8 @@ REPEAT WITH EACH: EngineTriggerShortcutsToRunDetailed
         → TriggerCheckRequest
     RUN SCRIPT: Calendar Alarms Runtime
         Parameter: TriggerCheckRequest
+        → TriggerCheckRaw
+    GET DICTIONARY FROM INPUT: TriggerCheckRaw
         → TriggerCheck
     GET DICTIONARY VALUE:
         Dictionary: TriggerCheck
@@ -196,6 +211,9 @@ REPEAT WITH EACH: EngineTriggerShortcutsToRunDetailed
             → TriggerFinishRequest
         RUN SCRIPT: Calendar Alarms Runtime
             Parameter: TriggerFinishRequest
+            → TriggerFinishRaw
+        GET DICTIONARY FROM INPUT: TriggerFinishRaw
+            → TriggerFinish
     END IF
 END REPEAT
 
@@ -237,99 +255,18 @@ ADJUST DATE:
 SET VARIABLE: Next Volume Correction At to Initial Volume Correction Due
 TEXT: [empty]
 SET VARIABLE: Completed Playback Token to preceding empty Text
+DICTIONARY:
+    op: qr_poll (Text)
+    session: QR Session With Buffer (Dictionary)
+    completedPlaybackToken: Completed Playback Token (Text)
+    → PollRequest
+RUN SCRIPT: Calendar Alarms Runtime
+    Parameter: PollRequest
+    → PollRaw
+GET DICTIONARY FROM INPUT: PollRaw
+    → Poll
+SET VARIABLE: LoopState to Poll
 REPEAT: 180 times
-    DICTIONARY:
-        op: qr_poll (Text)
-        session: QR Session With Buffer (Dictionary)
-        completedPlaybackToken: Completed Playback Token (Text)
-        notificationPollIndex: this 180-repeat's Repeat Index (Number)
-        → PollRequest
-    RUN SCRIPT: Calendar Alarms Runtime
-        Parameter: PollRequest
-        → Poll
-    GET DICTIONARY VALUE:
-        Dictionary: Poll
-        Key: stop
-        → PollStop (Number)
-    SET VARIABLE: LoopState to Poll
-    IF: PollStop is 0
-        GET DICTIONARY VALUE:
-            Dictionary: Poll
-            Key: play
-            → PollPlay (Number)
-        IF: PollPlay is 1
-            GET DICTIONARY VALUE:
-                Dictionary: Poll
-                Key: fileName
-                → PollSoundPath (Text)
-            IF: PollSoundPath is not CachedSoundPath
-                GET FILE FROM FOLDER:
-                    Folder: Shortcuts
-                    Path: OpenHabits/Calendar Alarms/Alarm Tones/[PollSoundPath]
-                    Error If Not Found: On
-                    → LoadedAudioFile (File)
-                SET VARIABLE:
-                    Name: CachedAudioFile
-                    Value: LoadedAudioFile
-                GET DETAILS OF MUSIC:
-                    Detail: Duration
-                    Input: CachedAudioFile
-                    → LoadedDuration
-                SET VARIABLE:
-                    Name: CachedDuration
-                    Value: LoadedDuration (Number; seconds)
-                SET VARIABLE:
-                    Name: CachedSoundPath
-                    Value: PollSoundPath
-            END IF
-            GET DICTIONARY VALUE:
-                Dictionary: Poll
-                Key: alarmKey
-                → PollAlarmKey (Text)
-            GET DICTIONARY VALUE:
-                Dictionary: Poll
-                Key: volume
-                → PollVolume (Number)
-            CURRENT DATE:
-                → Volume Check Time
-            IF: Volume Check Time is after Next Volume Correction At
-                SET VOLUME:
-                    Media volume: PollVolume
-                CURRENT DATE:
-                    → Volume Correction Finished
-                ADJUST DATE:
-                    Add Volume Correction Interval Seconds to Volume Correction Finished
-                    → Next Volume Correction Due
-                SET VARIABLE: Next Volume Correction At to Next Volume Correction Due
-            END IF
-            DICTIONARY:
-                op: qr_permit (Text)
-                alarmKey: PollAlarmKey (Text)
-                duration: CachedDuration (Number)
-                session: QR Session With Buffer (Dictionary)
-                → PermitRequest
-            RUN SCRIPT: Calendar Alarms Runtime
-                Parameter: PermitRequest
-                → Permit
-            SET VARIABLE: LoopState to Permit
-            GET DICTIONARY VALUE:
-                Dictionary: Permit
-                Key: play
-                → PermitPlay (Number)
-            IF: PermitPlay is 1
-                PLAY SOUND: CachedAudioFile
-                GET DICTIONARY VALUE:
-                    Dictionary: Permit
-                    Key: playbackToken
-                    → Completed Native Playback Token (Text)
-                SET VARIABLE: Completed Playback Token to Completed Native Playback Token
-            OTHERWISE
-                WAIT: 1 second
-            END IF
-        OTHERWISE
-            WAIT: 1 second
-        END IF
-    END IF
     GET DICTIONARY VALUE:
         Dictionary: LoopState
         Key: stop
@@ -364,6 +301,82 @@ REPEAT: 180 times
             END IF
         END REPEAT
         STOP THIS SHORTCUT
+    END IF
+    GET DICTIONARY VALUE:
+        Dictionary: LoopState
+        Key: fileName
+        → PollSoundPath (Text)
+    IF: PollSoundPath is not CachedSoundPath
+        GET FILE FROM FOLDER:
+            Folder: Shortcuts
+            Path: OpenHabits/Calendar Alarms/Alarm Tones/[PollSoundPath]
+            Error If Not Found: On
+            → LoadedAudioFile (File)
+        SET VARIABLE:
+            Name: CachedAudioFile
+            Value: LoadedAudioFile
+        GET DETAILS OF MUSIC:
+            Detail: Duration
+            Input: CachedAudioFile
+            → LoadedDuration
+        SET VARIABLE:
+            Name: CachedDuration
+            Value: LoadedDuration (Number; seconds)
+        SET VARIABLE:
+            Name: CachedSoundPath
+            Value: PollSoundPath
+    END IF
+    GET DICTIONARY VALUE:
+        Dictionary: LoopState
+        Key: alarmKey
+        → PollAlarmKey (Text)
+    GET DICTIONARY VALUE:
+        Dictionary: LoopState
+        Key: volume
+        → PollVolume (Number)
+    CURRENT DATE:
+        → Volume Check Time
+    IF: Any are true (OR)
+        Volume Check Time is after Next Volume Correction At
+        PollVolume (Number) is not Prepared Volume (Number)
+        SET VOLUME:
+            Media volume: PollVolume
+        SET VARIABLE: Prepared Volume to PollVolume
+        CURRENT DATE:
+            → Volume Correction Finished
+        ADJUST DATE:
+            Add Volume Correction Interval Seconds to Volume Correction Finished
+            → Next Volume Correction Due
+        SET VARIABLE: Next Volume Correction At to Next Volume Correction Due
+    END IF
+    DICTIONARY:
+        op: qr_step (Text)
+        alarmKey: PollAlarmKey (Text)
+        fileName: CachedSoundPath (Text)
+        volume: Prepared Volume (Number)
+        duration: CachedDuration (Number)
+        session: QR Session With Buffer (Dictionary)
+        completedPlaybackToken: Completed Playback Token (Text)
+        → PermitRequest
+    RUN SCRIPT: Calendar Alarms Runtime
+        Parameter: PermitRequest
+        → PermitRaw
+    GET DICTIONARY FROM INPUT: PermitRaw
+        → Permit
+    SET VARIABLE: LoopState to Permit
+    GET DICTIONARY VALUE:
+        Dictionary: Permit
+        Key: play
+        → PermitPlay (Number)
+    IF: PermitPlay is 1
+        PLAY SOUND: CachedAudioFile
+        GET DICTIONARY VALUE:
+            Dictionary: Permit
+            Key: playbackToken
+            → Completed Native Playback Token (Text)
+        SET VARIABLE: Completed Playback Token to Completed Native Playback Token
+    OTHERWISE
+        WAIT: 1 second
     END IF
 END REPEAT
 STOP AND OUTPUT:

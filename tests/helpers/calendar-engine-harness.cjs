@@ -36,8 +36,13 @@ class Harness {
     const h = this;
     class Clock extends Date { constructor(...args) {super(...(args.length ? args : [h.now]));} static now() {return h.now;} }
     return {Date: Clock, FileManager: {iCloud: () => h.fm, local: () => h.fm},
-      // Engine core still converts to seconds; Scanner passes Scriptable milliseconds.
-      Timer: {schedule(seconds, repeat, fn) {h.now += scriptName === 'Calendar Alarm QR Scanner.js' ? seconds : seconds * 1000; fn(); return {invalidate() {}};}},
+      // Scriptable Timer.schedule uses milliseconds. Let resolved async calls
+      // settle before virtual timers, so successful GPS can beat its timeout.
+      Timer: {schedule(milliseconds, repeat, fn) {
+        if (h.options.onTimer) h.options.onTimer(milliseconds);
+        const handle = setTimeout(() => {h.now += milliseconds; fn();}, 0);
+        return {invalidate() {clearTimeout(handle);}};
+      }},
       CalendarEvent: {between: async () => {
         if (h.options.calendarFails) throw Error('calendar fetch failed');
         return [{title: 'Tasks', startDate: new Clock(h.start), endDate: new Clock(h.start + 3600000), notes: JSON.stringify(h.definitions)}];
@@ -72,6 +77,7 @@ class Harness {
       labels: this.clock.map(x => x.name), hours: this.clock.map(x => Number(x.hh)),
       minutes: this.clock.map(x => Number(x.mm)), isEnabled: this.clock.map(x => x.isEnabled ?? true),
       currentFocus: this.options.focus || '', taskLogResponse: response,
+      reliableQRHandoff: this.options.reliableQRHandoff === true,
     });
     if (apply) this.apply(result);
     return result;

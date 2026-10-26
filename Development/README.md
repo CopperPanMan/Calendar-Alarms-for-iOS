@@ -18,6 +18,7 @@ The **Shortcuts** Scriptable bookmark points to **iCloud Drive/Shortcuts**. Cale
 ## Current behavior and contracts
 
 - [QR Scheduling Fixes](QR%20Scheduling%20Fixes.md) describes +2/+4 retries, independent task checks, scan cleanup, migration, and the required Engine Shortcut update.
+- [October 26 Reliability Update](October%2026%20Reliability%20Update.md) records the approved 148/88-action flows, combined playback call, completion scope, device result and remaining timeout issue.
 - [JSON Alarm Reference](../JSON%20Alarm%20Reference.md) defines user-supplied event fields; registry fields are not event configuration.
 - [Actions JSON Schema](../Calendar%20Alarms%20Actions%20Schema.md) defines one action per invocation. Native operations execute in the Actions Shortcut after runtime planning.
 - [Runtime Checkpoint](Runtime%20Checkpoint.md) is historical. Its scheduling proposals and automatic Scanner menu were superseded; use the current native readouts for production wiring.
@@ -29,7 +30,7 @@ Use the current [Wake Times readout](../Shortcut%20Actions/CA%20Wake%20Times.md)
 
 ## QR production configuration, October 2026
 
-Use the clean Engine directly from the alarm automation, no trace caller, and no automatic Scanner menu. The first existing QR poll posts the notification. Buffer and volume-correction controls default to 20 seconds, two-minute restart/four-minute backup remain unchanged, and native playback completion is acknowledged on the next poll. See [QR reliability limits](../Guides/QR%20Alarms.md#reliability-limits-observed-on-device). Automated script tests do not simulate native audio, OS suspension, alarm automation lifecycle, or notification permission behavior.
+Use Engine directly from the alarm automation, no trace caller, and no automatic Scanner menu. The October 26 flow has one initial `qr_poll` and one `qr_step` per repeating iteration. The combined call acknowledges the preceding completed sound, attempts the first banner within that existing call, then checks fresh state before playback permission. The restart buffer is five seconds; volume correction remains twenty seconds, with an immediate correction when the requested target changes. Two-minute restarts/four-minute backups remain unchanged. The user reported consecutive looping without the previous alternating failures, with a few timeout messages still appearing around three minutes. See [QR reliability limits](../Guides/QR%20Alarms.md#reliability-limits-observed-on-device). Automated script tests do not simulate native audio, OS suspension, alarm automation lifecycle, or notification permission behavior.
 
 ## Verification
 

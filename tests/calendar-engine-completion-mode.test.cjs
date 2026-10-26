@@ -167,7 +167,8 @@ test('missing completion data permits prompting and task-reset actions still run
   assert.equal((await h.runtime({op: 'trigger_check', trigger: reset})).run, 1);
   h.disk.delete(cachePath);
   assert.equal((await h.runtime({op: 'trigger_check', trigger: speech})).run, 1);
-  await assert.rejects(h.runtime({op: 'trigger_finish', trigger: {...speech, triggerID: '../escape'}}), /Invalid trigger/);
+  const invalid = await h.runtime({op: 'trigger_finish', trigger: {...speech, triggerID: '../escape'}});
+  assert.equal(invalid.ok, 0); assert.match(invalid.error, /Invalid trigger/);
 });
 
 test('completed QR groups remove their local readiness flags after scan; ordinary triggers need no flag', async () => {

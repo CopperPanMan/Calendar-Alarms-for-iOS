@@ -25,12 +25,16 @@ function loadTaskLogFunctions(overrides = {}) {
     Set,
     JSON,
     String,
+    currentCachedCompletionScope: () => null,
     ...overrides,
   };
   vm.createContext(context);
   vm.runInContext([
     functionSource('taskMetricIsComplete'),
     functionSource('getCompletedTaskMetricIDs'),
+    functionSource('completionDayKey'),
+    functionSource('completionScopeForReport'),
+    functionSource('completionAppliesToEntry'),
     functionSource('applyTaskLogCompletions'),
   ].join('\n'), context);
   return context;
@@ -70,7 +74,7 @@ test('malformed task log input is non-destructive and reports a warning', async 
   assert.match(warnings[0], /invalid task log response JSON/);
 });
 
-test('completed metrics delete and reset every matching task loop', async () => {
+test('completed metrics reset matching task loops in their completion scope', async () => {
   const deletions = [];
   const backupsCleared = [];
   const context = loadTaskLogFunctions({
@@ -88,6 +92,7 @@ test('completed metrics delete and reset every matching task loop', async () => 
   const registry = [
     {
       alarmName: 'Meditate',
+      calcFireTime: Math.floor(Date.now() / 1000) - 60,
       taskIDs: ['meditationDuration'],
       nextFireHHMM: '07:30',
       nextFireTime: 123,
