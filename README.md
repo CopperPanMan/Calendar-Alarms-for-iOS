@@ -13,18 +13,18 @@ Calendar Alarms is free, open source, and combines capabilities that are spread 
 ## How Does This Work?
 
 1. Choose an event you wish to add alarms to.
-2. Configure the alarms for that event using the online [**Alarm Editor**](https://copperpanman.github.io/Calendar-Alarms-for-iOS/).
+2. Configure the alarms for that event using the online [**Alarm Editor**](https://copperpanman.github.io/Calendar-Alarms-for-iOS/), or by describing them to an AI with a link to [this repository](https://github.com/CopperPanMan/Calendar-Alarms-for-iOS/).
 3. Paste the alarm configuration it generates into your event’s **Notes** field.
 
 And you’re done!
 
-The shortcuts automatically sync the matching alarms into your iOS Clock app and handle their behavior when they go off. Alarms for each day are automatically scheduled around midnight and deleted after they have triggered. You can edit alarms at any time by pasting the configuration back into the Editor.
+Alarms for each day are automatically scheduled around midnight and deleted after they have triggered, and the system automatically handles configured alarm behavior when any alarm goes off. You can manually sync alarms by either closing your calendar app, or by running the *Engine* shortcut. And you can edit alarms at any time by pasting the configuration back into the Editor, and re-syncing once finished.
 
-Once installed, it’s dead simple to use.
+Once installed, it’s simple to use.
 
 ## What Am I Installing?
 
-Calendar Alarms is not an app. Instead, it's a set of five Apple Shortcuts (including optional tools), a few paired automations, and a free helper app called Scriptable that lets the Shortcuts handle the more complex logic. Core alarm behavior runs on your own iPhone and iCloud account.
+Calendar Alarms is not an app. Instead, it's a set of five Apple Shortcuts (including optional tools), a few paired automations, and a free helper app called Scriptable that lets the Shortcuts handle the more complex logic. Everything runs on your own iPhone and iCloud account, with the only exception being the optional OpenHabits Metrics integration described below.
 
 You don't need to understand or write any code. Once installed, the system is your copy: you can inspect it, modify it, build on it, or ignore the technical parts entirely.
 
