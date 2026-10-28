@@ -26,16 +26,16 @@ Setup differs slightly between iOS 26 and iOS 27. Expand the section for your ve
 
 Add these **three required shortcuts** and **two optional but recommended shortcuts** to the Shortcuts app:
 
-- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/7b96b2236b3543aa885345a6e1495343)**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/0bade3e6ec0541ddb6bf0c8591bda955)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
-- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/0b797f905b8a454e949af8776d3e7cba)**
+- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/549b8a24d92640a7a3bf4bb452ef8398)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
-- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/8609017e146c41f9931ae0fd5ce34fa0)**
+- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/d0728203fbd24bd5a7cf1b1f2c90fea3)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
-- **[CA Wake Times](https://www.icloud.com/shortcuts/9f525cedd6c64a5185bc9046d5b1e79c)** *(optional, recommended)*
+- **[CA Wake Times](https://www.icloud.com/shortcuts/8c0e61f760554e95a00176d5d498c050)** *(optional, recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
   - **Why use it?** It lets you use Calendar Alarms for your wake-up alarm and move multiple sleep and wake alarms with one tap, without leaving your Home Screen. See the [Wake Times Reference](Feature%20Reference.md#wake-times) for setup instructions.
-- **[CA qrClockCloser](https://www.icloud.com/shortcuts/81438415f05a48e59e9df25036ff1c75)** *(recommended)*
+- **[CA qrClockCloser](https://www.icloud.com/shortcuts/5af9813c91af4577b8083300bee917e1)** *(recommended)*
   - Returns you to the Home Screen if you open Clock while a QR alarm is active, discouraging you from disabling its upcoming retries.
   - **Why use it?** QR alarms schedule a restart two minutes later and a backup four minutes later. **CA qrClockCloser** makes it harder to break this loop by disabling upcoming alarms in Clock. See [QR Alarms](Guides/QR%20Alarms.md) for behavior and limitations.
 
@@ -48,16 +48,16 @@ You can place the shortcuts in a folder called **Calendar Alarms** to keep them 
 
 Add these **three required shortcuts** and **two optional but recommended shortcuts** to the Shortcuts app:
 
-- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/7bb2e61155ae4ed28226446271e880d4)**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/a3c399b7812846b59f89c8d2b60b042f)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
-- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/3ccfb60c857a45879d298e7602e40b30)**
+- **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/549b8a24d92640a7a3bf4bb452ef8398)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
-- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/4434a5595329405bb791ca8e83f4e882)**
+- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/14c0ce3005a849918beeb2ce1312c45e)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
-- **[CA Wake Times](https://www.icloud.com/shortcuts/9f525cedd6c64a5185bc9046d5b1e79c)** *(optional, recommended)*
+- **[CA Wake Times](https://www.icloud.com/shortcuts/8c0e61f760554e95a00176d5d498c050)** *(optional, recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
   - **Why use it?** It lets you use Calendar Alarms for your wake-up alarm and move multiple sleep and wake alarms with one tap, without leaving your Home Screen. See [Wake Times](Feature%20Reference.md#wake-times) for setup instructions.
-- **[CA qrClockCloser](https://www.icloud.com/shortcuts/bc027a30844b4d569801ad456b7900f5)** *(recommended)*
+- **[CA qrClockCloser](https://www.icloud.com/shortcuts/ba752cdb8368467f81b21fc62abc5f1d)** *(recommended)*
   - Returns you to the Home Screen if you open Clock while a QR alarm is active, discouraging you from disabling its upcoming retries.
   - **Why use it?** QR alarms schedule a restart two minutes later and a backup four minutes later. **CA qrClockCloser** makes it harder to break this loop by disabling upcoming alarms in Clock. See [QR Alarms](Guides/QR%20Alarms.md) for behavior and limitations.
 
