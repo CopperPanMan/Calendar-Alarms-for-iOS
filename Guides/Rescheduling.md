@@ -8,7 +8,7 @@ Rules are checked **when the alarm fires**, not continuously in the background. 
 
 Open **Advanced Settings → Rescheduling Rules** and turn on **Turn on Rescheduling**. New alarms start with the switch off. Turning it off preserves the driving, location, and calendar rules in exported notes so they can be restored later. Task looping has its own settings.
 
-Set **Maximum follow-ups** under **Advanced Settings → Rescheduling and Task Loop Limit**.
+Set **Maximum follow-ups** under **Advanced Settings → Follow-up limits**.
 
 | Setting | Behavior |
 | --- | --- |

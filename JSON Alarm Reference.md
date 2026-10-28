@@ -68,7 +68,6 @@ See [QR Alarms](Guides/QR%20Alarms.md) for printing codes, testing, and custom s
 | `qrSoundPath` | Sound inside Alarm Tones; subfolders supported | Legacy default `"ringtone.mp3"`, which is **not installed**. Supply an installed tone such as `"marimba.mp3"`. `"Nature/ocean.mp3"` and `"Alarm Tones/Nature/ocean.mp3"` identify a subfolder sound. |
 | `qrVol` | QR media volume percentage | `40`; integer 1–100 |
 | `qrShortcutsOnScan` | Ordered action/Shortcut entries after a matching active scan | `[]`; transport format below |
-| `qrSoundLen` | Legacy duration in seconds | `2.13`; current cached-audio readouts measure the actual duration and do not rely on this value |
 
 The current Engine uses a +2-minute restart and +4-minute backup. These are implementation settings, not calendar JSON keys. A scan stops the QR instance; an independent task follow-up can remain. Continuous playback is subject to Shortcut execution limits.
 

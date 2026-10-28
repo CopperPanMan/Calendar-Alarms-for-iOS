@@ -167,3 +167,12 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 0.5rem; }
   .two-col, .four-col { grid-template-columns: minmax(0, 1fr); }
   .help:hover::after, .help:focus::after { width: min(260px, 65vw); left: auto; right: 0; }
 }
+
+.dismiss-setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0.4rem; position: relative; }
+.dismiss-setting .checkbox-row { align-items: flex-start; }
+.inline-help { margin: 0; }
+.inline-help > summary { display: flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; margin: 0; border-radius: 50%; background: #64748b; color: white; list-style: none; }
+.inline-help > summary::-webkit-details-marker { display: none; }
+.inline-help > p { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; margin: 0.4rem 0 0; padding: 0.7rem; background: var(--card); color: var(--text); border: 1px solid var(--control-border); border-radius: 8px; font-size: 0.9rem; }
+.field-error { display: block; color: #ef4444; margin-top: 0.3rem; font-size: 0.85rem; }
+[aria-invalid="true"] { border-color: #ef4444; outline: 2px solid #ef4444; }

@@ -6,11 +6,13 @@ Actions let an alarm show a reminder, start a timer, change a setting, or run a 
 
 ## Add actions to an alarm
 
-Under **Advanced Settings → Trigger & Silence Properties**, choose **+ Add Action on Trigger** and select an **Action Type**. To run something after a QR scan instead, use **+ Add QR Action on Scan** under **QR Alarm Properties**. Fill in the fields for that action; add more actions and use the arrows to put them in order.
+Under **Advanced Settings → Actions → When the alarm triggers**, choose **+ Add Action on Trigger** and select an **Action Type**. To run something after a QR scan instead, use **+ Add QR Action on Scan** under **QR Alarm Properties → After a QR scan**. Fill in the fields for that action; add more actions and use the arrows to put them in order.
+
+Use **Copy Output** when finished. If a field is invalid, the Editor opens its section and highlights it before copying.
 
 Copy the updated configuration back into the event's notes and sync it. Trigger actions run after the alarm passes any driving, location, or calendar gates. Task-check fires can run them again while the task is incomplete; QR-only playback restarts do not rerun them.
 
-Enable **Automatically dismiss alarm** to have the native alarm silence itself while actions run. This requires its automation to execute, so it may ring briefly first. That setting does not replace the scan requirement for a QR alarm. For a silent scheduled action, use an alarm without a QR ID.
+Under **Actions**, enable **Automatically dismiss the Clock alarm** to have the native alarm silence itself while actions run. This requires its automation to execute, so it may ring briefly first. That setting does not replace the scan requirement for a QR alarm. For a silent scheduled action, use an alarm without a QR ID.
 
 ## Choose an action
 
@@ -34,7 +36,7 @@ These actions change the requested setting; they do not automatically restore it
 
 ## Example: a silent work-session reminder
 
-On an event called **Focused Work**, add an alarm at offset `0`, reference **start**, and enable **Automatically dismiss alarm**. Add these trigger actions in order:
+On an event called **Focused Work**, add an alarm at offset `0`, reference **start**, and enable **Automatically dismiss the Clock alarm**. Add these trigger actions in order:
 
 1. **Focus:** Work → On.
 2. **Timer:** Start → 25 minutes.

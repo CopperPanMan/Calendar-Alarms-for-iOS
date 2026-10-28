@@ -8,13 +8,15 @@ A QR alarm keeps prompting you to scan a matching code. Use it to get out of bed
 
 1. In the [Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/), add an alarm and set its time relative to the event.
 2. Open **Advanced Settings → QR Alarm Properties**. Enter a **QR Code ID**, such as `bathroom`. Use letters, numbers, or `- . _ ~`, without spaces.
-3. Choose a **QR Sound File** from the built-in list and set **QR Volume**. Start with `marimba.mp3` at `40` while testing.
+3. Choose a **QR alarm sound** from the dropdown and set **QR Volume**. Start with **Marimba** at `40` while testing.
 4. Select **Show QR Code**, then download or print the code and put it where you want to scan it. The code launches **Calendar Alarms QR Scanner**, so keep that Shortcut's name unchanged.
 5. Copy the generated configuration into the event's notes and close Calendar, or run **Calendar Alarm Engine** to sync.
 
 The six installed tones are **marimba, ocean, siren, sonar, marimba electric, and spring forest**. The Editor's preview plays a tone in your browser; the installer supplies the corresponding file on your phone.
 
-**QR Sound Length** is a legacy setting still shown by the Editor. The current Engine action readout measures the loaded file's duration automatically; you do not need to calculate it for that flow. Older Shortcut versions may still use the field.
+Playback measures the loaded audio file's duration automatically. There is no sound-length setting. The Editor discards obsolete `qrSoundLen` values when importing old configurations.
+
+Choose **Custom sound…** to reveal the filename field for your own MP3. Built-in sounds are installed during setup; custom files must be added to the Alarm Tones folder. Switching to a built-in sound and back preserves your custom filename while editing.
 
 ## Test the scan
 

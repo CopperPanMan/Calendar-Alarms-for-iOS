@@ -1,3 +1,5 @@
+> Historical design only. For current behavior, use [Feature Reference](../../Feature%20Reference.md) and [JSON Alarm Reference](../../JSON%20Alarm%20Reference.md). The old `qrSoundLen` field and duration-based loop design below are obsolete; do not reintroduce them. Playback measures the audio file directly.
+
 > **Historical specification.** This describes a superseded implementation, including task endpoints and sound-loop requirements. Use [current development notes](../README.md), [JSON Alarm Reference](../../JSON%20Alarm%20Reference.md), and [QR Scheduling Fixes](../QR%20Scheduling%20Fixes.md) for the current system.
 
 # Calendar Alarms — Requirements & Spec (Markdown)

@@ -930,7 +930,6 @@ function normalizeCalendarAlarmObject(rawObj) {
   if (qrCodeID.includes(" ")) return { ok: false, err: `${errPrefix}qrCodeID must not contain spaces` };
 
   const qrSoundPath = typeof rawObj.qrSoundPath === "string" ? rawObj.qrSoundPath : "ringtone.mp3";
-  const qrSoundLen = num(rawObj.qrSoundLen, 2.13);
   const qrVol = intInRange(rawObj.qrVol, 40, 1, 100);
 
   const qrShortcutsOnScan = normalizeShortcutActionList(rawObj.qrShortcutsOnScan ?? rawObj.qrShortcutOnScan);
@@ -1009,7 +1008,6 @@ function normalizeCalendarAlarmObject(rawObj) {
       reference,
       qrCodeID,
       qrSoundPath,
-      qrSoundLen,
       qrVol,
       qrShortcutsOnScan,
       shortcutsOnTrigger,
@@ -1103,7 +1101,8 @@ function ensureRegistryEntryShape(entry) {
 
   if (typeof entry.qrCodeID !== "string") entry.qrCodeID = "";
   if (typeof entry.qrSoundPath !== "string") entry.qrSoundPath = "ringtone.mp3";
-  if (!Number.isFinite(Number(entry.qrSoundLen))) entry.qrSoundLen = 2.13;
+  if ('qrSoundLen' in entry) registryMigrationNeeded = true;
+  delete entry.qrSoundLen;
   if (!Number.isFinite(Number(entry.qrVol))) entry.qrVol = 40;
   entry.qrShortcutsOnScan = normalizeShortcutActionList(entry.qrShortcutsOnScan ?? entry.qrShortcutOnScan);
   entry.shortcutsOnTrigger = normalizeShortcutActionList(entry.shortcutsOnTrigger ?? entry.shortcutOnTrigger);
@@ -2451,7 +2450,7 @@ async function runVerifier(input, registryAfter) {
   // A failed fetch is not evidence that calendar definitions were removed.
   if (expected === null) return registryAfter;
   const registry = new Map(dropRegistryDuplicatesRandom(registryAfter).map((e) => [registryKey(e), e]));
-  const calendarFields = ["status", "offsetMin", "reference", "qrCodeID", "qrSoundPath", "qrSoundLen", "qrVol",
+  const calendarFields = ["status", "offsetMin", "reference", "qrCodeID", "qrSoundPath", "qrVol",
     "qrShortcutsOnScan", "shortcutsOnTrigger", "silenceAlarm", "locationMode", "locations", "radiusMeters",
     "silenceIfDriving", "conflictingCalendars", "reschedMinutes", "contextEnabled", "rescheduleMode",
     "rescheduleIntervalMinutes", "rescheduleWindowMinutes", "taskLoopMin", "taskLoopEnabled", "taskIDs", "checkTasksFirstTime"];
