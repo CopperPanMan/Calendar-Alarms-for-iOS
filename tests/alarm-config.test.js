@@ -180,7 +180,7 @@ test('built-in actions serialize as one JSON string for Calendar Alarms Actions'
 
 test('new notifications default to show mode without a duplicate title', () => {
   const shortcut = newActionShortcut('notification');
-  assert.deepEqual(shortcut.action, { action: 'notification', message: '', mode: 'show' });
+  assert.deepEqual(shortcut.action, { action: 'notification', message: '', mode: 'show', speechVolume: 50 });
   assert.equal('title' in shortcut.action, false);
 });
 
@@ -197,6 +197,7 @@ test('valid Calendar Alarms Actions payloads load into the typed editor model', 
     action: 'notification',
     message: 'Leave now',
     mode: 'both',
+    speechVolume: 50,
   });
 });
 
