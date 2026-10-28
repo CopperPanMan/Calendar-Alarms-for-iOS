@@ -1,5 +1,7 @@
 # Calendar Alarm Engine
 
+> This dated readout describes the October 26 flow. The current 143-action native-playback variant and its canonical script requirements are documented in [Native playback release](../Development/Native%20playback%20release.md). Public iCloud links are updated separately.
+
 Action readout, 2026-10-26, for the approved installed **148-action Engine**, derived from the restored 155-action October 26 baseline. This readout describes that flow with its matching Engine and Runtime scripts, not the older published iCloud Shortcut. Updating this file does not update a published Shortcut. The user reported consecutive looping without the previous every-other-execution failure; a few timeout messages around three minutes remain unresolved. See the [exact changes and verification limits](../Development/October%2026%20Reliability%20Update.md).
 
 `→ Name` names an action's magic variable; it is not an additional Set Variable action. Use actual magic variables in request fields, with the types shown. Named caches must use Set Variable, as written. Run Script means Scriptable, Run in App Off. Runtime calls return a Dictionary; retain each explicit Get Dictionary from Input shown below. Clear parameters explicitly where specified.

@@ -78,6 +78,8 @@ class Harness {
       minutes: this.clock.map(x => Number(x.mm)), isEnabled: this.clock.map(x => x.isEnabled ?? true),
       currentFocus: this.options.focus || '', taskLogResponse: response,
       reliableQRHandoff: this.options.reliableQRHandoff === true,
+      nativePlaybackV2: this.options.nativePlaybackV2 === true,
+      restartBufferSeconds: 5,
     });
     if (apply) this.apply(result);
     return result;
