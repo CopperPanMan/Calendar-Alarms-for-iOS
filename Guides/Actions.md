@@ -16,15 +16,19 @@ Enable **Automatically dismiss alarm** to have the native alarm silence itself w
 
 | Action Type | Configure | Useful detail |
 | --- | --- | --- |
-| Notification | Message; Show, Speak, or Speak + Show; optional title | A title appears in the notification and is not spoken. Do Not Disturb changes spoken output to displayed text. |
+| Notification | Message; Show, Speak, or Speak + Show; speech volume (default 50%); optional title | A title appears in the notification and is not spoken. Do Not Disturb changes spoken output to displayed text. |
 | Timer | Start with a positive duration in minutes, or Cancel | Decimal minutes work. Cancel operates on the current timer, not a timer identified by this event. |
 | Focus | Exact Focus name and On/Off | Create the Focus in iOS Settings first. On lasts until turned off. |
 | Display | Color Filters, Brightness, or Appearance | Choose the actual color filter in iOS Settings first. Brightness is 0–100%; Appearance is Light/Dark. |
 | Open App / URL / Screen | App, URL/deep link, Home Screen, or Lock Device | App names must match. Try the destination manually first; some destinations require an unlocked phone. |
-| OpenHabits Reminder | Metric IDs and output mode | Requires the [OpenHabits integration](OpenHabits%20Integration.md#show-or-speak-a-reminder). |
+| OpenHabits Reminder | Metric IDs, output mode, and speech volume (default 50%) | Requires the [OpenHabits integration](OpenHabits%20Integration.md#show-or-speak-a-reminder). |
 | Volume / Audio | Media Volume or Silent Mode | Media volume is 0–100%; it is separate from the native Clock alarm's sound controls. Native action availability can vary by device. |
 | Cue | Haptic or Sound | For a sound, supply a file in [Alarm Tones](QR%20Alarms.md#use-your-own-sound), such as `marimba.mp3`. A cue plays once. |
 | Run Custom Shortcut | Shortcut name and optional inputs | Use the exact installed name. See below. |
+
+For **Speak** or **Speak + Show**, set **Speech Volume (%)** beside Output. No separate Volume / Audio action is needed before a spoken notification or OpenHabits reminder. Older reminders without a volume value use 50%. Volume changes only when speech occurs; show-only output, Do Not Disturb, and completed metrics leave it alone. QR sounds use their own alarm volume.
+
+This requires the updated Calendar Alarms Actions shortcut with **Set Volume → Plan → speechLevel** immediately before Speak Text, plus the updated Runtime script. Older shortcuts ignore the new volume field.
 
 These actions change the requested setting; they do not automatically restore its previous value. Add another scheduled action if you want to restore it later.
 

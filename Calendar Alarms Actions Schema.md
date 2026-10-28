@@ -18,11 +18,12 @@ For configuration through the Editor, see the [Actions guide](Guides/Actions.md)
 ### Notification
 
 ```json
-{ "action": "notification", "message": "Leave in 15 minutes", "mode": "both", "title": "Commute" }
+{ "action": "notification", "message": "Leave in 15 minutes", "mode": "both", "speechVolume": 50, "title": "Commute" }
 ```
 
 - `message`: required non-empty string.
 - `mode`: optional `show`, `speak`, or `both`; defaults to `show`.
+- `speechVolume`: optional number from 0 through 100; defaults to 50, including older payloads without this field. Media volume is set immediately before speech and is not restored afterward. Show-only output and Do Not Disturb do not change volume.
 - `title`: optional string used for displayed notifications; defaults to empty and is not spoken.
 
 ### Timer
@@ -80,10 +81,10 @@ For configuration through the Editor, see the [Actions guide](Guides/Actions.md)
 ### OpenHabits Reminder
 
 ```json
-{ "action": "openhabits_reminder", "metricIDs": ["floss_time"], "mode": "both" }
+{ "action": "openhabits_reminder", "metricIDs": ["floss_time"], "mode": "both", "speechVolume": 50 }
 ```
 
-`metricIDs` must contain one or more non-empty strings. `mode` is optional and defaults to `show`.
+`metricIDs` must contain one or more non-empty strings. `mode` is optional and defaults to `show`. `speechVolume` has the same 0–100 range and 50% default as notifications. The volume action runs only when a reminder is actually spoken; completed metrics do not change volume. QR playback retains its separate `qrVol` setting.
 
 See [OpenHabits Integration](Guides/OpenHabits%20Integration.md) for prerequisites and where to find IDs. Completed, unscheduled, expired, and unknown metrics produce no reminder line. With **Do Not Disturb**, notifications and reminders are shown instead of spoken, including when mode is `speak`.
 

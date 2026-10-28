@@ -598,12 +598,16 @@ function validateAction(a) {
   if (['notification','openhabits_reminder'].includes(a.action)) {
     if (a.mode === undefined) a.mode = 'show';
     oneOf('mode', ['show','speak','both']);
+    if (a.speechVolume === undefined) a.speechVolume = 50;
+    if (typeof a.speechVolume !== 'number' || !Number.isFinite(a.speechVolume) || a.speechVolume < 0 || a.speechVolume > 100)
+      throw new Error('speechVolume must be a number from 0 to 100.');
   }
   return a;
 }
 async function action(r) {
   const a = validateAction(object(r.input));
   const p = {kind: a.action, refresh: false, speak: false, show: false, ...a};
+  if (['notification','openhabits_reminder'].includes(a.action)) p.speechLevel = a.speechVolume / 100;
   if (a.action === 'notification') return {...p, ...display(a.message, a.mode, r.focus, a.title || '')};
   if (a.action === 'openhabits_reminder' || a.action === 'task_alarm_reset') {
     if (a.action === 'task_alarm_reset' && r.refreshed !== true) return {...p, refresh: true};

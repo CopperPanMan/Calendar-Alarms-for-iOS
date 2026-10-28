@@ -321,12 +321,20 @@ function actionSelect(label, field, options) {
   return `<label>${label}<select data-action-field="${field}">${options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('')}</select></label>`;
 }
 
+function speechOutputFields(payload) {
+  const output = actionSelect('Output', 'mode', [['show', 'Show'], ['speak', 'Speak'], ['both', 'Speak + Show']]);
+  const volume = ['speak', 'both'].includes(payload.mode)
+    ? actionField(`Speech Volume (%) ${helpIcon('Sets media volume immediately before speaking. Defaults to 50%. This volume remains afterward; QR alarm sounds use their own volume.')}`, 'speechVolume', 'number', 'min="0" max="100" step="any" required')
+    : '';
+  return `<div class="grid two-col speech-output">${output}${volume}</div>`;
+}
+
 function renderActionEditor(container, item, rerender) {
   const payload = item.action;
   let fields = '';
   switch (item.editorType) {
     case 'notification':
-      fields = `${actionField('Message', 'message', 'text', 'required')}${actionSelect('Output', 'mode', [['show', 'Show'], ['speak', 'Speak'], ['both', 'Speak + Show']])}${actionField('Title (optional)', 'title')}`;
+      fields = `${actionField('Message', 'message', 'text', 'required')}${speechOutputFields(payload)}${actionField('Title (optional)', 'title')}`;
       break;
     case 'timer':
       fields = `${actionSelect('Operation', 'operation', [['start', 'Start'], ['cancel', 'Cancel']])}${payload.operation === 'start' ? actionField('Minutes', 'minutes', 'number', 'min="0" step="any" required') : ''}`;
@@ -346,7 +354,7 @@ function renderActionEditor(container, item, rerender) {
       if (payload.operation === 'url') fields += actionField('URL / Deep Link', 'url', 'url', 'required');
       break;
     case 'openhabits_reminder':
-      fields = `${actionField(`Metric IDs (comma-separated) ${helpIcon('Enter one or more OpenHabits Metric IDs, separated by commas. Spaces after commas are fine. Example: exercise_time, floss_time. Use IDs from your own configuration.')}`, 'metricIDs', 'text', 'required placeholder="exercise_time, floss_time"')}${actionSelect('Output', 'mode', [['show', 'Show'], ['speak', 'Speak'], ['both', 'Speak + Show']])}`;
+      fields = `${actionField(`Metric IDs (comma-separated) ${helpIcon('Enter one or more OpenHabits Metric IDs, separated by commas. Spaces after commas are fine. Example: exercise_time, floss_time. Use IDs from your own configuration.')}`, 'metricIDs', 'text', 'required placeholder="exercise_time, floss_time"')}${speechOutputFields(payload)}`;
       break;
     case 'audio':
       fields = actionSelect('Operation', 'operation', [['volume', 'Media Volume'], ['silent_mode', 'Silent Mode']]);
@@ -402,6 +410,10 @@ function renderActionEditor(container, item, rerender) {
       else if (control.type === 'number') payload[field] = control.value === '' ? '' : Number(control.value);
       else if (field === 'title' && control.value === '') delete payload.title;
       else payload[field] = control.value;
+      if (field === 'mode' && ['notification', 'openhabits_reminder'].includes(item.editorType)) {
+        rerender();
+        return;
+      }
       updateOutput();
     });
   });

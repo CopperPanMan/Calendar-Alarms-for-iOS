@@ -59,12 +59,12 @@
 
   function defaultAction(action) {
     switch (action) {
-      case 'notification': return { action, message: '', mode: 'show' };
+      case 'notification': return { action, message: '', mode: 'show', speechVolume: 50 };
       case 'timer': return { action, operation: 'start', minutes: 15 };
       case 'focus': return { action, name: '', state: 'on' };
       case 'display': return { action, operation: 'color_filters', state: 'on' };
       case 'open': return { action, operation: 'app', appName: '' };
-      case 'openhabits_reminder': return { action, metricIDs: [''], mode: 'show' };
+      case 'openhabits_reminder': return { action, metricIDs: [''], mode: 'show', speechVolume: 50 };
       case 'audio': return { action, operation: 'volume', percent: 50 };
       case 'cue': return { action, operation: 'haptic' };
       default: return null;

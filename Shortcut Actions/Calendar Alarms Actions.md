@@ -127,6 +127,9 @@ IF: PlanSpeak is Yes
         Dictionary: Plan
         Key: message
         → PlanMessage (Text)
+    SET VOLUME:
+        Volume: Plan (Dictionary → Get Value for Key: speechLevel)
+        // Runtime returns a 0–1 media-volume fraction; missing speechVolume defaults to 50%.
     SPEAK TEXT:
         Text: PlanMessage
         Wait Until Finished: On
