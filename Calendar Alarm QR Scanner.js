@@ -567,10 +567,50 @@ async function runModeB(fm, paths, qrCodeID) {
   return out;
 }
 
+// Camera requests are tagged so empty/unrelated scans never enter legacy menu mode.
+function scannerInput(raw) {
+  let request = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
+  if (typeof request === "string" && request.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(request);
+      if (parsed && parsed.op === "scanner_scan") request = parsed;
+    } catch (_) {} // Preserve legacy raw QR identifiers.
+  }
+  if (request && typeof request === "object" && !Array.isArray(request)) {
+    if (request.op !== "scanner_scan" || request.fromScan !== true || typeof request.input !== "string")
+      return {mode: "scan", invalid: true};
+    const text = request.input.trim();
+    if (!/^shortcuts:\/\//i.test(text)) return {mode: "scan", invalid: true};
+    try {
+      const query = text.split("?")[1] || "";
+      const params = Object.create(null);
+      for (const part of query.split("&")) {
+        const i = part.indexOf("=");
+        if (i >= 0) params[decodeURIComponent(part.slice(0, i))] = decodeURIComponent(part.slice(i + 1));
+      }
+      if (params.name !== "Calendar Alarms QR Scanner" || !String(params.input || "").trim())
+        return {mode: "scan", invalid: true};
+      return {mode: "scan", code: params.input.trim()};
+    } catch (_) { return {mode: "scan", invalid: true}; }
+  }
+  const code = String(raw ?? "").trim();
+  return {mode: code ? "scan" : "menu", code};
+}
+
+function invalidCameraScan() {
+  return {mode: "scan", identifiedAlarms: 0, shortcutsToRun: [], shortcutsToRunDetailed: [],
+    shortcutToRun: "", shortcutToRunInput: [], vibrate: false, alarmsToDelete: [],
+    notification: "That is not a Calendar Alarms QR code. Please scan the configured code."};
+}
+
 // ---------- MAIN ----------
 const result = {};
+let parsedInput;
 
 try {
+  parsedInput = scannerInput(args.shortcutParameter);
+  if (parsedInput.invalid) Object.assign(result, invalidCameraScan());
+  else {
   const fm = getFileManager();
   const shortcutsRoot = resolveShortcutsRootOrThrow(fm);
   const baseDir = resolveCalendarAlarmsDir(fm, shortcutsRoot);
@@ -583,14 +623,12 @@ try {
     menuOpenStatus: fm.joinPath(baseDir, FILES.menuOpenStatus),
   };
 
-  const rawInput = String(args.shortcutParameter ?? "");
-  const trimmed = rawInput.trim();
-
-  if (!trimmed) Object.assign(result, await runModeA(fm, paths));
-  else Object.assign(result, await runModeB(fm, paths, trimmed));
+  if (parsedInput.mode === "menu") Object.assign(result, await runModeA(fm, paths));
+  else Object.assign(result, await runModeB(fm, paths, parsedInput.code));
+  }
 } catch (e) {
   addError(`ERR: CA_qrScanner_core failed: ${String(e)}`);
-  result.mode = String(args.shortcutParameter ?? "").trim() ? "scan" : "menu";
+  result.mode = parsedInput?.mode || (String(args.shortcutParameter ?? "").trim() ? "scan" : "menu");
   if (result.mode === "menu") {
     result.hasActiveQR = false;
     result.activeName = "";
