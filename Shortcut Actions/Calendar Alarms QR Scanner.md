@@ -1,5 +1,7 @@
 # Calendar Alarms QR Scanner
 
+> Historical October 26 readout. The later 76-action Scanner removes the standalone decoder and recursive self-call; see [76-action Scanner release](../Development/76-action%20Scanner%20release.md) for its input contract and exact action/call reductions. The flow below is retained as the earlier reference, not the current 76-action flow.
+
 Action readout, 2026-10-26, for the approved installed **88-action Scanner**, derived from the restored 91-action October 26 baseline. Its only native change is removal of original actions 58–60: the post-core `scanner_scan_finished` request, Runtime call and Dictionary conversion. This readout describes that flow, not the older published iCloud Shortcut; updating this file does not update a published Shortcut. The October 26 phone result covered Engine looping; Scanner device validation has not yet been reported. Run this shortcut from the notification, Camera QR link, or manually; only Engine runs automatically on alarm firings.
 
 Arrows name magic variables. All Scriptable calls use Run in App Off. Runtime calls return a Dictionary: explicitly follow Run Script with Get Dictionary from Input and use that result. The named Scanner core returns JSON **Text**, also requiring Get Dictionary. Text guards use `is [blank]` / `is not [blank]` with the comparison field truly empty and the value coerced to Text. Do not type the word blank or use Dictionary Value “has any value”. Counts are Numbers; `fromScan` and `vibrate` are Booleans.
