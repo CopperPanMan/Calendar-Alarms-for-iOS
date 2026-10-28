@@ -3,6 +3,10 @@
   const ACTIONS_SHORTCUT_NAME = 'Calendar Alarms Actions';
   const PUBLIC_ACTIONS = ['notification', 'timer', 'focus', 'display', 'open', 'openhabits_reminder', 'audio', 'cue'];
   const SOUND_FOLDER = 'Alarm Tones/';
+  const BUILT_IN_SOUNDS = [
+    ['marimba.mp3', 'Marimba'], ['ocean.mp3', 'Ocean'], ['siren.mp3', 'Siren'],
+    ['sonar.mp3', 'Sonar'], ['marimba electric.mp3', 'Marimba Electric'], ['spring forest.mp3', 'Spring Forest'],
+  ];
 
   const defaultAlarm = () => ({
     alarmName: 'New Alarm',
@@ -11,7 +15,6 @@
     reference: 'start',
     qrCodeID: '',
     qrSoundPath: '',
-    qrSoundLen: 2.13,
     qrVol: 50,
     qrShortcutsOnScan: [],
     shortcutsOnTrigger: [],
@@ -93,8 +96,23 @@
     return `${SOUND_FOLDER}${path.replace(/^\/+/, '')}`;
   }
 
+  function soundChoice(path) {
+    const normalized = normalizeSoundPath(path);
+    if (!normalized) return '';
+    return BUILT_IN_SOUNDS.find(([file]) => normalized === SOUND_FOLDER + file)?.[0] || 'custom';
+  }
+
+  function selectSound(alarm, choice) {
+    if (alarm.qrSoundChoice === 'custom') alarm.customQrSoundPath = alarm.qrSoundPath;
+    alarm.qrSoundChoice = choice;
+    alarm.qrSoundPath = choice === 'custom' ? alarm.customQrSoundPath || '' : choice;
+  }
+
   function normalizeAlarm(raw = {}) {
     const alarm = { ...defaultAlarm(), ...(raw && typeof raw === 'object' ? raw : {}) };
+    delete alarm.qrSoundLen;
+    alarm.qrSoundChoice = soundChoice(alarm.qrSoundPath);
+    alarm.customQrSoundPath = alarm.qrSoundChoice === 'custom' ? alarm.qrSoundPath : '';
     alarm.qrShortcutsOnScan = Array.isArray(alarm.qrShortcutsOnScan)
       ? alarm.qrShortcutsOnScan.map(normalizeShortcut)
       : [];
@@ -160,7 +178,6 @@
 
     if (alarm.qrCodeID?.trim()) cleaned.qrCodeID = alarm.qrCodeID.trim();
     if (alarm.qrSoundPath?.trim()) cleaned.qrSoundPath = normalizeSoundPath(alarm.qrSoundPath);
-    if (Number.isFinite(Number(alarm.qrSoundLen)) && Number(alarm.qrSoundLen) > 0) cleaned.qrSoundLen = Number(alarm.qrSoundLen);
     if (Number.isFinite(Number(alarm.qrVol))) cleaned.qrVol = Number(alarm.qrVol);
 
     const qrShortcuts = alarm.qrShortcutsOnScan.map(cleanShortcut).filter((item) => item.name);
@@ -260,6 +277,9 @@
   const api = {
     ACTIONS_SHORTCUT_NAME,
     PUBLIC_ACTIONS,
+    BUILT_IN_SOUNDS,
+    soundChoice,
+    selectSound,
     defaultAlarm,
     defaultAction,
     newActionShortcut,

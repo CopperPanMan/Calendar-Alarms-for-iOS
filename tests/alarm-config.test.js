@@ -122,7 +122,7 @@ test('normalization and export retain supported values without adding location l
   });
 
   const output = cleanAlarm(alarm);
-  assert.equal(output.qrSoundLen, 3.75);
+  assert.equal('qrSoundLen' in output, false);
   assert.deepEqual(output.locations, [[0, -73.9, 25]]);
   assert.deepEqual(output.shortcutsOnTrigger, [{ name: 'Count', input: [0, 'text'] }]);
 });

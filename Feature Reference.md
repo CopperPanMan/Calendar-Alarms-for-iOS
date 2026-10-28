@@ -78,7 +78,7 @@ See the [QR Alarms guide](Guides/QR%20Alarms.md) for complete setup, custom soun
 
 ## Trigger Shortcuts and Silent Alarms
 
-Use **Trigger & Silence Properties** when you want an alarm to do more than ring.
+Use **Actions** when you want an alarm to do more than ring.
 
 This feature lets you:
 
@@ -104,7 +104,7 @@ Depending on your configuration, the alarm can wait and try again later if:
 
 This is useful for context-dependent reminders such as “Review my day plan once I get to work.”
 
-See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, follow-up limits, and tests. Choose Fixed intervals or Smart estimates, bounded by an overall window from the original alarm time. Task repetitions share the same window and **Maximum follow-ups** count under **Rescheduling and Task Loop Limit**, which appears whenever rescheduling or task looping is on. Imported timing stays unchanged until a new mode is selected.
+See the [Rescheduling guide](Guides/Rescheduling.md) for each condition, location coordinates, follow-up limits, and tests. Choose Fixed intervals or Smart estimates, bounded by an overall window from the original alarm time. Task repetitions share the same window and **Maximum follow-ups** count under **Follow-up limits**, which appears whenever rescheduling or task looping is on. Imported timing stays unchanged until a new mode is selected.
 
 ---
 

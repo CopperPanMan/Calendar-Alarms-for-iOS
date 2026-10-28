@@ -7,10 +7,10 @@ test('every built-in QR sound has a source ringtone', () => {
   const docsDirectory = path.join(__dirname, '..', 'docs');
   const ringtoneDirectory = path.join(__dirname, '..', 'qr alarm ringtones');
   const html = fs.readFileSync(path.join(docsDirectory, 'index.html'), 'utf8');
-  const soundList = html.match(/<datalist id="qrBuiltInSounds">([\s\S]*?)<\/datalist>/);
+  const soundList = require('../docs/alarm-config.js').BUILT_IN_SOUNDS;
 
-  assert.ok(soundList, 'built-in QR sound list should exist');
-  const filenames = Array.from(soundList[1].matchAll(/<option value="([^"]+)"/g), (match) => match[1]);
+  assert.match(html, /<select data-sound-choice/);
+  const filenames = soundList.map(([file]) => file);
   assert.ok(filenames.length > 0, 'built-in QR sound list should not be empty');
 
   filenames.forEach((filename) => {

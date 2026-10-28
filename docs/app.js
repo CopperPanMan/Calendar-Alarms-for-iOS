@@ -8,7 +8,7 @@ const emptyState = document.getElementById('emptyState');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 
-const { PUBLIC_ACTIONS, defaultAlarm, defaultAction, newActionShortcut, normalizeAlarm, cleanAlarm, moveItem, duplicateAlarm, extractAlarmArray, formatCalendarNotes } = AlarmConfig;
+const { BUILT_IN_SOUNDS, selectSound, PUBLIC_ACTIONS, defaultAlarm, defaultAction, newActionShortcut, normalizeAlarm, cleanAlarm, moveItem, duplicateAlarm, extractAlarmArray, formatCalendarNotes } = AlarmConfig;
 const { buildQrShortcutUrl, validateQrCodeID } = QrTools;
 const EDITOR_URL = 'https://copperpanman.github.io/Calendar-Alarms-for-iOS/';
 const SOUND_PREVIEW_URL = 'https://raw.githubusercontent.com/CopperPanMan/Calendar-Alarms-for-iOS/main/qr%20alarm%20ringtones/';
@@ -36,11 +36,32 @@ function stopSoundPreview() {
   soundPreviewButton = null;
 }
 
+function setupSoundPicker(card, alarm) {
+  const select = card.querySelector('[data-sound-choice]');
+  const custom = card.querySelector('[data-custom-sound]');
+  const customSettings = card.querySelector('[data-custom-sound-settings]');
+  BUILT_IN_SOUNDS.forEach(([file, label]) => select.add(new Option(label, file), select.lastElementChild));
+  select.value = alarm.qrSoundChoice;
+  custom.value = alarm.customQrSoundPath;
+  customSettings.hidden = select.value !== 'custom';
+  select.addEventListener('change', () => {
+    selectSound(alarm, select.value);
+    custom.value = alarm.customQrSoundPath;
+    customSettings.hidden = select.value !== 'custom';
+    updateOutput();
+  });
+  custom.addEventListener('input', () => {
+    alarm.customQrSoundPath = custom.value;
+    alarm.qrSoundPath = custom.value;
+    updateOutput();
+  });
+}
+
 function setupSoundPreview(card) {
-  const input = card.querySelector('[data-field="qrSoundPath"]');
+  const input = card.querySelector('[data-sound-choice]');
   const button = card.querySelector('.sound-preview-btn');
   const status = card.querySelector('.sound-preview-status');
-  const builtInSounds = new Set(Array.from(document.querySelectorAll('#qrBuiltInSounds option'), (option) => option.value));
+  const builtInSounds = new Set(BUILT_IN_SOUNDS.map(([file]) => file));
 
   const updateAvailability = () => {
     const isBuiltIn = builtInSounds.has(input.value.trim());
@@ -50,7 +71,7 @@ function setupSoundPreview(card) {
     if (soundPreviewButton === button) stopSoundPreview();
   };
 
-  input.addEventListener('input', updateAvailability);
+  input.addEventListener('change', updateAvailability);
   button.addEventListener('click', async () => {
     if (soundPreviewButton === button) {
       stopSoundPreview();
@@ -207,9 +228,8 @@ function updateAlarmSections(card, alarm) {
   };
   const qrID = String(alarm.qrCodeID ?? '').trim();
   summary('qr', qrID ? `Scan to dismiss · ${qrID}` : 'No QR code');
-  summary('behavior', alarm.silenceAlarm ? 'Automatically dismiss' : 'Ring normally');
   const actions = alarm.shortcutsOnTrigger.length;
-  summary('actions', actions ? `${actions} action${actions === 1 ? '' : 's'} on trigger` : 'No actions');
+  summary('actions', `${actions ? `${actions} action${actions === 1 ? '' : 's'} on trigger` : 'No actions'} · Auto-dismiss ${alarm.silenceAlarm ? 'on' : 'off'}`);
   const rules = [];
   if (alarm.silenceIfDriving === 'ON') rules.push('Driving');
   if (alarm.locationMode !== 'off') rules.push(`${alarm.locations.length} location${alarm.locations.length === 1 ? '' : 's'}`);
@@ -318,7 +338,7 @@ function actionField(label, field, type = 'text', attributes = '') {
 }
 
 function actionSelect(label, field, options) {
-  return `<label>${label}<select data-action-field="${field}">${options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('')}</select></label>`;
+  return `<label>${label}<select data-action-field="${field}" required>${options.map(([value, text]) => `<option value="${value}">${text}</option>`).join('')}</select></label>`;
 }
 
 function speechOutputFields(payload) {
@@ -453,6 +473,7 @@ function renderShortcutList(container, alarm, key, alarmIndex) {
   list.forEach((item, listIndex) => {
     const block = document.createElement('div');
     block.className = 'sub-card';
+    block.actionItem = item;
     block.innerHTML = `
       <div class="sub-card-header">
         <div class="action-heading">
@@ -619,7 +640,7 @@ function renderTaskIDs(container, alarm) {
     const row = document.createElement('div');
     row.className = 'inline-row';
     row.innerHTML = `
-      <input type="text" data-field="taskID" placeholder="OpenHabits Metric ID" aria-label="OpenHabits Metric ID" />
+      <input type="text" required data-field="taskID" placeholder="OpenHabits Metric ID" aria-label="OpenHabits Metric ID" />
       <button type="button" class="btn secondary small" data-action="up">↑</button>
       <button type="button" class="btn secondary small" data-action="down">↓</button>
       <button type="button" class="btn danger small" data-action="delete">Delete</button>
@@ -757,6 +778,7 @@ function render() {
 
     setRescheduleForm(card, alarm);
     setupQrGenerator(card, alarm);
+    setupSoundPicker(card, alarm);
     setupSoundPreview(card);
     renderShortcutList(card.querySelector('[data-list="qrShortcutsOnScan"]'), alarm, 'qrShortcutsOnScan', index);
     renderShortcutList(card.querySelector('[data-list="shortcutsOnTrigger"]'), alarm, 'shortcutsOnTrigger', index);
@@ -810,6 +832,8 @@ alarmsContainer.addEventListener('dragover', (event) => {
 });
 
 function updateOutput() {
+  clearValidationErrors();
+  setStatus(copyStatus, '');
   const cleaned = alarms.map(cleanAlarm);
   jsonOutput.value = formatCalendarNotes(cleaned, EDITOR_URL);
   pushHistorySnapshot();
@@ -837,7 +861,39 @@ function loadFromInput() {
   }
 }
 
+function clearValidationErrors() {
+  alarmsContainer.querySelectorAll('.field-error').forEach(error => error.remove());
+  alarmsContainer.querySelectorAll('[aria-invalid]').forEach(control => {
+    control.removeAttribute('aria-invalid');
+    control.removeAttribute('aria-describedby');
+  });
+}
+
+function validateBeforeCopy() {
+  clearValidationErrors();
+  const issues = EditorValidation.collectIssues(alarmsContainer);
+  if (!issues.length) return true;
+  issues.forEach(({control, message}, index) => {
+    const error = document.createElement('span');
+    error.className = 'field-error';
+    error.id = `field-error-${index}`;
+    error.textContent = message;
+    control.setAttribute('aria-invalid', 'true');
+    control.setAttribute('aria-describedby', error.id);
+    (control.closest('label') || control.parentElement).appendChild(error);
+  });
+  const first = issues[0].control;
+  for (let parent = first.parentElement; parent; parent = parent.parentElement) {
+    if (parent.tagName === 'DETAILS') parent.open = true;
+  }
+  setStatus(copyStatus, `Fix ${issues.length === 1 ? 'the highlighted field' : 'the highlighted fields'} before copying.`, 'error');
+  first.scrollIntoView({block: 'center'});
+  first.focus({preventScroll: true});
+  return false;
+}
+
 async function copyOutput() {
+  if (!validateBeforeCopy()) return;
   if (!jsonOutput.value.trim()) {
     setStatus(copyStatus, 'No output to copy yet.', 'error');
     return;
