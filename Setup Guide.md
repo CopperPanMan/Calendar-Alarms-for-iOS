@@ -26,7 +26,7 @@ Setup differs slightly between iOS 26 and iOS 27. Expand the section for your ve
 
 Add these **three required shortcuts** and **two optional but recommended shortcuts** to the Shortcuts app:
 
-- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/0bade3e6ec0541ddb6bf0c8591bda955)**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/94dfd0d1eab94c5b946a0a3af3666f76)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
 - **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/549b8a24d92640a7a3bf4bb452ef8398)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
@@ -48,7 +48,7 @@ You can place the shortcuts in a folder called **Calendar Alarms** to keep them 
 
 Add these **three required shortcuts** and **two optional but recommended shortcuts** to the Shortcuts app:
 
-- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/a3c399b7812846b59f89c8d2b60b042f)**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/d440cb27296540289a2e5b75f9e21090)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
 - **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/549b8a24d92640a7a3bf4bb452ef8398)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
