@@ -104,14 +104,12 @@ Once you’ve created the first three automations—and the fourth if you instal
 
 </details>
 
-**QR controls:** do not run **Calendar Alarms QR Scanner** from an alarm automation. Disable/remove an older Scanner alarm automation when migrating. Engine posts a notification whose body opens the Scanner menu. Scanner remains available manually and through Camera QR links. The production setup runs Engine directly; no caller or trace shortcuts are required. Use the matching updated [native readouts](Shortcut%20Actions/README.md) until the published downloads are refreshed.
-
-### E) Run “Calendar Alarms Actions” to Finish Installation
+### E) Run “Calendar Alarms Actions” to Finish Installation.
 
 > [!NOTE]
 > iOS will ask you to grant permissions the first time these shortcuts run. Grant every requested permission—such as **Always Allow**, **Always Delete**, and **Allow Access**—for the system to work as expected.
 
-Run **Calendar Alarms Actions** and answer each setup question. The shortcut will automatically install the required Scriptable scripts and create a new **OpenHabits** folder in `iCloud Drive/Shortcuts` for files the system needs.
+Run **Calendar Alarms Actions**, optionally input any calendars to ignore, and then select "I'm Finished" to finish installation. It will automatically install the required Scriptable scripts and create a new **OpenHabits** folder in `iCloud Drive/Shortcuts` for files the system needs.
 
 If you want to use Calendar Alarms for your wake-up alarm, run **CA Wake Times** and follow its setup steps.
 
@@ -220,8 +218,22 @@ Learn more in Stack Overflow’s [beginner’s guide to JSON](https://stackoverf
 2. If you don’t have another device nearby to display the demo QR code, paste the demo configuration into the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/), delete the final alarm (the QR alarm), and then paste the updated configuration into your calendar event.
 3. If possible, plug in your device when its battery is below 50% to help the demo run smoothly.
 
+
 > [!IMPORTANT]
-> **About reliability:** Calendar Alarms relies on iOS Shortcuts automations. iOS can occasionally delay or skip an automation, particularly when the battery is low, the system is under heavy load, or the device is older. Calendar Alarms includes backup and recovery behavior where possible, but some advanced features may occasionally run late.
+> **About reliability:** Calendar Alarms rely on Apple's Shortcuts app, which can sometimes silently delay or skip your automations. The result is that sometimes, an alarm may sound without running its configured actions, or QR alarm sounds may alternate between two minutes of playback and two minutes of silence. Keep these known issues in mind during the demo.
+
+<details>
+<summary><strong>More about reliability and known Shortcuts bugs</strong></summary>
+
+Shortcuts sometimes silently delays or skips automations, particularly when the battery is low, the system is under heavy load, or the device is older. Calendar Alarms includes workarounds wherever possible, but it cannot force iOS to run an automation that the system delays or skips.
+
+The specific failures below are caused by bugs and limitations in Apple’s Shortcuts app, not by errors in Calendar Alarms’ shortcuts or code. These issues need to be fixed by Apple.
+
+- **Configured actions occasionally fail to run after an alarm goes off.** The alarm sounds, but its follow-up actions do not run. This is uncommon, but possible.
+- **A QR alarm’s repeating sounds alternate between two minutes of silence and two minutes of playback.** This is very common and was first observed after the iOS 27 update.
+
+</details>
+
 
 ### Run the Demo
 
