@@ -119,105 +119,9 @@ You have finished the installation! Next, test how it works.
 
 ## 2) Test It Out (10 Minutes)
 
-### Demo Time!
+Run the demo to see Calendar Alarms in action and finish granting permissions. You’ll try a regular alarm, an alarm that automatically runs actions, and a QR alarm that you dismiss by scanning a code.
 
-To see how the system works and finish granting permissions, create a demo event with several demo alarms. Expand the section below to find the demo alarm configuration block.
-
-> [!NOTE]
-> **Recommended:** Keep this guide open on a computer or tablet during the demo so your iPhone is free to scan the QR code. If you only have your iPhone, remove the QR demo alarm using the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/).
-
-<details>
-<summary><strong>Demo Event Alarm Explanations and Configuration</strong></summary>
-
-1. **Alarm 1:** A regular alarm like one you would create in the Clock app. Dismiss it normally.
-2. **Alarm 2:** A self-silencing alarm that starts a timer, displays a notification, and speaks a short explanation. This demonstrates how an alarm can act as a scheduled automation without requiring you to dismiss a ringing alarm.
-3. **Alarm 3:** A QR alarm that cancels the timer, then loops `marimba.mp3` until the QR code below is scanned. Scanning the code speaks a final confirmation.
-   1. When this alarm goes off, a menu should appear so you can scan the code below. If it does not appear, scan the QR code with the Camera app and tap the Shortcuts link. iOS delays or a recently dismissed menu can suppress the prompt.
-   2. Feel free to observe what happens if you don’t interact with your phone for a minute or two. Another alarm will trigger and extend the loop until you scan the code. If for whatever reason iOS does not run the next automation, there is a delayed backup alarm that will resume the loop. An active QR instance expires after one hour when the system next runs.
-   3. `marimba.mp3` is installed into `Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones` during setup. If it is missing, rerun **Calendar Alarms Actions** to install it before testing; the current playback flow does not provide a generic-tone fallback.
-
-<img width="150" height="150" alt="QR code that completes the wakeup demo alarm" src="https://github.com/user-attachments/assets/11fb4111-eaa3-4d8f-8027-b7e0dd954c9d" />
-
-*This QR code was generated in the Calendar Alarm Editor with `qrCodeID` set to `"wakeup"`. See [QR Alarms](Feature%20Reference.md#qr-alarms) for more information.*
-
-#### Demo Event Configuration Block
-
-```json
-[
-  {
-    "alarmName": "Demo 1: This is a basic alarm.",
-    "status": "ON",
-    "offsetMin": 0,
-    "reference": "start"
-  },
-  {
-    "alarmName": "Demo 2: This alarm silently runs scheduled actions.",
-    "status": "ON",
-    "offsetMin": 1,
-    "reference": "start",
-
-    "shortcutsOnTrigger": [
-      {
-        "name": "Calendar Alarms Actions",
-        "input": ["{\"action\":\"timer\",\"operation\":\"start\",\"minutes\":1.1}"]
-      },
-      {
-        "name": "Calendar Alarms Actions",
-        "input": ["{\"action\":\"notification\",\"message\":\"This alarm silenced itself and started a timer. The next alarm will stop it.\",\"mode\":\"both\"}"]
-      }
-    ],
-    "silenceAlarm": true
-  },
-  {
-    "alarmName": "Demo 3: Scan the QR code to complete the demo.",
-    "status": "ON",
-    "offsetMin": 2,
-    "reference": "start",
-
-    "shortcutsOnTrigger": [
-      {
-        "name": "Calendar Alarms Actions",
-        "input": ["{\"action\":\"timer\",\"operation\":\"cancel\"}"]
-      }
-    ],
-    "qrShortcutsOnScan": [
-      {
-        "name": "Calendar Alarms Actions",
-        "input": ["{\"action\":\"notification\",\"message\":\"Calendar Alarms demo complete\",\"mode\":\"speak\"}"]
-      }
-    ],
-    "qrCodeID": "wakeup",
-    "qrSoundPath": "marimba.mp3",
-    "qrVol": 50
-  }
-]
-```
-
-</details>
-
-### A Few Notes
-
-1. This alarm configuration block may look intimidating. Don’t worry—you don’t need to understand it. That’s what the Editor is for.
-2. **One event = one alarm configuration block.** Whether an event has one alarm or 100, all its alarms live inside a single block. Do not paste multiple configuration blocks into one event. Instead, reopen the existing block in the Editor and add the alarms there.
-3. You can use any calendar service you want, including Google Calendar, Exchange, or Fantastical, but it must sync with Apple Calendar.
-
-<details>
-<summary><strong>Optional: How Does an Alarm Configuration Block Work?</strong></summary>
-
-An alarm configuration is stored as a formatted JSON array. JSON is a *data-storage format*, not a set of instructions, so it doesn’t do anything on its own.
-
-The JSON in your calendar event’s notes stores settings that the **Calendar Alarm Engine** shortcut uses to schedule alarms in the iOS Clock app.
-
-Learn more in Stack Overflow’s [beginner’s guide to JSON](https://stackoverflow.blog/2022/06/02/a-beginners-guide-to-json-the-data-format-for-the-internet/). If you’re feeling advanced, you can create and edit alarms directly in JSON.
-
-</details>
-
-### Before You Start
-
-1. Make sure you have installed all the shortcuts and automations described above.
-2. If you don’t have another device nearby to display the demo QR code, paste the demo configuration into the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/), delete the final alarm (the QR alarm), and then paste the updated configuration into your calendar event.
-3. If possible, plug in your device when its battery is below 50% to help the demo run smoothly.
-
+If possible, keep this guide open on a computer or tablet so your iPhone is free to scan the demo QR code. If you only have your iPhone, the demo page explains how to skip the QR alarm.
 
 > [!IMPORTANT]
 > **About reliability:** Calendar Alarms rely on Apple's Shortcuts app, which can sometimes silently delay or skip your automations. The result is that sometimes, an alarm may sound without running its configured actions, or QR alarm sounds may alternate between two minutes of playback and two minutes of silence. Keep these known issues in mind during the demo.
@@ -234,21 +138,25 @@ The specific failures below are caused by bugs and limitations in Apple’s Shor
 
 </details>
 
-
 ### Run the Demo
 
-1. In your calendar app, create an event named **Demo** that starts at any time today.
-2. Copy and paste the demo alarm configuration block above into the event’s notes. You can add other notes as usual, as long as you don’t write inside the configuration’s outer square brackets (`[ ]`). You can also load the block into the [Calendar Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to better understand each alarm’s settings.
-3. Set the event’s start time to two minutes from now. For example, if it is currently 3:07 p.m., set it to 3:09 p.m. If you created the event on another device, make sure it has synced to your iPhone.
-4. Swipe to your Home Screen—that is, close the calendar app—to schedule the alarms. Approve any permission requests by choosing options such as **Always Allow**, **Always Delete**, and **Allow Access**. Then open the Clock app. You should see three new alarms, each one minute apart, with the first scheduled for the event’s start time.
-5. Let the alarms run over the next few minutes and approve every permission request that appears.
-6. When they finish, repeat steps 3–5. The second run should be smoother and more representative of normal use.
-7. *(Optional)* Experiment with the alarms in the Alarm Editor to learn what the settings do.
+1. In **Apple Calendar on your iPhone**, create an event named **Demo** that starts at any time today. Use a calendar that Calendar Alarms is not set to ignore.
+2. Open [**Demo Alarms**](Guides/Demo%20Alarms.md) in another tab and copy the configuration block into the event’s notes. **You don’t need to understand or edit the code**—it just contains the settings for the demo alarms. Keep the demo page open for the alarm explanations and QR code.
+3. Set the event’s start time to **two minutes from now**. For example, if it is currently 3:07 p.m., set it to 3:09 p.m.
+4. Return to your Home Screen to trigger the calendar sync. Approve any permission requests, choosing **Always Allow**, **Always Delete**, or **Allow Access** when offered. Then open the **Clock** app. You should see three new alarms—or two if you skipped the QR alarm—each one minute apart, starting at the event’s start time. If they do not appear, follow [No alarm appears in Clock](Guides/Troubleshooting%20and%20Maintenance.md#no-alarm-appears-in-clock) before continuing.
+5. Let the alarms run and approve any additional permission requests. Follow the explanations on the demo page, and scan its QR code to finish the QR alarm if you included it.
+6. **Run the demo a second time:** move the event’s start time to two minutes from now, return to your Home Screen, and let the alarms run again. With the initial permissions granted, this run should be smoother and more representative of normal use.
 
-That finishes the demo! You’re now ready to create alarms for your own events.
+You’re ready to create alarms for your own events! Use the [**Calendar Alarm Editor**](https://copperpanman.github.io/Calendar-Alarms-for-iOS/) to create or change an alarm configuration, then paste it into your event’s notes.
+
+### Creating Your Own Alarms
+
+- **One event = one configuration block.** All of an event’s alarms belong in the same block. To add another alarm, open the existing block in the Editor rather than pasting a second block into the event.
+- You can keep other notes in the event—just place them outside the configuration block.
+- You can use another calendar app or service, provided its events sync with Apple Calendar. See the automation setup above if you want syncing to run when you close a different calendar app. You can also run **Calendar Alarm Engine** manually after an event has synced to Apple Calendar.
 
 > [!NOTE]
-> The demo covers the permissions used by standard Calendar Alarms features. **OpenHabits reminders and task-based alarms** also access files and send data off-device, so they may request additional permissions the first time they run. Before relying on either feature while your iPhone is locked, test that type of alarm once with the device unlocked and approve every request.
+> The demo covers permissions used by the features you tested. If you skipped the QR alarm, test one separately before relying on it. **OpenHabits reminders and task-based alarms** may also request additional permissions because they access files and send data off-device. Test those features once with your iPhone unlocked and approve every request before relying on them while it is locked.
 
 ## Learn More
 
