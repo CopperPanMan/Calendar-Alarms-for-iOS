@@ -82,6 +82,7 @@ function addError(line) {
 }
 
 const output = {
+  nativePlaybackPlan: {enabled: 0},
   alarmsToDelete: [],
   alarmsToDeleteBeforeAdd: [],
   alarmsToDeleteBeforePlayback: [],
@@ -618,6 +619,8 @@ function parseEngineInput(value) {
     currentFocus: currentFocus.trim(),
     taskLogResponseRaw: taskLogResponse,
     completionOnly: taskLogResponse.trim().length > 0,
+    nativePlaybackV2: value.nativePlaybackV2 === true,
+    restartBufferSeconds: Number.isFinite(Number(value.restartBufferSeconds)) ? Math.max(0, Number(value.restartBufferSeconds)) : 5,
     reliableQRHandoff: value.reliableQRHandoff === true,
     currentLocation: null,
     locationAttempted: false,
@@ -1385,7 +1388,7 @@ function computeRegistryPatch(regBefore, regAfter) {
 
 function schedulingFingerprint(entry) {
   return JSON.stringify([entry.nextFireTime, entry.taskCheckFireTime,
-    entry.qrRestartFireTime, entry.qrFallbackFireTime, entry.qrGeneration,
+    entry.qrRestartFireTime, entry.qrFallbackFireTime, entry.qrGeneration, entry.nativePlaybackID,
     entry.firstQRFireTime, entry.maxReschedules, entry.taskSatisfied,
     entry.taskCheckFirstFireHandled, entry.qrPending, entry.lastHandledFireTime]);
 }
@@ -2034,6 +2037,7 @@ function beginQRLoop(entry, baseEpoch, iosAlarms) {
   if (!entry.qrActive) {
     entry.firstQRFireTime = nowEpoch();
     entry.qrGeneration = (Number(entry.qrGeneration) || 0) + 1;
+    if (input.nativePlaybackV2) entry.nativePlaybackID = UUID.string();
   }
   entry.qrActive = true;
   if (hasTaskLoop(entry)) entry.qrMenuAfterPlayback = true;
@@ -2292,6 +2296,7 @@ async function processFiredAlarm(input, registryAfter, fired, allowQR) {
       // This IS the calendar fire: begin ringing loop
       entry.firstQRFireTime = now;
       entry.qrGeneration = (Number(entry.qrGeneration) || 0) + 1;
+      if (input.nativePlaybackV2) entry.nativePlaybackID = UUID.string();
       entry.qrActive = true;
       entry.qrPending = false;
       entry.qrPendingSince = 0;
@@ -2525,6 +2530,16 @@ async function runVerifier(input, registryAfter) {
   return Array.from(registry.values());
 }
 
+function nativeSoundRelativePath(name) {
+  let relative = String(name || 'ringtone.mp3').replace(/\\/g, '/').replace(/^\/+/, '');
+  for (const prefix of ['Shortcuts/OpenHabits/Calendar Alarms/Alarm Tones/',
+    'OpenHabits/Calendar Alarms/Alarm Tones/', 'Alarm Tones/']) {
+    if (relative.startsWith(prefix)) { relative = relative.slice(prefix.length); break; }
+  }
+  if (!relative || relative.split('/').some(x => !x || x === '.' || x === '..'))
+    throw new Error('Invalid QR sound path.');
+  return 'Alarm Tones/' + relative;
+}
 function prepareReliableQRHandoff(registry) {
   const key = alarm => `${alarm.name}|||${alarm.hh}:${alarm.mm}`;
   const activeRows = registry.filter(entry => entry.qrActive && !entry.taskSatisfied);
@@ -2643,6 +2658,14 @@ if (!input.completionOnly) {
   if (!fast.handled) registryAfter = await runVerifier(input, registryAfter);
 }
 
+// Migrate an already-active occurrence once; restarts retain this activation ID.
+if (input.nativePlaybackV2 && !input.completionOnly) {
+  for (const entry of registryAfter) {
+    if (entry.qrActive === true && !String(entry.nativePlaybackID || "").trim())
+      entry.nativePlaybackID = UUID.string();
+  }
+}
+
 // Write registry back under lock using diff patch
 let committedRegistry = registryBefore;
 let commitOK = true;
@@ -2678,10 +2701,31 @@ if (!commitOK) {
 dedupeOutputOps();
 if (input.reliableQRHandoff && commitOK) prepareReliableQRHandoff(committedRegistry);
 
+// The native player receives a snapshot only after a successful registry commit.
+// It claims its separate owner file after trigger work, file preparation and mute.
+// No Scriptable call is needed between native audio clips.
+if (input.nativePlaybackV2 && !input.completionOnly && commitOK && output.qrLoop) {
+  try {
+    const row = committedRegistry.filter(x => x.qrActive === true)
+      .sort((a,b) => (Number(a.firstQRFireTime) || 0) - (Number(b.firstQRFireTime) || 0))[0];
+    const next = Math.min(...committedRegistry.filter(x => x.qrActive === true && Number(x.qrRestartFireTime) > 0)
+      .map(x => Number(x.qrRestartFireTime)));
+    // Preserve the existing one-second playback allowance in addition to buffer.
+    const deadline = next * 1000 - (input.restartBufferSeconds + 1) * 1000;
+    if (row && String(row.nativePlaybackID || '').trim() && Number.isFinite(deadline) && deadline > Date.now()) {
+      output.nativePlaybackPlan = {enabled: 1, activationID: row.nativePlaybackID,
+        soundPath: nativeSoundRelativePath(row.qrSoundPath),
+        volume: Math.min(1, Math.max(0, Number(row.qrVol ?? 40) / 100)),
+        clipDeadlineISO: new Date(deadline).toISOString(), ownerID: UUID.string()};
+    }
+  } catch (error) { addError('ERR: native playback preparation failed: ' + String(error)); }
+}
+
 // Finalize output
 dedupeOutputOps();
 } catch (e) {
   addError(`ERR: alarm state unavailable; existing Clock alarms were preserved. ${String(e)}`);
+  output.nativePlaybackPlan = {enabled: 0};
   output.alarmsToAdd = [];
   output.alarmsToDelete = [];
   output.alarmsToDeleteBeforeAdd = [];

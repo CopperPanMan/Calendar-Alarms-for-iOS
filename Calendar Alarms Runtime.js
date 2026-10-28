@@ -111,11 +111,13 @@ function playbackBusy() {
   const now = Date.now();
   return now >= playback.reservedAt && now < playback.expectedEndAt;
 }
-function begin(raw, reliableQRHandoff = false) {
+function begin(raw, reliableQRHandoff = false, nativePlaybackV2 = false) {
   const input = text(raw).trim();
   // Completion input is cleanup work, not a new playback owner. Preserve an
   // existing session even when a failed/malformed response was forwarded.
   if (input && input !== 'Calendar') return {completionOnly: 1, cleanInput: input};
+  // Native playback owns its own late handoff; do not allocate unused tickets.
+  if (nativePlaybackV2) return {completionOnly: 0, cleanInput: ''};
   const previousTicket = local.fileExists(ticketPath) ? Number(local.readString(ticketPath)) : 0;
   const ticket = Math.max(Date.now(), (Number.isFinite(previousTicket) ? previousTicket : 0) + 1);
   local.writeString(ticketPath, String(ticket));
@@ -704,7 +706,7 @@ async function main(r) {
     case 'clock_guard': return guard();
     case 'engine_begin':
       return text(r.input) === 'Clock' ? {clock: 1, ...await guard()}
-        : {clock: 0, ...begin(r.input, r.reliableQRHandoff === true)};
+        : {clock: 0, ...begin(r.input, r.reliableQRHandoff === true, r.nativePlaybackV2 === true)};
     case 'qr_poll': return qrOutput(await qrPoll(r.session, r.completedPlaybackToken));
     case 'qr_permit': return qrOutput(await qrPermit(r));
     case 'qr_step': return qrOutput(await qrStep(r));
