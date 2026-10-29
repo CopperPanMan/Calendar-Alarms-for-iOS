@@ -929,7 +929,9 @@ function normalizeCalendarAlarmObject(rawObj) {
 
   const offsetMin = offsetMinInRange(rawObj.offsetMin, 0, -10080, 10080);
 
-  const qrCodeID = typeof rawObj.qrCodeID === "string" ? rawObj.qrCodeID.trim() : "";
+  // Calendar notes retain the saved ID; downstream consumers use only the effective ID.
+  const qrCodeID = rawObj.qrEnabled === false ? "" : typeof rawObj.qrCodeID === "string" ? rawObj.qrCodeID.trim() : "";
+  if (rawObj.qrEnabled === true && !qrCodeID) return { ok: false, err: `${errPrefix}qrCodeID is required when qrEnabled is true` };
   if (qrCodeID.includes(" ")) return { ok: false, err: `${errPrefix}qrCodeID must not contain spaces` };
 
   const qrSoundPath = typeof rawObj.qrSoundPath === "string" ? rawObj.qrSoundPath : "ringtone.mp3";

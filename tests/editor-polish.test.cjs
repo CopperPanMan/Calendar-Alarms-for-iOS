@@ -73,7 +73,7 @@ test('export validation accepts zero volume but rejects zero timers and invalid 
 });
 
 test('validation includes collapsed fields but excludes disabled features and inactive QR settings', () => {
-  const card = {alarm: {qrCodeID: '', locationMode: 'off'}};
+  const card = {alarm: {qrEnabled: false, qrCodeID: 'saved', locationMode: 'off'}};
   const collapsed = {closest: selector => selector === '.alarm-card' ? card : null};
   assert.equal(activeControl(collapsed), true);
   assert.equal(activeControl({...collapsed, disabled: true}), false);
@@ -81,8 +81,10 @@ test('validation includes collapsed fields but excludes disabled features and in
   const qr = {dataset: {field: 'qrVol'}, closest: selector => selector === '.alarm-card' ? card : selector === '[data-section="qr"]' ? {} : null};
   assert.equal(activeControl(qr), false);
   qr.dataset.field = 'qrCodeID';
+  assert.equal(activeControl(qr), false);
+  qr.dataset.field = 'qrEnabled';
   assert.equal(activeControl(qr), true);
-  card.alarm.qrCodeID = 'bath'; qr.dataset.field = 'qrVol';
+  card.alarm.qrEnabled = true; qr.dataset.field = 'qrVol';
   assert.equal(activeControl(qr), true);
 });
 

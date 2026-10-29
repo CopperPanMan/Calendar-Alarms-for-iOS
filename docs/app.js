@@ -227,7 +227,9 @@ function updateAlarmSections(card, alarm) {
     card.querySelector(`[data-section-summary="${section}"]`).textContent = text;
   };
   const qrID = String(alarm.qrCodeID ?? '').trim();
-  summary('qr', qrID ? `Scan to dismiss · ${qrID}` : 'No QR code');
+  summary('qr', alarm.qrEnabled
+    ? `On · ${qrID ? `Scan to dismiss · ${qrID}` : 'Enter a QR Code ID'}`
+    : `Off${qrID ? ' · Settings saved' : ''}`);
   const actions = alarm.shortcutsOnTrigger.length;
   summary('actions', `${actions ? `${actions} action${actions === 1 ? '' : 's'} on trigger` : 'No actions'} · Auto-dismiss ${alarm.silenceAlarm ? 'on' : 'off'}`);
   const rules = [];
@@ -244,6 +246,7 @@ function updateAlarmSections(card, alarm) {
     : `Off${tasks ? ` · ${tasks} saved metric${tasks === 1 ? '' : 's'}` : ''}`);
   summary('limits', `Up to ${alarm.maxReschedules} follow-ups · ${alarm.rescheduleMode === 'legacy'
     ? 'Existing timing' : `${alarm.rescheduleWindowMinutes} min window`}`);
+  card.querySelector('[data-qr-settings]').hidden = !alarm.qrEnabled;
   card.querySelector('[data-task-settings]').hidden = !alarm.taskLoopEnabled;
   card.querySelector('[data-section="limits"]').hidden = !alarm.contextEnabled && !alarm.taskLoopEnabled;
 }
@@ -254,8 +257,9 @@ function setupAlarmSections(card, alarm) {
     details.open = !!saved[details.dataset.disclosure];
   });
   card.addEventListener('input', (event) => {
-    const section = {contextEnabled: 'rescheduling', taskLoopEnabled: 'task'}[event.target.dataset.field];
+    const section = {qrEnabled: 'qr', contextEnabled: 'rescheduling', taskLoopEnabled: 'task'}[event.target.dataset.field];
     if (section && event.target.checked) card.querySelector(`[data-disclosure="${section}"]`).open = true;
+    if (section === 'qr' && !event.target.checked && soundPreviewButton === card.querySelector('.sound-preview-btn')) stopSoundPreview();
     updateAlarmSections(card, alarm);
   });
   updateAlarmSections(card, alarm);

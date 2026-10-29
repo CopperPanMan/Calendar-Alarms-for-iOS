@@ -20,7 +20,7 @@
   function activeControl(control) {
     if (control.disabled || control.readOnly || control.closest('[hidden]')) return false;
     const card = control.closest('.alarm-card');
-    if (control.closest('[data-section="qr"]') && control.dataset.field !== 'qrCodeID' && !String(card.alarm.qrCodeID).trim()) return false;
+    if (control.closest('[data-section="qr"]') && control.dataset.field !== 'qrEnabled' && !card.alarm.qrEnabled) return false;
     if (control.closest('[data-list="locations"]') && card.alarm.locationMode === 'off') return false;
     return true;
   }
