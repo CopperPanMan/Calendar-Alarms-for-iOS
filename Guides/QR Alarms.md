@@ -7,12 +7,16 @@ A QR alarm keeps prompting you to scan a matching code. Use it to get out of bed
 ## Set one up
 
 1. In the [Alarm Editor](https://copperpanman.github.io/Calendar-Alarms-for-iOS/), add an alarm and set its time relative to the event.
-2. Open **Advanced Settings → QR Alarm Properties**. Enter a **QR Code ID**, such as `bathroom`. Use letters, numbers, or `- . _ ~`, without spaces.
+2. Open **Advanced Settings → QR Alarm Properties** and turn on **Require QR scan** using its switch. Enter a **QR Code ID**, such as `bathroom`. Use letters, numbers, or `- . _ ~`, without spaces.
 3. Choose a **QR alarm sound** from the dropdown and set **QR Volume**. Start with **Marimba** at `40` while testing.
 4. Select **Show QR Code**, then download or print the code and put it where you want to scan it. The code launches **Calendar Alarms QR Scanner**, so keep that Shortcut's name unchanged.
 5. Copy the generated configuration into the event's notes and close Calendar, or run **Calendar Alarm Engine** to sync.
 
 The six installed tones are **marimba, ocean, siren, sonar, marimba electric, and spring forest**. The Editor's preview plays a tone in your browser; the installer supplies the corresponding file on your phone.
+
+Turning the QR switch off keeps the ID, sound, volume and scan actions saved, including when you export and re-import the configuration. Turning it back on restores those settings. Collapsing the section does not disable QR. Existing alarms with an ID import with QR on unless they explicitly contain `qrEnabled: false`; no rebuilding is needed.
+
+Before using the off switch with a saved ID, update **Calendar Alarm Engine.js** in Scriptable. Older Engines ignore `qrEnabled: false`. Scanner, Runtime and Shortcut actions do not need changes for this feature. After updating the calendar notes, allow the usual calendar sync; a firing alarm can still use the previously synced definition. Once the Engine syncs the disabled setting, it clears QR retries without removing an independent task follow-up.
 
 Playback measures the loaded audio file's duration automatically. There is no sound-length setting. The Editor discards obsolete `qrSoundLen` values when importing old configurations.
 

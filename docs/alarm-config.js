@@ -13,6 +13,7 @@
     status: 'ON',
     offsetMin: 0,
     reference: 'start',
+    qrEnabled: false,
     qrCodeID: '',
     qrSoundPath: '',
     qrVol: 50,
@@ -111,6 +112,8 @@
   function normalizeAlarm(raw = {}) {
     const alarm = { ...defaultAlarm(), ...(raw && typeof raw === 'object' ? raw : {}) };
     delete alarm.qrSoundLen;
+    alarm.qrEnabled = typeof raw?.qrEnabled === 'boolean' ? raw.qrEnabled
+      : typeof alarm.qrCodeID === 'string' && !!alarm.qrCodeID.trim();
     alarm.qrSoundChoice = soundChoice(alarm.qrSoundPath);
     alarm.customQrSoundPath = alarm.qrSoundChoice === 'custom' ? alarm.qrSoundPath : '';
     alarm.qrShortcutsOnScan = Array.isArray(alarm.qrShortcutsOnScan)
@@ -176,6 +179,7 @@
       reference: String(alarm.reference ?? 'start').toLowerCase() === 'end' ? 'end' : 'start',
     };
 
+    cleaned.qrEnabled = alarm.qrEnabled === true;
     if (alarm.qrCodeID?.trim()) cleaned.qrCodeID = alarm.qrCodeID.trim();
     if (alarm.qrSoundPath?.trim()) cleaned.qrSoundPath = normalizeSoundPath(alarm.qrSoundPath);
     if (Number.isFinite(Number(alarm.qrVol))) cleaned.qrVol = Number(alarm.qrVol);

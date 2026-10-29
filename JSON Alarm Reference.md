@@ -26,6 +26,7 @@ This is valid JSON, with the alarm initially **OFF**. Remove unused fields; fill
     "status": "OFF",
     "offsetMin": 0,
     "reference": "start",
+    "qrEnabled": false,
     "qrCodeID": "",
     "qrSoundPath": "marimba.mp3",
     "qrVol": 40,
@@ -64,10 +65,13 @@ See [QR Alarms](Guides/QR%20Alarms.md) for printing codes, testing, and custom s
 
 | Field | Meaning | Engine default / limits |
 | --- | --- | --- |
-| `qrCodeID` | Nonempty ID enables QR prompting | Empty; use URL-safe letters, numbers, `- . _ ~`, without spaces. IDs are case-sensitive. Generate the link/code in the Editor. |
+| `qrEnabled` | Enable QR prompting; false retains the saved QR settings without using them | When omitted, a nonempty `qrCodeID` enables QR as before. Editor starts new alarms at `false`. |
+| `qrCodeID` | ID of the code that stops the active QR alarm | Required when `qrEnabled` is `true`; use URL-safe letters, numbers, `- . _ ~`, without spaces. IDs are case-sensitive. Generate the link/code in the Editor. |
 | `qrSoundPath` | Sound inside Alarm Tones; subfolders supported | Legacy default `"ringtone.mp3"`, which is **not installed**. Supply an installed tone such as `"marimba.mp3"`. `"Nature/ocean.mp3"` and `"Alarm Tones/Nature/ocean.mp3"` identify a subfolder sound. |
 | `qrVol` | QR media volume percentage | `40`; integer 1–100 |
 | `qrShortcutsOnScan` | Ordered action/Shortcut entries after a matching active scan | `[]`; transport format below |
+
+Update **Calendar Alarm Engine.js** in Scriptable before using `qrEnabled: false`; older Engines ignore that field and still enable QR when an ID is present. No Shortcut action, Scanner or Runtime update is required for this flag. Existing definitions without it remain compatible and do not need rebuilding. The Editor exports the explicit flag while preserving the ID, sound, volume and scan actions, including when off. On the next calendar sync, disabling QR cancels that occurrence's QR retries while preserving independent task checks; an alarm-firing fast path can use the previously synced definition until that sync occurs.
 
 The current Engine uses a +2-minute restart and +4-minute backup. These are implementation settings, not calendar JSON keys. A scan stops the QR instance; an independent task follow-up can remain. Continuous playback is subject to Shortcut execution limits.
 

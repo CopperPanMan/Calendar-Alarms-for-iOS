@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Calendar Alarm Editor</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20261029-qr-enabled" />
   </head>
   <body>
     <main class="page">
@@ -80,15 +80,17 @@
 
         <details data-disclosure="advanced">
           <summary>Advanced Settings</summary>
-          <p class="hint">Expand a section to explore its settings. Collapsing it saves space without changing the alarm. Use the switches to turn rescheduling or task looping on or off.</p>
+          <p class="hint">Expand a section to explore its settings. Collapsing it saves space without changing the alarm. Use the switches to turn QR alarms, rescheduling or task looping on or off.</p>
           <div class="advanced-panel">
             <section class="advanced-group" data-section="qr">
+              <label class="switch-row section-switch"><input data-field="qrEnabled" type="checkbox" role="switch" aria-label="Require QR scan" /><span class="switch-track" aria-hidden="true"></span></label>
               <details data-disclosure="qr">
                 <summary><span class="section-title">QR Alarm Properties</span><span class="section-summary" data-section-summary="qr"></span></summary>
                 <div class="section-content">
-                  <p class="hint">Require a QR scan to turn this alarm off.</p>
+                  <p class="hint">Keep repeating this alarm until its matching QR code is scanned. Turning this off preserves your QR code, sound, volume and scan actions.</p>
+                  <div data-qr-settings hidden>
                   <div class="grid two-col">
-                    <label>QR Code ID <span class="help" tabindex="0" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" pattern="^[A-Za-z0-9._~-]*$" /></label>
+                    <label>QR Code ID <span class="help" tabindex="0" data-tip="Unique code ID. Example: wakeup (letters, numbers, -, ., _, ~).">?</span><input data-field="qrCodeID" type="text" required pattern="^[A-Za-z0-9._~\-]+$" /></label>
                     <div>
                       <label>QR alarm sound
                         <span class="sound-picker">
@@ -130,6 +132,7 @@
                   <div data-list="qrShortcutsOnScan" class="list-block"></div>
                   <button type="button" class="btn small add-list-item" data-add="qrShortcutsOnScan">+ Add QR Action on Scan</button>
                   <span class="help helper-inline" data-tip="Choose a built-in action or a custom Apple Shortcut to run when the QR code is scanned.">?</span>
+                  </div>
                 </div>
               </details>
             </section>
@@ -234,9 +237,9 @@
     </template>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="qr-tools.js"></script>
-    <script src="alarm-config.js"></script>
-    <script src="editor-validation.js"></script>
-    <script src="app.js"></script>
+    <script src="qr-tools.js?v=20261029-qr-enabled"></script>
+    <script src="alarm-config.js?v=20261029-qr-enabled"></script>
+    <script src="editor-validation.js?v=20261029-qr-enabled"></script>
+    <script src="app.js?v=20261029-qr-enabled"></script>
   </body>
 </html>
