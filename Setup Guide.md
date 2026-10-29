@@ -32,7 +32,7 @@ Add these **three required shortcuts** and **two optional but recommended shortc
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
 - **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/d0728203fbd24bd5a7cf1b1f2c90fea3)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
-- **[CA Wake Times](https://www.icloud.com/shortcuts/8c0e61f760554e95a00176d5d498c050)** *(optional, recommended)*
+- **[CA Wake Times](https://www.icloud.com/shortcuts/492ae0379a6a42f19a772edc90a8684f)** *(recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
   - **Why use it?** It lets you use Calendar Alarms for your wake-up alarm and move multiple sleep and wake alarms with one tap, without leaving your Home Screen. See the [Wake Times Reference](Feature%20Reference.md#wake-times) for setup instructions.
 - **[CA qrClockCloser](https://www.icloud.com/shortcuts/5af9813c91af4577b8083300bee917e1)** *(recommended)*
@@ -54,7 +54,7 @@ Add these **three required shortcuts** and **two optional but recommended shortc
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
 - **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/14c0ce3005a849918beeb2ce1312c45e)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
-- **[CA Wake Times](https://www.icloud.com/shortcuts/8c0e61f760554e95a00176d5d498c050)** *(optional, recommended)*
+- **[CA Wake Times](https://www.icloud.com/shortcuts/492ae0379a6a42f19a772edc90a8684f)** *(recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
   - **Why use it?** It lets you use Calendar Alarms for your wake-up alarm and move multiple sleep and wake alarms with one tap, without leaving your Home Screen. See [Wake Times](Feature%20Reference.md#wake-times) for setup instructions.
 - **[CA qrClockCloser](https://www.icloud.com/shortcuts/ba752cdb8368467f81b21fc62abc5f1d)** *(recommended)*
