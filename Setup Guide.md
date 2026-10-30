@@ -52,7 +52,7 @@ Add these **three required shortcuts** and **two optional but recommended shortc
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
 - **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/549b8a24d92640a7a3bf4bb452ef8398)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
-- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/14c0ce3005a849918beeb2ce1312c45e)**
+- **[Calendar Alarms Actions](https://www.icloud.com/shortcuts/80573b78818e443aab807e5df832acb1)**
   - Houses Calendar Alarms settings and the built-in actions that alarms can perform. Run it manually to change settings.
 - **[CA Wake Times](https://www.icloud.com/shortcuts/492ae0379a6a42f19a772edc90a8684f)** *(recommended)*
   - Quickly change your next wake time with a time picker by shifting a recurring **Sleep** calendar event and its attached alarms.
@@ -62,6 +62,8 @@ Add these **three required shortcuts** and **two optional but recommended shortc
   - **Why use it?** QR alarms schedule a restart two minutes later and a backup four minutes later. **CA qrClockCloser** makes it harder to break this loop by disabling upcoming alarms in Clock. See [QR Alarms](Guides/QR%20Alarms.md) for behavior and limitations.
 
 You can place the shortcuts in a folder called **Calendar Alarms** to keep them organized.
+
+Upgrading to iOS 27 later? You don’t need to reinstall anything. Your existing shortcuts and automations will continue to work.
 
 </details>
 
