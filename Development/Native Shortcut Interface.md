@@ -11,7 +11,7 @@ Future changes must retain existing command names, required keys, field types, u
 | Engine input | Dictionary containing aligned `labels`, `hours`, `minutes`, `isEnabled` Lists, plus `currentFocus` and `taskLogResponse` Text |
 | Engine result | JSON Text; native Get Dictionary converts it. `alarmsToDelete`, `alarmsToAdd`, `triggerShortcutsToRunDetailed` are Lists; `completionOnly` and `qrLoop` are Booleans; `errorRegistry` is Text |
 | Runtime requests | Dictionary, or JSON Text encoding it, with the existing `op` and its documented fields |
-| Runtime `engine_begin` | `clock` and `completionOnly` Numbers 0/1; `cleanInput` Text; normal playback also returns a `session` Dictionary |
+| Runtime `engine_begin` | `clock` and `completionOnly` Numbers 0/1; `cleanInput` Text; legacy session-based playback also returns a `session` Dictionary |
 | Runtime `clock_guard` | `activeCount` Number and `notification` Text |
 | Runtime `trigger_check` / `trigger_finish` | `run` / `ok` Number 0/1. Forward the whole trigger Dictionary; preserve unknown metadata |
 | Runtime `qr_poll` / `qr_permit` / `qr_step` | `stop` and `play` Numbers 0/1; deletion plans remain Lists. Pass the whole session Dictionary; serialized session JSON remains accepted. Legacy poll/permit commands remain available |
@@ -23,7 +23,7 @@ Future changes must retain existing command names, required keys, field types, u
 
 ## Optional QR playback and notification extensions (October 2026)
 
-Existing operations and their defaults remain supported. Updated native flows opt in with these additions:
+The table below describes the October session-based playback flow. The [published native Engine](Native%20playback%20release.md) uses `nativePlaybackV2`, schedules the actionable notification when a QR activation starts, and runs its clip loop entirely in Shortcuts.
 
 | Call/field | Meaning |
 | --- | --- |
@@ -37,7 +37,7 @@ Existing operations and their defaults remain supported. Updated native flows op
 | `scanner_silence` | Mutes new playback for 15 seconds and schedules a notification after 10 seconds; returns the absolute millisecond deadlines. |
 | `scanner_scan_begin` | Temporarily mutes new playback and cancels the pending menu reminder before native Camera scanning. |
 | `scanner_scan_finished` | Clears QR UI state if no active QR remains, otherwise posts a notification for remaining alarms. The reduced Scanner retains this only for invalid-code cleanup in its manual-camera branch, not after a successful core scan. |
-| `qr_notification` | Compatible explicit notification operation. Normal playback invokes it internally after the first completed sound is acknowledged, without another native Scriptable action. Existing completion-only cleanup remains separate. |
+| `qr_notification` | Compatible explicit notification operation. The October session-based flow invokes it internally after the first completed sound is acknowledged. Existing completion-only cleanup remains separate. |
 
 The shared notification identifier is `calendar-alarms-qr-menu-v1`; only that notification's pending/delivered entries are removed. UX state lives in Scriptable local cache, separate from the shared alarm registry. Runtime constants `QR_UX.notificationReturnSeconds` and `QR_UX.silenceSeconds` set 10/15 seconds. The old `scanner_touch` and no-input Scanner core menu remain for older shortcuts. Task-loop disablement in newer repository sources remains honored.
 

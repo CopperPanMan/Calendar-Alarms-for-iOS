@@ -8,7 +8,7 @@
 2. Run **Calendar Alarm Engine** manually with the phone unlocked. Grant requested permissions and read any error it reports.
 3. Check that the event's calendar is not excluded in **Calendar Alarms Actions** settings.
 
-The Engine normally schedules alarms within the next 24 hours; an alarm months away will not appear in Clock yet. Closing Calendar syncs edits, and the 12:10 a.m. automation supplies a daily sync. Edits from another device or calendar app may need time to reach Apple Calendar, followed by a manual Engine run.
+The Engine normally schedules alarms within the next 24 hours; an alarm months away will not appear in Clock yet. Closing Calendar syncs edits, and the Time of Day automation supplies a daily sync. Edits from another device or calendar app may need time to reach Apple Calendar, followed by a manual Engine run.
 
 Moving events or crossing time zones also requires a successful sync. Avoid giving an unrelated Clock alarm the same name and time as a Calendar Alarm: the system cannot reliably distinguish identical alarms.
 
@@ -68,13 +68,12 @@ Use the current [CA Wake Times readout](../Shortcut%20Actions/CA%20Wake%20Times.
 
 Rerunning **Calendar Alarms Actions** installs missing scripts and tones. **It does not overwrite existing files or update your installed Shortcut actions.**
 
-1. Read the relevant change notes. For the current reductions, see [October 26 Reliability Update](../Development/October%2026%20Reliability%20Update.md). Earlier scheduling changes are documented in [QR Scheduling Fixes](../Development/QR%20Scheduling%20Fixes.md#updating-an-existing-installation).
-2. Save copies of any Scriptable scripts or Shortcuts you customized.
-3. Replace existing Scriptable source with the matching repository version, keeping its script name. For the October 26 changes, replace **Calendar Alarm Engine**, **Calendar Alarms Runtime**, and **Calendar Alarm QR Scanner**. The 148-action Engine requires a Runtime supporting `qr_step`; do not restore an older Runtime underneath that native flow.
-4. Apply only the corresponding Engine/Scanner changes in the [manual action readouts](../Shortcut%20Actions/README.md), or use matching updated shared Shortcuts when available. Source changes in GitHub do not update a shared Shortcut automatically. The published iCloud links still identify older flows. Preserve existing shortcut identities and automation bindings when editing the current flows.
-5. Reconnect imported **Run Shortcut** actions and confirm your version's automations. Run Engine once, preferably without an active QR alarm, then repeat the demo and test the features you use.
+1. Back up any scripts or shortcuts you customized.
+2. In `iCloud Drive/Scriptable`, replace the contents of [Calendar Alarm Engine.js](../Calendar%20Alarm%20Engine.js), [Calendar Alarm QR Scanner.js](../Calendar%20Alarm%20QR%20Scanner.js), and [Calendar Alarms Runtime.js](../Calendar%20Alarms%20Runtime.js) with the current repository versions. Keep the exact filenames. The Engine and Scanner handle the QR prompt, and Runtime supplies the spoken reminder wording.
+3. Add the **Calendar Alarm Engine** download for your iOS version from the [Setup Guide](../Setup%20Guide.md#c-download-the-shortcuts). Choose **Replace** for your existing Engine. Check that each trigger runs the updated Engine once per alarm, Calendar close, or daily sync. The iOS 27 version includes these triggers. On iOS 26, configure them in the Automation tab.
+4. Run Engine once between alarms. Start a test QR alarm, tap its notification, and scan the matching code. Check that the sound stops and the prompt clears.
 
-Preserve the registry, settings, and custom tones; do not delete them to force an update. The updated Engine migrates known QR schedules. A runtime script normally appears in Scriptable without its `.js` extension; for example, **Calendar Alarms Runtime**.
+Your alarm data, settings and custom sounds are in `iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms`. Leave that folder in place during the update.
 
 ## Remove Calendar Alarms
 

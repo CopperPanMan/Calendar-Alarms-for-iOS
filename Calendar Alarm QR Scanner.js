@@ -447,6 +447,34 @@ function scanAlarmDeletions(registry, scannedEntries) {
   return Array.from(deletions.values());
 }
 
+async function clearFinishedQRNotification(fm, registryPath) {
+  if (typeof Notification === 'undefined') return;
+  const deadline = Math.min(scannerDeadlineMs, Date.now() + 1200);
+  const identifier = 'calendar-alarms-qr-menu-v1';
+  try {
+    for (const remove of [() => Notification.removePending([identifier]),
+      () => Notification.removeDelivered([identifier])]) {
+      // Recheck after the scan commit and between asynchronous removals; a new
+      // or remaining QR alarm still owns the shared notification.
+      const rows = JSON.parse(safeReadString(fm, registryPath));
+      if (!Array.isArray(rows)) throw new Error('Invalid QR notification registry.');
+      if (rows.some(row => row.qrActive === true)) return;
+      const remaining = deadline - Date.now();
+      if (!(remaining > 0)) throw new Error('QR notification cleanup timed out.');
+      let timer;
+      try {
+        await Promise.race([remove(), new Promise((_, reject) => {
+          timer = Timer.schedule(remaining, false, () => reject(new Error('QR notification cleanup timed out.')));
+        })]);
+      } finally { if (timer) timer.invalidate(); }
+    }
+  } catch (error) {
+    // The scan has already committed. Notification failure cannot undo its
+    // success, suppress Clock cleanup or prevent configured scan actions.
+    addError('WARN: QR notification cleanup unavailable; scan preserved. ' + String(error));
+  }
+}
+
 async function runModeB(fm, paths, qrCodeID) {
   const out = {
     mode: "scan",
@@ -564,6 +592,7 @@ async function runModeB(fm, paths, qrCodeID) {
     releaseLock(fm, paths.lock, lock.id);
   }
 
+  if (out.identifiedAlarms > 0) await clearFinishedQRNotification(fm, paths.registry);
   return out;
 }
 

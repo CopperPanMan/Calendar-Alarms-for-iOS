@@ -2542,6 +2542,56 @@ function nativeSoundRelativePath(name) {
     throw new Error('Invalid QR sound path.');
   return 'Alarm Tones/' + relative;
 }
+async function notifyNativeQRStart(fm, registryPath, scannerLastOpenedPath, activationIDs) {
+  if (!activationIDs.size) return;
+  // Startup-only, inside the existing Engine invocation. A committed activation
+  // is attempted once; notification failures never disable native playback.
+  const identifier = 'calendar-alarms-qr-menu-v1';
+  const deadline = Date.now() + 1200;
+  const step = async operation => {
+    const remaining = deadline - Date.now();
+    if (!(remaining > 0)) throw new Error('QR startup notification timed out.');
+    return withTimeout(operation(), remaining);
+  };
+  try {
+    const activeRows = () => {
+      const rows = JSON.parse(readRequiredState(fm, registryPath));
+      if (!Array.isArray(rows)) throw new Error('Invalid QR notification registry.');
+      return rows.filter(row => row.qrActive === true && !row.taskSatisfied);
+    };
+    const rows = activeRows();
+    // A competing Engine commit, scan or completion may have superseded us.
+    if (!rows.some(row => activationIDs.has(row.nativePlaybackID))) return;
+    const local = FileManager.local();
+    const uxPath = local.joinPath(local.cacheDirectory(), identifier + '.json');
+    const ux = local.fileExists(uxPath) ? JSON.parse(local.readString(uxPath)) : {};
+    const scannerMuteUntil = Date.parse(readRequiredState(fm, scannerLastOpenedPath)) + 15000;
+    // Scanner owns its mute/return timing. Never reset it to post this banner.
+    if (Number(ux?.silenceUntil) > Date.now() || Number(ux?.reminderAt) > Date.now() ||
+        scannerMuteUntil > Date.now()) return;
+    if (typeof Notification === 'undefined') throw new Error('Notifications are unavailable.');
+    const notification = new Notification();
+    notification.identifier = identifier;
+    notification.title = rows.length === 1 ? String(rows[0].alarmName || 'QR alarm') : 'QR alarms active';
+    notification.body = rows.length === 1
+      ? 'Scan your QR code to stop the alarm. Tap for Scan or Silence for 15 seconds.'
+      : 'Scan to stop: ' + rows.map(row => String(row.alarmName || 'QR alarm')).join(', ') + '. Tap for options.';
+    notification.sound = null;
+    notification.openURL = 'shortcuts://run-shortcut?name=' + encodeURIComponent('Calendar Alarms QR Scanner');
+    // Scheduling the same identifier replaces it without first cancelling a
+    // pending Silence reminder. There is no asynchronous gap before this call.
+    await step(() => notification.schedule());
+    // Completion while the system schedules the banner must not leave a stale
+    // prompt. Use the same total budget and touch only the QR notification.
+    if (!activeRows().length) {
+      await step(() => Notification.removePending([identifier]));
+      if (!activeRows().length) await step(() => Notification.removeDelivered([identifier]));
+    }
+  } catch (error) {
+    addError('WARN: QR startup notification unavailable; alarm playback preserved. ' + String(error));
+  }
+}
+
 function prepareReliableQRHandoff(registry) {
   const key = alarm => `${alarm.name}|||${alarm.hh}:${alarm.mm}`;
   const activeRows = registry.filter(entry => entry.qrActive && !entry.taskSatisfied);
@@ -2721,6 +2771,15 @@ if (input.nativePlaybackV2 && !input.completionOnly && commitOK && output.qrLoop
         clipDeadlineISO: new Date(deadline).toISOString(), ownerID: UUID.string()};
     }
   } catch (error) { addError('ERR: native playback preparation failed: ' + String(error)); }
+}
+
+if (output.nativePlaybackPlan.enabled === 1) {
+  const previousIDs = new Set(registryBefore.map(row => row.nativePlaybackID));
+  // Restarts retain their ID. Only an ID proposed by this run and still active
+  // after the commit may post; rejected concurrent proposals cannot duplicate it.
+  const startedIDs = new Set(registryAfter.filter(row => row.qrActive === true &&
+    row.nativePlaybackID && !previousIDs.has(row.nativePlaybackID)).map(row => row.nativePlaybackID));
+  await notifyNativeQRStart(fm, registryPath, scannerLastOpenedPath, startedIDs);
 }
 
 // Finalize output
