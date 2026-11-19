@@ -10,10 +10,10 @@ const fm={bookmarkedPath:()=>'/Shortcuts',joinPath:(a,b)=>a+'/'+b,cacheDirectory
 const RealDate=Date;
 class FakeDate extends Date {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}
 let events=[];
-async function run(r){
+async function run(r, random=0.9){
  let output;
  const ctx={FileManager:{iCloud:()=>fm,local:()=>fm},UUID:{string:()=>String(++seq)},
- Date:FakeDate,CalendarEvent:{between:async()=>events},args:{shortcutParameter:r},
+ Date:FakeDate,Math:Object.assign(Object.create(Math),{random:()=>random}),CalendarEvent:{between:async()=>events},args:{shortcutParameter:r},
  Script:{setShortcutOutput:r=>output=r,complete:()=>{}},console};
  await vm.runInNewContext('(async()=>{'+source+'})()',ctx);
  return JSON.parse(JSON.stringify(output));
@@ -88,6 +88,20 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  check(!p.refresh&&p.message.startsWith('Final reminder. Log Brush within 2 minutes'));
  check(p.message.includes('Log Floss for 1 point.')&&p.message.includes('You currently have 10 points.'));
  check(p.speak&&p.show&&!p.message.includes('missing'));
+ const normal={displayName:'brush teeth',points:8,todayPoints:0,streak:2};
+ c.reminderState.byID.brush=normal;
+ disk.set(metrics,JSON.stringify(c));
+ const req={op:'action',input:{action:'openhabits_reminder',metricIDs:['brush'],mode:'speak'}};
+ const short=await run(req,0.1); check(short.message==='Log brush teeth. 0 current points, 2-day streak.'&&short.speak);
+ check((await run(req,0.9)).message.includes('for 8 points. You currently have 0 points.'));
+ check((await run({...req,input:{...req.input,mode:'show'}},0.1)).message.includes('for 8 points.'));
+ check(!(await run({...req,focus:'Do Not Disturb'},0.1)).speak);
+ const bundled=await run({...req,input:{...req.input,metricIDs:['brush','normal','urgent','critical','expired','done']}},0.1);
+ check(bundled.message.startsWith('Final reminder.')&&bundled.message.includes('12 minutes left.')&&bundled.message.match(/current points/g).length===1);
+ normal.streak=1;normal.todayPoints=1;normal.dueProperties={hasDeadline:true,dueTimeLocal:'9 PM',minutesRemaining:45,status:'upcoming'};
+ disk.set(metrics,JSON.stringify(c));check((await run(req,0.1)).message==='Log brush teeth by 9 PM. 1 current point, 1-day streak.');
+ delete normal.todayPoints; delete c.reminderState.todayPoints;delete normal.streak;delete normal.dueProperties;
+ disk.set(metrics,JSON.stringify(c));check((await run(req,0.1)).message==='Log brush teeth.');
  now+=91000;p=await run({op:'action',input:{action:'openhabits_reminder',metricIDs:['normal']}});check(p.refresh);
  p=await run({op:'action',input:{action:'openhabits_reminder',metricIDs:['normal']},refreshed:true});check(!p.refresh&&p.message.includes('outdated'));
  c.generatedAtISO=new RealDate(now).toISOString();disk.set(metrics,JSON.stringify(c));

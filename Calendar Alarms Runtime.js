@@ -499,7 +499,7 @@ function currentTaskCache(c) {
   const age = Date.now() - Date.parse(c.generatedAtISO);
   return c.ok === true && !!c.reminderState?.byID && age >= 0 && age <= 90000;
 }
-function reminder(c, metricIDs) {
+function reminder(c, metricIDs, brief) {
   const rs = c.reminderState;
   const number = x => x == null || x === '' || !Number.isFinite(Number(x))
     ? null : String(Math.round((Number(x) + Number.EPSILON) * 10 ** REMINDER.decimals) / 10 ** REMINDER.decimals);
@@ -530,14 +530,20 @@ function reminder(c, metricIDs) {
       return `${name} still isn't logged. ${remaining} left.${stakes ? ' ' + stakes + ' ' + verb + ' at stake.' : ''}`;
     }
     const due = m.dueProperties || {};
-    const parts = [`Log ${name}${due.hasDeadline && due.dueTimeLocal ? ' by ' + due.dueTimeLocal : ''}${reward ? ' for ' + reward : ''}.`];
-    if (!totalUsed) {
-      totalUsed = true;
-      const today = number(m.todayPoints ?? rs.todayPoints);
-      if (REMINDER.includeTodayPoints && today !== null) parts.push(`You currently have ${today} points.`);
-      const yesterday = number(m.yesterdayPoints ?? rs.yesterdayPoints);
-      if (REMINDER.includeYesterdayPoints && yesterday !== null) parts.push(`Yesterday you finished with ${yesterday} points.`);
+    const prompt = `Log ${name}${due.hasDeadline && due.dueTimeLocal ? ' by ' + due.dueTimeLocal : ''}`;
+    const today = !totalUsed && REMINDER.includeTodayPoints ? number(m.todayPoints ?? rs.todayPoints) : null;
+    const yesterday = !totalUsed && REMINDER.includeYesterdayPoints ? number(m.yesterdayPoints ?? rs.yesterdayPoints) : null;
+    totalUsed = true;
+    if (brief) {
+      const stats = [];
+      if (today !== null) stats.push(`${today} current ${Math.abs(Number(today)) === 1 ? 'point' : 'points'}`);
+      if (yesterday !== null) stats.push(`${yesterday} ${Math.abs(Number(yesterday)) === 1 ? 'point' : 'points'} yesterday`);
+      if (streak) stats.push(`${streak}-day streak`);
+      return prompt + '.' + (stats.length ? ' ' + stats.join(', ') + '.' : '');
     }
+    const parts = [prompt + (reward ? ' for ' + reward : '') + '.'];
+    if (today !== null) parts.push(`You currently have ${today} points.`);
+    if (yesterday !== null) parts.push(`Yesterday you finished with ${yesterday} points.`);
     if (streak) parts.push(`Your current streak is ${streak} days.`);
     return parts.join(' ');
   }).join('\n');
@@ -622,8 +628,11 @@ async function action(r) {
       if (r.refreshed === true && !currentTaskCache(initial))
         throw new Error('Cache refresh failed or returned an outdated snapshot. Task alarms were not reset.');
       const c = initial;
-      if (a.action === 'openhabits_reminder')
-        return {...p, ...display(reminder(c, ids(a.metricIDs)), a.mode, r.focus)};
+      if (a.action === 'openhabits_reminder') {
+        const spoken = (a.mode === 'speak' || a.mode === 'both') && r.focus !== 'Do Not Disturb';
+        const brief = spoken && Math.random() < 0.5;
+        return {...p, ...display(reminder(c, ids(a.metricIDs), brief), a.mode, r.focus)};
+      }
       const metricsByID = ids(a.taskLoopMetricIDs).map(metricID => {
         const m = c.reminderState.byID[metricID];
         return {metricID, found: !!m && m.found !== false, complete: !!m && m.found !== false && m.complete === true};

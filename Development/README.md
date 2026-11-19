@@ -30,6 +30,8 @@ Use the current [Wake Times readout](../Shortcut%20Actions/CA%20Wake%20Times.md)
 
 ## QR production configuration, October 2026
 
+This section records the October 26 device test. For the published Engine and current notification behavior, see [Native playback release](Native%20playback%20release.md).
+
 Use Engine directly from the alarm automation, no trace caller, and no automatic Scanner menu. The October 26 flow has one initial `qr_poll` and one `qr_step` per repeating iteration. The combined call acknowledges the preceding completed sound, attempts the first banner within that existing call, then checks fresh state before playback permission. The restart buffer is five seconds; volume correction remains twenty seconds, with an immediate correction when the requested target changes. Two-minute restarts/four-minute backups remain unchanged. The user reported consecutive looping without the previous alternating failures, with a few timeout messages still appearing around three minutes. See [QR reliability limits](../Guides/QR%20Alarms.md#reliability-limits-observed-on-device). Automated script tests do not simulate native audio, OS suspension, alarm automation lifecycle, or notification permission behavior.
 
 ## Verification

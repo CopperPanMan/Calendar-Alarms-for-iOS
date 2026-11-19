@@ -21,9 +21,11 @@ Ordinary QR restarts use two Scriptable calls before playback; completion-only i
 
 Engine supplies a numeric enabled/disabled nativePlaybackPlan only from committed registry state. A per-activation identifier survives restarts and changes on a new activation; it participates in concurrent schedule checks. Runtime skips unused playback-ticket/session allocation only when engine_begin explicitly requests nativePlaybackV2. Clock guards, completion classification and older session-based callers remain supported.
 
-This is opt-in support: updating scripts alone does not convert an older shared shortcut to native playback. Existing public links remain unchanged in this PR. A new native-playback shared link must follow deployment of these scripts; the installer already downloads these canonical filenames from main. Running the installer before this PR is merged can overwrite a locally installed native-capable script with the older main version.
+Both [Engine downloads](../Setup%20Guide.md#c-download-the-shortcuts) use the same 143 native actions. The iOS 27 edition also includes the alarm, Calendar-close and daily triggers. Existing users can [update their shortcuts and scripts together](../Guides/Troubleshooting%20and%20Maintenance.md#update-an-existing-installation).
 
-The native version still has its accepted tradeoffs: no automatic first-clip QR banner, sound/volume fixed for an invocation, simpler ownership with possible brief overlap, a possible extra clip when scanning races a playback check, and no in-loop repair of leftover Clock retries. Phone testing showed improvement, with occasional missed cycles/timeouts still reported; this is not a complete resolution of iOS automation timing.
+The October 27 release dropped the automatic first-clip QR banner. The November update restores the prompt at activation inside the existing Engine call. A committed activation ID makes the startup notification a one-time attempt across two-minute restarts. The Scanner clears its notification after the last successful scan. Both operations have a bounded wait and preserve the playback plan or scan result if notification delivery or cleanup fails.
+
+The native player fixes sound and volume for one invocation. Overlapping runs can briefly play together, and a scan during the last eligibility check can permit one more clip. Scanner and later Engine runs handle Clock retry cleanup. Device tests of the October release showed improved playback with occasional missed cycles or timeouts.
 
 ## Verification
 

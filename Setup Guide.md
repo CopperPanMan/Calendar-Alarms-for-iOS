@@ -19,14 +19,14 @@ On your iPhone, go to **Scriptable → Settings → File Bookmarks → Add (+)**
 
 Shortcuts are small visual programs that perform actions on your iPhone. Calendar Alarms uses several shortcuts because some are designed to run automatically in the background, while others are tools you can run yourself.
 
-Setup differs slightly between iOS 26 and iOS 27. Expand the section for your version below.
+Choose the Engine download for your iOS version below. If Calendar Alarms is already installed, follow the [upgrade steps](Guides/Troubleshooting%20and%20Maintenance.md#update-an-existing-installation) to update the three Scriptable files as well.
 
 <details>
 <summary><strong>iOS 27 and Newer</strong></summary>
 
 Add these **three required shortcuts** and **two optional but recommended shortcuts** to the Shortcuts app:
 
-- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/94dfd0d1eab94c5b946a0a3af3666f76)**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/bd3dfa4e04e44fcc982f9148c80738ec)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
 - **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/549b8a24d92640a7a3bf4bb452ef8398)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
@@ -48,7 +48,7 @@ You can place the shortcuts in a folder called **Calendar Alarms** to keep them 
 
 Add these **three required shortcuts** and **two optional but recommended shortcuts** to the Shortcuts app:
 
-- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/d440cb27296540289a2e5b75f9e21090)**
+- **[Calendar Alarm Engine](https://www.icloud.com/shortcuts/84e6caf0c4d64392921fb149416aa8a3)**
   - The core of the system. It keeps your calendar alarms synced with the Clock app and manages their behavior when they trigger. Run it manually to force an immediate sync.
 - **[Calendar Alarms QR Scanner](https://www.icloud.com/shortcuts/549b8a24d92640a7a3bf4bb452ef8398)**
   - Handles QR alarm interactions, including displaying the scanning interface and verifying scanned codes.
@@ -79,7 +79,7 @@ Turn on the automations inside the following two shortcuts. Open each shortcut, 
 - **Calendar Alarm Engine**
   - **When Any Alarm Goes Off** — handles active alarm behavior
   - **When Calendar Is Closed** — syncs Calendar changes to Clock
-  - **At 12:10 a.m.** — performs a daily backup sync
+  - **Time of Day** — check the selected time for your daily backup sync
 - **CA qrClockCloser** (recommended)
   - **When Clock Is Opened** — discourages disabling upcoming QR retries
 
