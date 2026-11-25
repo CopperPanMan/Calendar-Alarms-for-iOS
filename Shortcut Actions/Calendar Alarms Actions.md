@@ -6,7 +6,7 @@ Full replacement action readout, 2026-10-19, for Calendar Alarms Runtime in this
 
 The installer source is [Calendar Alarms Installer.js](../Inline%20Scriptable/Calendar%20Alarms%20Installer.js). Paste its complete contents into the Run Inline Script action. It installs missing files only; it does not update existing scripts.
 
-The native Sleep menu below reads `sleepPrompt` and saves a Boolean `skipAlarmsDuringSleep`. If your existing shortcut displays the Sleep status and directions to use **Input Calendars to Ignore**, replace the entire text in that field with `/settings sleep on` or `/settings sleep off` and submit. The updated Runtime saves just the Sleep preference. Run **Calendar Alarm Engine** to apply it immediately.
+The Sleep menu opens Calendar Alarms Runtime in Scriptable to show the current setting. Choosing **Turn On** or **Turn Off** saves the preference and runs Calendar Alarm Engine. If your existing shortcut displays the Sleep status and directions to use **Input Calendars to Ignore**, replace the entire text in that field with `/settings sleep on` or `/settings sleep off` and submit. The optional `supportsSleepMenu` flag hides these fallback instructions after updating the menu. The Runtime saves just the Sleep preference. Run **Calendar Alarm Engine** to apply it immediately.
 
 `refresh`, `speak`, `show`, `ok`, and `allComplete` are **Booleans**: use is Yes, not Number comparisons. `cacheOK` is a **Number**. Keep the original Shortcut Input bound in both action requests. Update Lockout Cache must return its status Dictionary as shown in the companion Metrics readout. It must not call the normal Engine while fetching a snapshot. Task reset calls the Engine only for completion cleanup; it never simulates a QR scan. Spoken reminders use the media volume in the action plan. Pass the result of Make Spoken Audio from Text directly to Play Sound.
 
@@ -35,44 +35,7 @@ IF: Shortcut Input does not have any value
         CHOOSE FROM MENU:
             Prompt: Calendar Alarms settings
             Skip other alarms during Sleep:
-                GET DICTIONARY VALUE:
-                    Dictionary: Settings
-                    Key: sleepPrompt
-                    → SleepPrompt (Text)
-                IF: SleepPrompt is [blank]
-                    SHOW RESULT: Update the Calendar Alarms Runtime and Calendar Alarm Engine scripts to use this setting.
-                    STOP THIS SHORTCUT
-                END IF
-                CHOOSE FROM MENU:
-                    Prompt: SleepPrompt
-                    Turn On:
-                        DICTIONARY:
-                            op: settings_save (Text)
-                            skipAlarmsDuringSleep: Yes (Boolean)
-                    Turn Off:
-                        DICTIONARY:
-                            op: settings_save (Text)
-                            skipAlarmsDuringSleep: No (Boolean)
-                    Cancel:
-                        STOP THIS SHORTCUT
-                END MENU → SleepSettingsRequest (Dictionary)
-                RUN SCRIPT: Calendar Alarms Runtime
-                    Parameter: SleepSettingsRequest
-                    → SavedSleepSettings
-                GET DICTIONARY VALUE:
-                    Dictionary: SavedSleepSettings
-                    Key: message
-                    → SavedSleepMessage (Text)
-                SHOW NOTIFICATION:
-                    Body: SavedSleepMessage
-                GET DICTIONARY VALUE:
-                    Dictionary: SavedSleepSettings
-                    Key: hasError
-                    → SaveFailed (Number)
-                IF: SaveFailed is 0
-                    RUN SHORTCUT: Calendar Alarm Engine
-                        Input: none — explicitly clear this field
-                END IF
+                OPEN URLS: scriptable:///run/Calendar%20Alarms%20Runtime?showSleepSettings=1
                 STOP THIS SHORTCUT
             Input Calendars to Ignore:
                 GET DICTIONARY VALUE:

@@ -677,7 +677,7 @@ async function settingsRead(r) {
   const skipAlarmsDuringSleep = s.skipAlarmsDuringSleep === true;
   const sleepStatus = `Skip other alarms during Sleep is ${skipAlarmsDuringSleep ? 'on' : 'off'}.`;
   const welcome = exists ? '' : 'Welcome to Calendar Alarms! You can run this shortcut again at any time to change your settings.';
-  const legacyHelp = `${sleepStatus} To change it, choose Input Calendars to Ignore and replace the entire field with /settings sleep on or /settings sleep off. Your ignored calendars are preserved.`;
+  const legacyHelp = `${sleepStatus} Choose Skip other alarms during Sleep to change it. If your menu has no Sleep option, choose Input Calendars to Ignore and replace the entire field with /settings sleep on or /settings sleep off. Your ignored calendars are preserved.`;
   return {exists, defaultInput: ids(s.disabledCalendars).join(', '),
     skipAlarmsDuringSleep,
     sleepPrompt: `${sleepStatus}\n\nSkip OpenHabits alarms scheduled after a Sleep event starts and before it ends. Alarms at bedtime and wake-up still run. Alarms on the Sleep event are exempt.`,
@@ -710,6 +710,19 @@ async function settingsSave(r) {
     write('settings.json', JSON.stringify(s));
   }
   return {message: exists ? 'Settings updated.' : 'Install complete!'};
+}
+async function showSleepSettings() {
+  const settings = await settingsRead({supportsSleepMenu: true});
+  const alert = new Alert();
+  alert.title = 'Skip other alarms during Sleep';
+  alert.message = settings.sleepPrompt;
+  alert.addAction('Turn On');
+  alert.addAction('Turn Off');
+  alert.addCancelAction('Cancel');
+  const choice = await alert.presentAlert();
+  if (choice !== 0 && choice !== 1) return;
+  await settingsSave({skipAlarmsDuringSleep: choice === 0});
+  Safari.open('shortcuts://run-shortcut?name=Calendar%20Alarm%20Engine');
 }
 const wakeHelp = 'Warning: No "Sleep" event found.\n\nCA Wake Times lets you change your wake alarm time with one tap while moving all related alarms with it. Add this shortcut to your Home Screen for easy access.\n\nCreate a recurring event named "Sleep" that starts at bedtime, ends at wake time, and has at least one alarm referencing the event end with a 0-minute offset. Attach other wake/sleep alarms to the same event to move them together.';
 function clock(d) {
@@ -787,6 +800,8 @@ function recordRuntimeError(op, error) {
         elapsedMs: Date.now() - invocationStartedAt, error: String(error)}));
   } catch (_) {} // Diagnostics must never replace the original failure.
 }
+const foregroundSleepSettings = typeof config !== 'undefined' && config.runsInApp === true
+  && args.queryParameters?.showSleepSettings === '1';
 let request, result;
 try {
   fm = FileManager.iCloud();
@@ -795,11 +810,22 @@ try {
   playbackPath = local.joinPath(local.cacheDirectory(), 'calendar-alarms-playback-v1.json');
   ticketPath = local.joinPath(local.cacheDirectory(), 'calendar-alarms-loop-ticket-v1.txt');
   qrUXPath = local.joinPath(local.cacheDirectory(), 'calendar-alarms-qr-menu-v1.json');
-  request = object(args.shortcutParameter);
-  result = await main(request);
+  if (foregroundSleepSettings) {
+    await showSleepSettings();
+  } else {
+    request = object(args.shortcutParameter);
+    result = await main(request);
+  }
 } catch (error) {
-  const op = request && request.op || 'startup';
+  const op = foregroundSleepSettings ? 'sleep_settings' : request && request.op || 'startup';
   recordRuntimeError(op, error);
+  if (foregroundSleepSettings) {
+    const alert = new Alert();
+    alert.title = 'Sleep settings';
+    alert.message = String(error);
+    alert.addAction('OK');
+    await alert.presentAlert();
+  }
   result = {ok: 0, error: String(error), failedOp: op, stop: 1, play: 0,
     reason: 'runtime_error', alarmsToDelete: [], code: '', activeCount: 0,
     activeName: '', notification: String(error), message: String(error),
@@ -810,5 +836,5 @@ try {
 // Preserve the existing plain-path output of sound_file.
 if (result && typeof result === 'object' && !Array.isArray(result))
   result = {...result, hasError: String(result.error ?? '').trim().length > 0 ? 1 : 0};
-Script.setShortcutOutput(result);
+if (!foregroundSleepSettings) Script.setShortcutOutput(result);
 Script.complete();
