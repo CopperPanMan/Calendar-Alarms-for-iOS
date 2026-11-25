@@ -100,7 +100,7 @@ const output = {
 
 let lockoutCachePath = "";
 let lockoutCachePathAttempted = false;
-let disabledCalendarNames = [];
+let calendarSettings = { disabledCalendars: [], skipAlarmsDuringSleep: false };
 const deferredQRDeletes = new Map();
 
 function normalizeShortcutInputArray(raw) {
@@ -320,8 +320,8 @@ function safeJSONParse(str) {
 }
 
 async function getEnabledAlarmSourceCalendars() {
-  const disabled = Array.isArray(disabledCalendarNames)
-    ? disabledCalendarNames
+  const disabled = Array.isArray(calendarSettings.disabledCalendars)
+    ? calendarSettings.disabledCalendars
       .map((name) => String(name ?? "").trim())
       .filter((name) => name.length > 0)
     : [];
@@ -505,10 +505,9 @@ function readRequiredState(fm, path) {
   return raw;
 }
 
-async function loadDisabledCalendarNames(fm, settingsPath) {
-  // An absent settings file means no calendar exclusions. An existing file
-  // must be available locally: never wait for iCloud or guess its exclusions.
-  if (!fm.fileExists(settingsPath)) return [];
+async function loadCalendarSettings(fm, settingsPath) {
+  const defaults = { disabledCalendars: [], skipAlarmsDuringSleep: false };
+  if (!fm.fileExists(settingsPath)) return defaults;
   const raw = readRequiredState(fm, settingsPath);
   const parsed = safeJSONParse(raw);
 
@@ -516,12 +515,15 @@ async function loadDisabledCalendarNames(fm, settingsPath) {
     throw new Error(`settings.json is not a valid JSON dictionary. (${parsed.err ?? "invalid root value"})`);
   }
 
-  if (typeof parsed.val.disabledCalendars === "undefined") return [];
-  if (!Array.isArray(parsed.val.disabledCalendars)) {
+  const settings = { ...defaults, ...parsed.val };
+  if (!Array.isArray(settings.disabledCalendars)) {
     throw new Error("settings.json disabledCalendars must be a list.");
   }
 
-  return parsed.val.disabledCalendars;
+  if (typeof settings.skipAlarmsDuringSleep !== "boolean") {
+    throw new Error("settings.json skipAlarmsDuringSleep must be a boolean.");
+  }
+  return settings;
 }
 
 async function safeWriteString(fm, path, content) {
@@ -1203,7 +1205,7 @@ function syncScannerPointers(entry) {
   entry.qrBackupHHMM = entry.qrBackupFireTime ? entry.qrFallbackHHMM : "";
 }
 
-function ownedAlarmSlots(entry, includePrevious = false) {
+function ownedAlarmSlots(entry, includePrevious = false, includeSleepSkipped = false) {
   const fields = [
     ["nextFireTime", "nextFireHHMM"], ["taskCheckFireTime", "taskCheckHHMM"],
     ["qrRestartFireTime", "qrRestartHHMM"], ["qrFallbackFireTime", "qrFallbackHHMM"],
@@ -1214,7 +1216,7 @@ function ownedAlarmSlots(entry, includePrevious = false) {
   const seen = new Set();
   for (const [timeKey, mirrorKey] of fields) {
     const epoch = Number(entry[timeKey]) || 0;
-    if (epoch <= 0) continue;
+    if (epoch <= 0 || (!includeSleepSkipped && entry.sleepSkippedFireTimes?.includes(epoch))) continue;
     const hhmm = entry[mirrorKey] || epochToHHMMString(epoch);
     if (seen.has(hhmm)) continue;
     seen.add(hhmm);
@@ -1250,7 +1252,7 @@ function cleanupRetiredAlarms(entry, iosAlarms) {
 
 function isCleanupProtected(entry, slot, now = nowEpoch()) {
   const age = now - Number(slot.epoch);
-  return !entry.qrCodeID && !entry.silenceAlarm && !entry.taskSatisfied &&
+  return !entry.qrCodeID && !entry.silenceAlarm && !entry.taskSatisfied && !entry.sleepSkippedFireTimes?.includes(slot.epoch) &&
     age >= 0 && age < CLEANUP_GRACE_SEC;
 }
 
@@ -1392,7 +1394,8 @@ function schedulingFingerprint(entry) {
   return JSON.stringify([entry.nextFireTime, entry.taskCheckFireTime,
     entry.qrRestartFireTime, entry.qrFallbackFireTime, entry.qrGeneration, entry.nativePlaybackID,
     entry.firstQRFireTime, entry.maxReschedules, entry.taskSatisfied,
-    entry.taskCheckFirstFireHandled, entry.qrPending, entry.lastHandledFireTime]);
+    entry.taskCheckFirstFireHandled, entry.qrPending, entry.lastHandledFireTime, entry.sleepSkippedFireTimes, entry.sleepWindows,
+    entry.retiredAlarmTimes]);
 }
 
 function applyRegistryPatch(regOnDiskNow, patch, iosAlarms = []) {
@@ -1432,6 +1435,7 @@ function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefor
   const opKey = (alarm) => keyFor(alarm.name, `${alarm.hh}:${alarm.mm}`);
   const desired = new Set();
   const future = new Map();
+  const skipped = new Set();
   for (const entry of registry) {
     for (const slot of ownedAlarmSlots(entry)) {
       const key = keyFor(entry.alarmName, slot.hhmm);
@@ -1463,9 +1467,11 @@ function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefor
   // A rejected concurrent schedule must not reconcile against its stale
   // Clock snapshot, including times that disappeared from the new schedule.
   for (const entry of [...registryBefore, ...registry]) {
-    if (!rejected.has(registryKey(entry))) continue;
-    for (const slot of ownedAlarmSlots(entry, true).concat(entry.retiredAlarmTimes || [])) {
-      blocked.add(keyFor(entry.alarmName, slot.hhmm));
+    if (!entry.sleepSkippedFireTimes?.length && !rejected.has(registryKey(entry))) continue;
+    for (const slot of ownedAlarmSlots(entry, true, true).concat(entry.retiredAlarmTimes || [])) {
+      const key = keyFor(entry.alarmName, slot.hhmm);
+      if (entry.sleepSkippedFireTimes?.includes(slot.epoch)) skipped.add(key);
+      if (rejected.has(registryKey(entry))) blocked.add(key);
     }
   }
   // Disabled-alarm cleanup runs after every successful commit, including
@@ -1487,6 +1493,9 @@ function filterOutputAgainstCommittedSchedule(registry, iosAlarms, registryBefor
   });
   output.alarmsToDelete = output.alarmsToDelete.filter((alarm) => {
     const key = opKey(alarm);
+    // A proposed retry can share a personal Clock label and time. Only a
+    // previously armed slot still awaiting confirmed cleanup owns a deletion.
+    if (skipped.has(key) && !owned.has(key)) return false;
     if (rejected.has(alarm._ownerKey) || blocked.has(key) || (alarm._cleanup && protectedKeys.has(key))) return false;
     const matches = iosAlarms.filter((a) => opKey(a) === key);
     if (completionOnly && future.has(key)) return false;
@@ -1543,7 +1552,8 @@ function inferFiredOwnedAlarms(iosAlarms, registryArr, nowSec) {
       const age = nowSec - epoch;
       // Never treat a future alarm as fired. Accept delayed launches, using
       // the stored schedule transition to consume each purpose only once.
-      if (epoch <= 0 || age < 0 || age > FIRED_ALARM_GRACE_SEC || epoch <= Number(entry.lastHandledFireTime || 0)) continue;
+      if (epoch <= 0 || age < 0 || age > FIRED_ALARM_GRACE_SEC || epoch <= Number(entry.lastHandledFireTime || 0) ||
+          entry.sleepSkippedFireTimes?.includes(epoch)) continue;
       const hhmm = parseHHMMString(entry[mirror]) || epochToHHMM(epoch);
       const count = findIOSMatches(iosAlarms, entry.alarmName, hhmm.hh, hhmm.mm);
       if (!count) continue;
@@ -2365,7 +2375,8 @@ async function tryFastPath(input, registryAfter) {
 }
 
 // ---------- Verifier ----------
-async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
+async function buildCalendarSchedule(nowSec) {
+  const calcMinSec = nowSec - TTL_HARD_SEC, calcMaxSec = nowSec + WINDOW_FUTURE_SEC;
   // still fetch events ±7 days because offsets can pull calcFireTime into our window
   const start = new Date((nowSec - 7 * 86400) * 1000);
   const end = new Date((nowSec + 7 * 86400) * 1000);
@@ -2379,6 +2390,10 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
   }
 
   const expected = new Map(); // key -> expectedEntry
+  const sleepEvents = calendarSettings.skipAlarmsDuringSleep
+    ? events.filter(ev => ev.title === "Sleep" && ev.endDate > ev.startDate &&
+      !calendarSettings.disabledCalendars.some(name => String(name).trim() === ev.calendar?.title)) : [];
+  const sleepOwners = new Map();
 
   for (const ev of events) {
     const notes = String(ev.notes ?? "");
@@ -2430,6 +2445,7 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
         continue;
       }
 
+      if (sleepEvents.includes(ev)) sleepOwners.set(key, ev);
       expected.set(key, {
         ...a,
         calcFireTime,
@@ -2448,14 +2464,66 @@ async function buildExpectedAlarms(nowSec, calcMinSec, calcMaxSec) {
     }
   }
 
-  return expected;
+  return { expected, sleepEvents, sleepOwners };
 }
 
-async function runVerifier(input, registryAfter) {
+// Keep just the windows that could affect this occurrence or one of its retries.
+function sleepWindowsFor(schedule, entry) {
+  const owner = schedule.sleepOwners.get(registryKey(entry));
+  const first = entry.calcFireTime, last = first + TTL_HARD_SEC;
+  return schedule.sleepEvents.filter(ev => ev !== owner &&
+    ev.endDate.getTime() > first * 1000 && ev.startDate.getTime() < last * 1000)
+    .map(ev => [ev.startDate.getTime() / 1000, ev.endDate.getTime() / 1000]);
+}
+
+function duringSleep(windows, epoch) {
+  return windows?.some(([start, end]) => epoch > start && epoch < end);
+}
+
+// Preserve the actual retry/Clock times so changing Sleep can restore any
+// still-future ring. A ring already skipped is never replayed on a later sync.
+function updateSleepSkips(registry, schedule, iosAlarms, beforeFiring = false) {
+  const now = nowEpoch();
+  for (const entry of registry) {
+    const previous = entry.sleepSkippedFireTimes || [];
+    if (!calendarSettings.skipAlarmsDuringSleep) delete entry.sleepWindows;
+    else if (schedule) entry.sleepWindows = sleepWindowsFor(schedule, entry);
+    // A Calendar failure leaves the last verified windows in place. These
+    // cover new follow-ups as well as Clock slots from the previous sync.
+    if (!previous.length && !entry.sleepWindows?.length) continue;
+    const slots = ownedAlarmSlots(entry, false, true);
+    const skipped = slots.filter(({ epoch }) => (previous.includes(epoch) && epoch <= now) ||
+      duringSleep(entry.sleepWindows, epoch)).map(slot => slot.epoch);
+    if (skipped.length) entry.sleepSkippedFireTimes = skipped;
+    else delete entry.sleepSkippedFireTimes;
+    if (beforeFiring) {
+      // A visible slot from the incoming registry was previously armed. A
+      // new retry calculated in this invocation has never owned a Clock alarm.
+      const newlyHidden = slots.filter(slot => skipped.includes(slot.epoch) && !previous.includes(slot.epoch));
+      if (newlyHidden.length) retireReplacedAlarms(entry, newlyHidden, iosAlarms);
+    }
+    for (const slot of slots) {
+      if (slot.epoch > now && previous.includes(slot.epoch) && !skipped.includes(slot.epoch) && !entry.taskSatisfied) {
+        queueAddIOSIfMissing(iosAlarms, entry.alarmName, slot.epoch);
+      }
+    }
+    // A fresh invocation during Sleep must not resume an old player waiting
+    // for a skipped restart. Keep any separate, eligible task check intact.
+    if ((entry.qrActive || entry.qrPending) && skipped.includes(entry.qrRestartFireTime) &&
+        (entry.qrRestartFireTime <= now || (beforeFiring && duringSleep(entry.sleepWindows, now)))) {
+      const owned = ownedAlarmSlots(entry);
+      cancelQRLoop(entry);
+      syncScannerPointers(entry);
+      retireReplacedAlarms(entry, owned, iosAlarms);
+    }
+  }
+}
+
+function runVerifier(input, registryAfter, schedule) {
   const now = nowEpoch(), nowMinute = floorToMinute(now);
-  const expected = await buildExpectedAlarms(now, now - TTL_HARD_SEC, now + WINDOW_FUTURE_SEC);
   // A failed fetch is not evidence that calendar definitions were removed.
-  if (expected === null) return registryAfter;
+  if (!schedule) return registryAfter;
+  const { expected } = schedule;
   const registry = new Map(dropRegistryDuplicatesRandom(registryAfter).map((e) => [registryKey(e), e]));
   const calendarFields = ["status", "offsetMin", "reference", "qrCodeID", "qrSoundPath", "qrVol",
     "qrShortcutsOnScan", "shortcutsOnTrigger", "silenceAlarm", "locationMode", "locations", "radiusMeters",
@@ -2525,6 +2593,9 @@ async function runVerifier(input, registryAfter) {
   }
   for (const [key, exp] of expected) {
     if (registry.has(key) || exp.calcFireTime < now) continue;
+    // An occurrence that was never scheduled owns no Clock alarm. Leave a
+    // personal alarm with a coincidentally matching name and time alone.
+    if (calendarSettings.skipAlarmsDuringSleep && duringSleep(sleepWindowsFor(schedule, exp), exp.calcFireTime)) continue;
     const entry = ensureRegistryEntryShape(deepClone(exp));
     registry.set(key, entry);
     queueAddIOSIfMissing(input.iosAlarms, entry.alarmName, entry.nextFireTime);
@@ -2613,7 +2684,7 @@ function prepareReliableQRHandoff(registry) {
   const recovery = new Map();
   for (const entry of activeRows) {
     for (const [time, mirror] of [["qrRestartFireTime", "qrRestartHHMM"], ["qrFallbackFireTime", "qrFallbackHHMM"]]) {
-      if (!(Number(entry[time]) > nowEpoch() + 2)) continue;
+      if (!(Number(entry[time]) > nowEpoch() + 2) || entry.sleepSkippedFireTimes?.includes(entry[time])) continue;
       const clock = parseHHMMString(entry[mirror]) || epochToHHMM(entry[time]);
       const alarm = {name: entry.alarmName, hh: clock.hh, mm: clock.mm};
       if (!deferred.has(key(alarm))) recovery.set(key(alarm), alarm);
@@ -2687,7 +2758,7 @@ const settingsPath = fm.joinPath(baseDir, SETTINGS_FILENAME);
 
 try {
 // Validate settings before changing state. Completion cleanup does not use calendars.
-if (!input.completionOnly) disabledCalendarNames = await loadDisabledCalendarNames(fm, settingsPath);
+if (!input.completionOnly) calendarSettings = await loadCalendarSettings(fm, settingsPath);
 
 // Phase A — Setup files
 await ensureFile(fm, registryPath, "[]");
@@ -2704,10 +2775,28 @@ let registryAfter = deepClone(registryBefore);
 if (!input.completionOnly) registryAfter = expireRegistryEntries(registryAfter, input.iosAlarms);
 await applyTaskLogCompletions(input, registryAfter);
 if (!input.completionOnly) {
+  // A freshly enabled rule or edited Sleep event also applies when this
+  // invocation was launched by a pending Clock alarm from the old schedule.
+  let schedule;
+  if (calendarSettings.skipAlarmsDuringSleep) {
+    schedule = await buildCalendarSchedule(nowEpoch());
+    // An older registry has no verified Sleep decisions to fall back on.
+    if (!schedule && registryAfter.some(entry => !Array.isArray(entry.sleepWindows))) {
+      throw new Error("Sleep intervals could not be read from Calendar.");
+    }
+  }
+  updateSleepSkips(registryAfter, schedule, input.iosAlarms, true);
   cleanupScannedQRLoops(registryAfter, input.iosAlarms);
   serializeExistingQRLoops(registryAfter, input.iosAlarms);
   const fast = await tryFastPath(input, registryAfter);
-  if (!fast.handled) registryAfter = await runVerifier(input, registryAfter);
+  // Without fresh Calendar data, only service an already armed, verified
+  // firing. A standalone sync must not modify the previous schedule.
+  if (schedule === null && !fast.handled) throw new Error("Sleep intervals could not be read from Calendar.");
+  if (!fast.handled || schedule) {
+    schedule ??= await buildCalendarSchedule(nowEpoch());
+    registryAfter = runVerifier(input, registryAfter, schedule);
+  }
+  updateSleepSkips(registryAfter, schedule, input.iosAlarms);
 }
 
 // Migrate an already-active occurrence once; restarts retain this activation ID.

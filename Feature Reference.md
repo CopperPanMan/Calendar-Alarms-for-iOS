@@ -163,6 +163,14 @@ For faster access, add **CA Wake Times** to your Home Screen or use it as a widg
 > [!TIP]
 > You can attach several alarms to the same **Sleep** event—for example, a bedtime reminder, a wake-up alarm, and a follow-up alarm. Because their times are relative to the event’s start or end, they all move together when you change your wake time.
 
+### Skip other alarms during Sleep
+
+On an existing installation, [update the Scriptable files](Guides/Troubleshooting%20and%20Maintenance.md#update-an-existing-installation) to get this setting. It is off by default. When enabled, the Engine skips alarms from other events that would ring after bedtime and before wake-up. Alarms exactly at bedtime or wake-up and alarms attached to that **Sleep** occurrence still run. The setting applies to calendars the Engine monitors and alarms it manages in Clock.
+
+Run **Calendar Alarms Actions** without input. If your menu has **Skip other alarms during Sleep**, choose it and tap **Turn On** or **Turn Off**. If Actions displays the Sleep status and a text command, choose **Input Calendars to Ignore** and replace the entire field with `/settings sleep on` or `/settings sleep off`. This changes only the Sleep preference. Run **Calendar Alarm Engine** once to sync after using the text command.
+
+For example, if **Sleep** ends at 7:30 AM, the Engine skips a 7:15 AM gym reminder from another event. A sunrise-light action attached to **Sleep** with a −15 minute offset still runs at 7:15 AM. Change wake-up to 6:30 AM while the gym reminder is still in the future, and the next sync schedules it again. A skipped reminder does not mark its task complete.
+
 ---
 
 ## Calendar Settings and Sharing

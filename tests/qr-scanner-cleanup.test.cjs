@@ -71,6 +71,40 @@ test('failed scan registry commit returns no deletions, scan actions, or success
   assert.deepEqual(h.times(), ['12:02', '12:04', '12:21']);
 });
 
+test('Scanner can clear a QR before its suppressed restart, then treats an elapsed restart as inactive', async () => {
+  for (const elapsed of [false, true]) {
+    const h = await start();
+    const [entry] = h.registry();
+    entry.sleepSkippedFireTimes = [entry.qrRestartFireTime, entry.qrFallbackFireTime];
+    entry.qrShortcutsOnScan = [{name: 'Scan action', input: []}];
+    h.putRegistry([entry]);
+    h.at(elapsed ? 2 : 1);
+    const menu = await h.run('Calendar Alarm QR Scanner.js', '');
+    assert.equal(menu.hasActiveQR, !elapsed);
+    const plan = await h.scan('bath');
+    assert.equal(plan.identifiedAlarms, elapsed ? 0 : 1);
+    assert.equal(plan.vibrate, !elapsed);
+    assert.deepEqual(plan.shortcutsToRun, elapsed ? [] : ['Scan action']);
+    if (elapsed) assert.deepEqual(plan.alarmsToDelete, []);
+  }
+});
+
+test('scanning ignores unarmed Sleep-skipped QR slots and still deletes an owned retired retry', async () => {
+  const h = await start();
+  const [entry] = h.registry();
+  entry.sleepSkippedFireTimes = [entry.qrRestartFireTime, entry.qrFallbackFireTime];
+  // Only the older fallback reached Clock before the Sleep edit. The 12:02
+  // alarm at the same name/time as the unarmed restart belongs to the user.
+  entry.retiredAlarmTimes.push({epoch: entry.qrFallbackFireTime, hhmm: entry.qrFallbackHHMM});
+  h.putRegistry([entry]);
+  const personal = h.clock.find(a => a.mm === '02');
+  const result = await h.scan('bath');
+  assert.equal(result.identifiedAlarms, 1);
+  assert.ok(h.clock.includes(personal));
+  assert.ok(!h.times().includes('12:04'));
+  assert.deepEqual(h.times(), ['12:02', '12:21']);
+});
+
 test('scan cleans legacy non-task QR pointers even without firstQRFireTime', async () => {
   const h = await start();
   const entry = h.registry()[0];

@@ -43,11 +43,14 @@ class Harness {
         const handle = setTimeout(() => {h.now += milliseconds; fn();}, 0);
         return {invalidate() {clearTimeout(handle);}};
       }},
-      CalendarEvent: {between: async () => {
+      CalendarEvent: {between: async (start, end, calendars) => {
         if (h.options.calendarFails) throw Error('calendar fetch failed');
+        if (h.options.events) return h.options.events.filter(event =>
+          event.startDate < end && event.endDate > start &&
+          (!calendars || calendars.some(cal => cal.title === event.calendar.title)));
         return [{title: 'Tasks', startDate: new Clock(h.start), endDate: new Clock(h.start + 3600000), notes: JSON.stringify(h.definitions)}];
       }},
-      Calendar: {forEvents: async () => []},
+      Calendar: {forEvents: async () => [...new Set((h.options.events || []).map(event => event.calendar))]},
       UUID: {string: () => String(++h.seq)},
       args: {shortcutParameter: input}, Script: {setShortcutOutput: x => h.output = x, complete() {}},
     };

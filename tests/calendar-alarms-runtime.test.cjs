@@ -29,6 +29,49 @@ const set=(name,value)=>disk.set(root+name,JSON.stringify(value));
  check(JSON.parse(disk.get(root+'settings.json')).disabledCalendars.join(',')==='A,B,C');
  check(JSON.parse(disk.get(root+'settings.json')).other===3);
  await run({op:'settings_save',skip:true});check(JSON.parse(disk.get(root+'settings.json')).disabledCalendars.length===3);
+ // Sleep is opt-in. Updating either setting preserves the other and unknown keys.
+ assert.equal((await run({op:'settings_read'})).skipAlarmsDuringSleep, false);
+ assert.match((await run({op:'settings_read'})).welcome, /\/settings sleep on/);
+ assert.equal((await run({op:'settings_read',supportsSleepMenu:true})).welcome, '');
+ await run({op:'settings_save',skipAlarmsDuringSleep:true});
+ assert.deepEqual(JSON.parse(disk.get(root+'settings.json')), {
+   disabledCalendars:['A','B','C'], other:3, skipAlarmsDuringSleep:true
+ });
+ assert.match((await run({op:'settings_read'})).sleepPrompt, /is on/);
+ await run({op:'settings_save',names:'Work'});
+ await run({op:'settings_save',skip:true});
+ assert.equal((await run({op:'settings_read'})).skipAlarmsDuringSleep, true);
+ assert.equal((await run({op:'settings_save',skipAlarmsDuringSleep:'false'})).hasError, 1);
+ assert.equal((await run({op:'settings_read'})).skipAlarmsDuringSleep, true);
+ await run({op:'settings_save',skipAlarmsDuringSleep:false});
+ assert.deepEqual(JSON.parse(disk.get(root+'settings.json')), {
+   disabledCalendars:['Work'], other:3, skipAlarmsDuringSleep:false
+ });
+ for (const [command, enabled] of [['/settings sleep on',true],['/settings sleep off',false]]) {
+   const result = await run({op:'settings_save',skip:false,names:command});
+   assert.equal(result.hasError,0);
+   assert.deepEqual(JSON.parse(disk.get(root+'settings.json')), {
+     disabledCalendars:['Work'], other:3, skipAlarmsDuringSleep:enabled
+   });
+ }
+ assert.equal((await run({op:'settings_save',skip:false,names:'/settings sleep of'})).hasError,1);
+ assert.deepEqual(JSON.parse(disk.get(root+'settings.json')).disabledCalendars,['Work']);
+ // Only a whole-field command is special, including for calendars with similar names.
+ await run({op:'settings_save',skip:false,names:'/settings sleep on,'});
+ assert.deepEqual(JSON.parse(disk.get(root+'settings.json')), {
+   disabledCalendars:['/settings sleep on'], other:3, skipAlarmsDuringSleep:false
+ });
+ disk.delete(root+'settings.json');
+ await run({op:'settings_save',skipAlarmsDuringSleep:true});
+ assert.deepEqual(JSON.parse(disk.get(root+'settings.json')), {
+   disabledCalendars:[], skipAlarmsDuringSleep:true
+ });
+ for (const malformed of [[], null, 'bad settings']) {
+   set('settings.json',malformed);
+   assert.equal((await run({op:'settings_read'})).hasError,1);
+   assert.equal((await run({op:'settings_save',skipAlarmsDuringSleep:true})).hasError,1);
+   assert.equal(disk.get(root+'settings.json'),JSON.stringify(malformed));
+ }
  set('registry.txt',[]);
  const old=(await run({op:'engine_begin',input:'Calendar'}));check(old.cleanInput==='');
  const oldSession=old.session;

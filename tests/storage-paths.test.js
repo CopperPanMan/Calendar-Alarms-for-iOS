@@ -74,7 +74,7 @@ test('QR scanner derives its data folder from the Shortcuts root', () => {
   assert.equal(dir, '/iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms');
 });
 
-test('engine loads disabled calendars from Calendar Alarms settings', () => {
+test('engine loads existing calendar exclusions with Sleep suppression off by default', async () => {
   const source = fs.readFileSync(require.resolve('../Calendar Alarm Engine.js'), 'utf8');
   const context = {
     readRequiredState: () => JSON.stringify({
@@ -90,10 +90,11 @@ test('engine loads disabled calendars from Calendar Alarms settings', () => {
     addError: () => assert.fail('valid settings should not produce a warning'),
   };
   vm.createContext(context);
-  vm.runInContext(`async ${functionSource(source, 'loadDisabledCalendarNames')}`, context);
+  vm.runInContext(`async ${functionSource(source, 'loadCalendarSettings')}`, context);
 
-  return context.loadDisabledCalendarNames({fileExists: () => true}, '/iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms/settings.json')
-    .then((names) => assert.deepEqual(Array.from(names), ['Shared Calendar', 'Work']));
+  const settings = await context.loadCalendarSettings({fileExists: () => true}, '/iCloud Drive/Shortcuts/OpenHabits/Calendar Alarms/settings.json');
+  assert.deepEqual(Array.from(settings.disabledCalendars), ['Shared Calendar', 'Work']);
+  assert.equal(settings.skipAlarmsDuringSleep, false);
 });
 
 test('engine rejects invalid calendar exclusions instead of enabling excluded calendars', async () => {
@@ -103,8 +104,8 @@ test('engine rejects invalid calendar exclusions instead of enabling excluded ca
     safeJSONParse: (value) => ({ ok: true, val: JSON.parse(value) }),
   };
   vm.createContext(context);
-  vm.runInContext(`async ${functionSource(source, 'loadDisabledCalendarNames')}`, context);
+  vm.runInContext(`async ${functionSource(source, 'loadCalendarSettings')}`, context);
 
-  await assert.rejects(context.loadDisabledCalendarNames({fileExists: () => true}, '/settings.json'),
+  await assert.rejects(context.loadCalendarSettings({fileExists: () => true}, '/settings.json'),
     /disabledCalendars must be a list/);
 });
