@@ -8,7 +8,7 @@ The installer source is [Calendar Alarms Installer.js](../Inline%20Scriptable/Ca
 
 The native Sleep menu below reads `sleepPrompt` and saves a Boolean `skipAlarmsDuringSleep`. If your existing shortcut displays the Sleep status and directions to use **Input Calendars to Ignore**, replace the entire text in that field with `/settings sleep on` or `/settings sleep off` and submit. The updated Runtime saves just the Sleep preference. Run **Calendar Alarm Engine** to apply it immediately.
 
-`refresh`, `speak`, `show`, `ok`, and `allComplete` are **Booleans**: use is Yes, not Number comparisons. `cacheOK` is a **Number**. Keep the original Shortcut Input bound in both action requests. Update Lockout Cache must return its status Dictionary as shown in the companion Metrics readout. It must not call the normal Engine while fetching a snapshot. Task reset calls the Engine only for completion cleanup; it never simulates a QR scan. Speak Text has Wait Until Finished On, so trigger speech completes before Engine playback begins.
+`refresh`, `speak`, `show`, `ok`, and `allComplete` are **Booleans**: use is Yes, not Number comparisons. `cacheOK` is a **Number**. Keep the original Shortcut Input bound in both action requests. Update Lockout Cache must return its status Dictionary as shown in the companion Metrics readout. It must not call the normal Engine while fetching a snapshot. Task reset calls the Engine only for completion cleanup; it never simulates a QR scan. Spoken reminders use the media volume in the action plan. Pass the result of Make Spoken Audio from Text directly to Play Sound.
 
 ```jsx
 IF: Shortcut Input does not have any value
@@ -166,16 +166,16 @@ GET DICTIONARY VALUE:
     Key: speak
     → PlanSpeak (Boolean)
 IF: PlanSpeak is Yes
+    SET VOLUME:
+        Media Volume: Plan (Dictionary → Get Value for Key: speechLevel)
     GET DICTIONARY VALUE:
         Dictionary: Plan
         Key: message
         → PlanMessage (Text)
-    SET VOLUME:
-        Volume: Plan (Dictionary → Get Value for Key: speechLevel)
-        // Runtime returns a 0–1 media-volume fraction; missing speechVolume defaults to 50%.
-    SPEAK TEXT:
+    MAKE SPOKEN AUDIO FROM TEXT:
         Text: PlanMessage
-        Wait Until Finished: On
+        → SpokenAudio (Audio)
+    PLAY SOUND: SpokenAudio
 END IF
 GET DICTIONARY VALUE:
     Dictionary: Plan
