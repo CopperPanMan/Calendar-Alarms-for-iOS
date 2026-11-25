@@ -60,10 +60,15 @@ function display(message, mode = 'show', focus = '', title = '') {
     speak: !!message && !quiet && (mode === 'speak' || mode === 'both'),
     show: !!message && (quiet || mode === 'show' || mode === 'both')};
 }
-async function active() {
-  const rows = await json(path('registry.txt'), []);
-  return rows.filter(x => x.qrActive === true).sort((a,b) =>
+function activeQRAlarms(rows) {
+  // A skipped restart cannot launch the Engine to close its own session.
+  const now = Date.now() / 1000;
+  return rows.filter(row => row.qrActive === true &&
+    !(row.qrRestartFireTime <= now && row.sleepSkippedFireTimes?.includes(row.qrRestartFireTime))).sort((a,b) =>
     (Number(a.firstQRFireTime) || 0) - (Number(b.firstQRFireTime) || 0));
+}
+async function active() {
+  return activeQRAlarms(await json(path('registry.txt'), []));
 }
 async function guard() {
   const rows = await active();
@@ -185,7 +190,7 @@ function qrAlarmKey(alarm) {
 function qrCleanup(rows) {
   const protectedTimes = new Set();
   const hhmm = (entry, time, mirror) => {
-    if (!(Number(entry[time]) > 0)) return '';
+    if (!(Number(entry[time]) > 0) || entry.sleepSkippedFireTimes?.includes(entry[time])) return '';
     if (/^\d{2}:\d{2}$/.test(entry[mirror] || '')) return entry[mirror];
     const date = new Date(Number(entry[time]) * 1000);
     return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
@@ -388,8 +393,7 @@ async function qrState(session) {
   // mute-file read must be visible in the final playback eligibility check.
   const opened = Date.parse(await read(path('scannerLastOpened.txt'), new Date(0).toISOString()));
   const rows = await json(path('registry.txt'), []);
-  const alarms = rows.filter(x => x.qrActive === true).sort((a,b) =>
-    (Number(a.firstQRFireTime) || 0) - (Number(b.firstQRFireTime) || 0));
+  const alarms = activeQRAlarms(rows);
   const changed = sessionStopReason(session);
   if (changed) return stopped(session, changed);
   if (!alarms.length) {
@@ -661,20 +665,64 @@ async function action(r) {
   if (typeof a.percent === 'number') p.level = a.percent / 100;
   return p;
 }
-async function settingsRead() {
+async function readSettingsFile() {
+  const s = await json(path('settings.json'), {disabledCalendars: []});
+  if (!s || typeof s !== 'object' || Array.isArray(s))
+    throw new Error('settings.json must contain a dictionary.');
+  return s;
+}
+async function settingsRead(r) {
   const exists = fm.fileExists(path('settings.json'));
-  const s = await json(path('settings.json'), {});
+  const s = await readSettingsFile();
+  const skipAlarmsDuringSleep = s.skipAlarmsDuringSleep === true;
+  const sleepStatus = `Skip other alarms during Sleep is ${skipAlarmsDuringSleep ? 'on' : 'off'}.`;
+  const welcome = exists ? '' : 'Welcome to Calendar Alarms! You can run this shortcut again at any time to change your settings.';
+  const legacyHelp = `${sleepStatus} Choose Skip other alarms during Sleep to change it. If your menu has no Sleep option, choose Input Calendars to Ignore and replace the entire field with /settings sleep on or /settings sleep off. Your ignored calendars are preserved.`;
   return {exists, defaultInput: ids(s.disabledCalendars).join(', '),
-    welcome: exists ? '' : 'Welcome to Calendar Alarms!\n\nAnswer one question here to finish install. You can run this shortcut again at any time to change this setting.'};
+    skipAlarmsDuringSleep,
+    sleepPrompt: `${sleepStatus}\n\nSkip OpenHabits alarms scheduled after a Sleep event starts and before it ends. Alarms at bedtime and wake-up still run. Alarms on the Sleep event are exempt.`,
+    welcome: r.supportsSleepMenu === true ? welcome : [welcome, legacyHelp].filter(Boolean).join('\n\n')};
 }
 async function settingsSave(r) {
   const exists = fm.fileExists(path('settings.json'));
-  const s = await json(path('settings.json'), {});
+  const s = await readSettingsFile();
+  // Published Actions shortcuts have one editable settings field. A whole-field
+  // command changes Sleep only; comma-separated calendar names keep their meaning.
+  let sleepSetting = r.skipAlarmsDuringSleep;
+  if (sleepSetting === undefined && typeof r.names === 'string' && r.skip !== true) {
+    const value = r.names.trim();
+    if (!value.includes(',') && /^\/settings\s+sleep\b/i.test(value)) {
+      const command = /^\/settings\s+sleep\s+(on|off)$/i.exec(value);
+      if (!command) throw new Error('Enter /settings sleep on or /settings sleep off.');
+      sleepSetting = command[1].toLowerCase() === 'on';
+    }
+  }
+  if (sleepSetting !== undefined) {
+    if (typeof sleepSetting !== 'boolean')
+      throw new Error('Skip other alarms during Sleep must be a Boolean.');
+    s.skipAlarmsDuringSleep = sleepSetting;
+    write('settings.json', JSON.stringify(s));
+    const message = `Skip other alarms during Sleep is ${sleepSetting ? 'on' : 'off'}.`;
+    return {message: r.skipAlarmsDuringSleep === undefined ? message + ' Run Calendar Alarm Engine to apply it now.' : message};
+  }
   if (r.skip !== true || !exists) {
     s.disabledCalendars = r.skip === true ? [] : ids(r.names);
     write('settings.json', JSON.stringify(s));
   }
   return {message: exists ? 'Settings updated.' : 'Install complete!'};
+}
+async function showSleepSettings() {
+  const settings = await settingsRead({supportsSleepMenu: true});
+  const alert = new Alert();
+  alert.title = 'Skip other alarms during Sleep';
+  alert.message = settings.sleepPrompt;
+  alert.addAction('Turn On');
+  alert.addAction('Turn Off');
+  alert.addCancelAction('Cancel');
+  const choice = await alert.presentAlert();
+  if (choice !== 0 && choice !== 1) return;
+  await settingsSave({skipAlarmsDuringSleep: choice === 0});
+  Safari.open('shortcuts://run-shortcut?name=Calendar%20Alarm%20Engine');
 }
 const wakeHelp = 'Warning: No "Sleep" event found.\n\nCA Wake Times lets you change your wake alarm time with one tap while moving all related alarms with it. Add this shortcut to your Home Screen for easy access.\n\nCreate a recurring event named "Sleep" that starts at bedtime, ends at wake time, and has at least one alarm referencing the event end with a 0-minute offset. Attach other wake/sleep alarms to the same event to move them together.';
 function clock(d) {
@@ -733,7 +781,7 @@ async function main(r) {
       return {ok: true};
     case 'scan_input': return {code: scanInput(r.input, r.fromScan === true)};
     case 'action': return action(r);
-    case 'settings_read': return settingsRead();
+    case 'settings_read': return settingsRead(r);
     case 'settings_save': return settingsSave(r);
     case 'wake_info': return wakeInfo();
     case 'wake_plan': return wakePlan(r);
@@ -752,6 +800,8 @@ function recordRuntimeError(op, error) {
         elapsedMs: Date.now() - invocationStartedAt, error: String(error)}));
   } catch (_) {} // Diagnostics must never replace the original failure.
 }
+const foregroundSleepSettings = typeof config !== 'undefined' && config.runsInApp === true
+  && args.queryParameters?.showSleepSettings === '1';
 let request, result;
 try {
   fm = FileManager.iCloud();
@@ -760,11 +810,22 @@ try {
   playbackPath = local.joinPath(local.cacheDirectory(), 'calendar-alarms-playback-v1.json');
   ticketPath = local.joinPath(local.cacheDirectory(), 'calendar-alarms-loop-ticket-v1.txt');
   qrUXPath = local.joinPath(local.cacheDirectory(), 'calendar-alarms-qr-menu-v1.json');
-  request = object(args.shortcutParameter);
-  result = await main(request);
+  if (foregroundSleepSettings) {
+    await showSleepSettings();
+  } else {
+    request = object(args.shortcutParameter);
+    result = await main(request);
+  }
 } catch (error) {
-  const op = request && request.op || 'startup';
+  const op = foregroundSleepSettings ? 'sleep_settings' : request && request.op || 'startup';
   recordRuntimeError(op, error);
+  if (foregroundSleepSettings) {
+    const alert = new Alert();
+    alert.title = 'Sleep settings';
+    alert.message = String(error);
+    alert.addAction('OK');
+    await alert.presentAlert();
+  }
   result = {ok: 0, error: String(error), failedOp: op, stop: 1, play: 0,
     reason: 'runtime_error', alarmsToDelete: [], code: '', activeCount: 0,
     activeName: '', notification: String(error), message: String(error),
@@ -775,5 +836,5 @@ try {
 // Preserve the existing plain-path output of sound_file.
 if (result && typeof result === 'object' && !Array.isArray(result))
   result = {...result, hasError: String(result.error ?? '').trim().length > 0 ? 1 : 0};
-Script.setShortcutOutput(result);
+if (!foregroundSleepSettings) Script.setShortcutOutput(result);
 Script.complete();

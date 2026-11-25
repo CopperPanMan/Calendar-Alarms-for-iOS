@@ -299,13 +299,15 @@ function releaseLock(fm, lockPath, id) {
   }
 }
 
+function isActiveQR(entry) {
+  if (entry?.qrActive !== true) return false;
+  // A skipped restart never invokes Engine to retire this QR session.
+  const restart = Number(entry.qrRestartFireTime);
+  return !(restart > 0 && restart <= nowEpoch() && entry.sleepSkippedFireTimes?.includes(restart));
+}
+
 function pickActiveQRAlarm(registryArr) {
-  const active = [];
-  for (const a of registryArr) {
-    if (!a || typeof a !== "object") continue;
-    if (a.qrActive !== true) continue;
-    active.push(a);
-  }
+  const active = registryArr.filter(isActiveQR);
   if (!active.length) return null;
 
   const now = nowEpoch();
@@ -418,13 +420,15 @@ function scanAlarmDeletions(registry, scannedEntries) {
     if (!entry || typeof entry !== "object" || entry.taskSatisfied === true) continue;
     const task = hasTaskLoop(entry);
     const fields = [];
+    const ownsQR = isActiveQR(entry) || entry.qrPending;
     if (task || (!scanned.has(entry) &&
-        (entry.qrActive || entry.qrPending || !(Number(entry.firstQRFireTime) > 0)))) {
+        (ownsQR || !(Number(entry.firstQRFireTime) > 0)))) {
       fields.push(["nextFireTime", "nextFireHHMM"]);
     }
     if (task) fields.push(["taskCheckFireTime", "taskCheckHHMM"]);
-    if (entry.qrActive || entry.qrPending) fields.push(...qrFields);
+    if (ownsQR) fields.push(...qrFields);
     for (const [time, mirror] of fields) {
+      if (entry.sleepSkippedFireTimes?.includes(entry[time])) continue;
       const slot = clockSlot(entry[time], entry[mirror]);
       if (slot) protectedTimes.add(key(entry.alarmName, slot));
     }
@@ -434,7 +438,10 @@ function scanAlarmDeletions(registry, scannedEntries) {
     const name = String(entry.alarmName ?? "").trim();
     if (!name) continue;
     const fields = hasTaskLoop(entry) ? qrFields : [...qrFields, ["nextFireTime", "nextFireHHMM"]];
-    const slots = fields.map(([time, mirror]) => clockSlot(entry[time], entry[mirror]));
+    // Skipped retry pointers keep their original times for scheduling. Only
+    // a previous Clock slot in retiredAlarmTimes can still need deletion.
+    const slots = fields.filter(([time]) => !entry.sleepSkippedFireTimes?.includes(entry[time]))
+      .map(([time, mirror]) => clockSlot(entry[time], entry[mirror]));
     if (Array.isArray(entry.retiredAlarmTimes)) {
       for (const retired of entry.retiredAlarmTimes) {
         if (retired) slots.push(clockSlot(retired.epoch, retired.hhmm));
@@ -458,7 +465,7 @@ async function clearFinishedQRNotification(fm, registryPath) {
       // or remaining QR alarm still owns the shared notification.
       const rows = JSON.parse(safeReadString(fm, registryPath));
       if (!Array.isArray(rows)) throw new Error('Invalid QR notification registry.');
-      if (rows.some(row => row.qrActive === true)) return;
+      if (rows.some(isActiveQR)) return;
       const remaining = deadline - Date.now();
       if (!(remaining > 0)) throw new Error('QR notification cleanup timed out.');
       let timer;
@@ -512,8 +519,7 @@ async function runModeB(fm, paths, qrCodeID) {
     const scannedEntries = [];
 
     for (const a of reg) {
-      if (!a || typeof a !== "object") continue;
-      if (a.qrActive !== true) continue;
+      if (!isActiveQR(a)) continue;
 
       const name = String(a.alarmName ?? "").trim();
       const code = String(a.qrCodeID ?? "");

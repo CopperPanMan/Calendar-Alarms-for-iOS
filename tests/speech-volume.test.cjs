@@ -70,6 +70,16 @@ for (const action of ['notification', 'openhabits_reminder']) {
   });
 }
 
+test('the native speech branch plays generated audio once at the selected media volume', () => {
+  const readout = fs.readFileSync(require.resolve('../Shortcut Actions/Calendar Alarms Actions.md'), 'utf8');
+  const branch = readout.match(/^IF: PlanSpeak is Yes\n([\s\S]*?)^END IF$/m);
+  assert.ok(branch, 'missing native speech branch');
+  const soundActions = [...branch[1].matchAll(/^    (SET VOLUME|MAKE SPOKEN AUDIO FROM TEXT|PLAY SOUND|SPEAK TEXT):/gm)];
+  assert.deepEqual(soundActions.map(action => action[1]), ['SET VOLUME', 'MAKE SPOKEN AUDIO FROM TEXT', 'PLAY SOUND']);
+  assert.match(branch[1], /Media Volume: Plan \(Dictionary → Get Value for Key: speechLevel\)/);
+  assert.match(branch[1], /MAKE SPOKEN AUDIO FROM TEXT:\s+Text: PlanMessage\s+→ (\w+) \(Audio\)\s+PLAY SOUND: \1\b/);
+});
+
 test('completed metrics skip both speech and its volume action', async () => {
   const h = runtime();
   const plan = await h.run({action: 'openhabits_reminder', metricIDs: ['done'], mode: 'both', speechVolume: 80});

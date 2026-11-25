@@ -43,6 +43,28 @@ function fixture() {
   return {run, step, rows, disk, alarm, hooks, notifications, advance(ms) {now += ms;}, get now() {return now;}};
 }
 
+test('a skipped QR restart releases Wake Times and ends playback without another Engine invocation', async () => {
+  const h = fixture();
+  const restart = h.now / 1000 + 30;
+  h.rows([{...h.alarm, qrRestartFireTime: restart, sleepSkippedFireTimes: [restart]}]);
+  const session = (await h.run({op: 'engine_begin', input: ''})).session;
+  assert.equal((await h.run({op: 'clock_guard'})).activeCount, 1);
+  h.advance(30000);
+  assert.equal((await h.run({op: 'clock_guard'})).activeCount, 0);
+  assert.equal((await h.run({op: 'scanner_menu'})).activeCount, 0);
+  assert.equal((await h.run({op: 'qr_poll', session})).stop, 1);
+});
+
+test('playback cleanup leaves a personal Clock alarm coinciding with a skipped retry alone', async () => {
+  const h = fixture(), session = (await h.run({op: 'engine_begin', input: ''})).session;
+  const retry = h.now / 1000 + 120;
+  h.rows([{...h.alarm, qrActive: false, qrRestartFireTime: retry, qrRestartHHMM: '22:02',
+    qrFallbackFireTime: retry + 120, qrFallbackHHMM: '22:04', sleepSkippedFireTimes: [retry]}]);
+  const plan = await h.run({op: 'qr_poll', session});
+  assert.equal(plan.stop, 1);
+  assert.deepEqual(plan.alarmsToDelete, [{name: 'Night', hh: '22', mm: '04'}]);
+});
+
 test('initial poll supplies a complete plan during mute, trigger work and another playback', async () => {
   for (const blocked of ['mute', 'trigger', 'playback']) {
     const h = fixture(), session = (await h.run({op: 'engine_begin', input: ''})).session;

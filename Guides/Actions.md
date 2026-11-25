@@ -30,7 +30,7 @@ Under **Actions**, enable **Automatically dismiss the Clock alarm** to have the 
 
 For **Speak** or **Speak + Show**, set **Speech Volume (%)** beside Output. No separate Volume / Audio action is needed before a spoken notification or OpenHabits reminder. Older reminders without a volume value use 50%. Volume changes only when speech occurs; show-only output, Do Not Disturb, and completed metrics leave it alone. QR sounds use their own alarm volume.
 
-This requires the updated Calendar Alarms Actions shortcut with **Set Volume → Plan → speechLevel** immediately before Speak Text, plus the updated Runtime script. Older shortcuts ignore the new volume field.
+In **Calendar Alarms Actions**, the speech branch sets media volume from **Plan → speechLevel**, uses **Make Spoken Audio from Text** on the reminder message, and passes the generated audio to **Play Sound**. When updating an older shortcut, replace its **Speak Text** action with those two audio actions so the message plays once.
 
 These actions change the requested setting; they do not automatically restore its previous value. Add another scheduled action if you want to restore it later.
 

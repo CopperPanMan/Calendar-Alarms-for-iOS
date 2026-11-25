@@ -282,6 +282,19 @@ test('scanning one code preserves the notification while another QR alarm remain
   assert.equal(h.removals.length, 0);
 });
 
+test('an elapsed Sleep-skipped QR restart no longer owns the notification after a successful scan', async () => {
+  const h = await ringing();
+  const [active] = h.registry();
+  h.putRegistry([active, {...active, alarmName: 'Earlier QR', qrCodeID: 'earlier',
+    calcFireTime: active.calcFireTime - 60, sleepSkippedFireTimes: [active.qrRestartFireTime]}]);
+  h.at(2);
+  const result = await h.scan('startup-test');
+  assert.equal(result.identifiedAlarms, 1);
+  assert.doesNotMatch(result.notification, /Still active/);
+  assert.equal(h.pending.has(NOTICE_ID), false);
+  assert.equal(h.delivered.has(NOTICE_ID), false);
+});
+
 for (const failure of ['notificationCleanupDenied', 'notificationCleanupHangs']) {
   test(`${failure} cannot turn a committed direct QR scan into a failure`, async () => {
     const h = await ringing({[failure]: true});
