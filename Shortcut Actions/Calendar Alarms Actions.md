@@ -6,7 +6,7 @@ Full replacement action readout, 2026-10-19, for Calendar Alarms Runtime in this
 
 The installer source is [Calendar Alarms Installer.js](../Inline%20Scriptable/Calendar%20Alarms%20Installer.js). Paste its complete contents into the Run Inline Script action. It installs missing files only; it does not update existing scripts.
 
-The Sleep menu opens Calendar Alarms Runtime in Scriptable to show the current setting. Choosing **Turn On** or **Turn Off** saves the preference and runs Calendar Alarm Engine. If your existing shortcut displays the Sleep status and directions to use **Input Calendars to Ignore**, replace the entire text in that field with `/settings sleep on` or `/settings sleep off` and submit. The optional `supportsSleepMenu` flag hides these fallback instructions after updating the menu. The Runtime saves just the Sleep preference. Run **Calendar Alarm Engine** to apply it immediately.
+The Sleep menu shows the current setting in Shortcuts. **Turn On** and **Turn Off** save the preference through the same background Runtime action used for ignored calendars. After a successful save, Shortcuts runs **Calendar Alarm Engine** to update scheduled alarms. **Cancel** exits without saving or syncing. Older editions without the Sleep menu can still change the preference by entering `/settings sleep on` or `/settings sleep off` in **Input Calendars to Ignore**, then running **Calendar Alarm Engine**.
 
 `refresh`, `speak`, `show`, `ok`, and `allComplete` are **Booleans**: use is Yes, not Number comparisons. `cacheOK` is a **Number**. Keep the original Shortcut Input bound in both action requests. Update Lockout Cache must return its status Dictionary as shown in the companion Metrics readout. It must not call the normal Engine while fetching a snapshot. Task reset calls the Engine only for completion cleanup; it never simulates a QR scan. Spoken reminders use the media volume in the action plan. Pass the result of Make Spoken Audio from Text directly to Play Sound.
 
@@ -35,7 +35,48 @@ IF: Shortcut Input does not have any value
         CHOOSE FROM MENU:
             Prompt: Calendar Alarms settings
             Skip other alarms during Sleep:
-                OPEN URLS: scriptable:///run/Calendar%20Alarms%20Runtime?showSleepSettings=1
+                GET DICTIONARY VALUE:
+                    Dictionary: Settings
+                    Key: sleepPrompt
+                    → SleepPrompt (Text)
+                IF: SleepPrompt is [blank]
+                    SHOW RESULT: Update the Calendar Alarms Runtime and Calendar Alarm Engine scripts to use this setting.
+                    STOP THIS SHORTCUT
+                END IF
+                CHOOSE FROM MENU:
+                    Prompt: SleepPrompt
+                    Turn On:
+                        DICTIONARY:
+                            op: settings_save (Text)
+                            skipAlarmsDuringSleep: Yes (Boolean)
+                    Turn Off:
+                        DICTIONARY:
+                            op: settings_save (Text)
+                            skipAlarmsDuringSleep: No (Boolean)
+                    Cancel:
+                        STOP THIS SHORTCUT
+                END MENU
+                    → SleepSettingsRequest (Dictionary)
+                RUN SCRIPT: Calendar Alarms Runtime
+                    Parameter: SleepSettingsRequest
+                    → SavedSleepSettingsRaw
+                GET DICTIONARY FROM INPUT: SavedSleepSettingsRaw
+                    → SavedSleepSettings
+                GET DICTIONARY VALUE:
+                    Dictionary: SavedSleepSettings
+                    Key: message
+                    → SavedSleepMessage (Text)
+                SHOW NOTIFICATION:
+                    Body: SavedSleepMessage
+                    Play Sound: Off
+                GET DICTIONARY VALUE:
+                    Dictionary: SavedSleepSettings
+                    Key: hasError
+                    → SleepSaveFailed (Number)
+                IF: SleepSaveFailed is 0
+                    RUN SHORTCUT: Calendar Alarm Engine
+                        Input: none — explicitly clear this field
+                END IF
                 STOP THIS SHORTCUT
             Input Calendars to Ignore:
                 GET DICTIONARY VALUE:

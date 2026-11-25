@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 const runtime = fs.readFileSync(require.resolve('../Calendar Alarms Runtime.js'), 'utf8');
 const readout = fs.readFileSync(require.resolve('../Shortcut Actions/Calendar Alarms Actions.md'), 'utf8');
-const menuURL = new URL(readout.match(/OPEN URLS: (scriptable:\/\/\/run\/\S+)/)[1]);
+const menuURL = new URL('scriptable:///run/Calendar%20Alarms%20Runtime?showSleepSettings=1');
 const syncURL = 'shortcuts://run-shortcut?name=Calendar%20Alarm%20Engine';
 
 async function runMenu({stored, selection, inApp = true, query = Object.fromEntries(menuURL.searchParams)}) {
@@ -33,7 +33,7 @@ async function runMenu({stored, selection, inApp = true, query = Object.fromEntr
   return {value, alerts, opened, output};
 }
 
-test('Actions opens the foreground Runtime and its explicit choice saves before syncing', async () => {
+test('the legacy Sleep URL still saves its explicit choice before syncing', async () => {
   assert.equal(decodeURIComponent(menuURL.pathname), '/run/Calendar Alarms Runtime');
   for (const [selection, initial] of [[0, false], [1, true]]) {
     const original = {disabledCalendars: ['Work'], otherSetting: 42, skipAlarmsDuringSleep: initial};
@@ -44,6 +44,21 @@ test('Actions opens the foreground Runtime and its explicit choice saves before 
     assert.deepEqual(r.opened, [{url: syncURL, settings: {...original, skipAlarmsDuringSleep: !initial}}]);
     assert.equal(r.output, undefined);
   }
+});
+
+test('the Actions readout keeps the Sleep setting and its Engine sync inside Shortcuts', () => {
+  const start = readout.indexOf('            Skip other alarms during Sleep:\n');
+  const end = readout.indexOf('            Input Calendars to Ignore:\n', start);
+  assert.ok(start >= 0 && end > start);
+  const menu = readout.slice(start, end);
+  assert.doesNotMatch(menu, /OPEN URLS|scriptable:\/\//i);
+  assert.match(menu, /Key: sleepPrompt[\s\S]+?CHOOSE FROM MENU:\s+Prompt: SleepPrompt/);
+  for (const [label, value] of [['Turn On', 'Yes'], ['Turn Off', 'No']]) {
+    assert.ok(menu.includes(label + ':\n                        DICTIONARY:\n                            op: settings_save (Text)\n                            skipAlarmsDuringSleep: ' + value + ' (Boolean)'));
+  }
+  assert.match(menu, /Cancel:\s+STOP THIS SHORTCUT\s+END MENU/);
+  assert.match(menu, /END MENU[\s\S]*?RUN SCRIPT: Calendar Alarms Runtime\s+Parameter: SleepSettingsRequest/);
+  assert.match(menu, /Key: hasError[\s\S]*?IF: SleepSaveFailed is 0\s+RUN SHORTCUT: Calendar Alarm Engine\s+Input: none/);
 });
 
 test('canceling the foreground menu preserves settings and leaves the Engine idle', async () => {

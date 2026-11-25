@@ -167,7 +167,9 @@ For faster access, add **CA Wake Times** to your Home Screen or use it as a widg
 
 On an existing installation, [update the Scriptable files](Guides/Troubleshooting%20and%20Maintenance.md#update-an-existing-installation) to get this setting. It is off by default. When enabled, the Engine skips alarms from other events that would ring after bedtime and before wake-up. Alarms exactly at bedtime or wake-up and alarms attached to that **Sleep** occurrence still run. The setting applies to calendars the Engine monitors and alarms it manages in Clock.
 
-Run **Calendar Alarms Actions** without input. If your menu has **Skip other alarms during Sleep**, choose it and tap **Turn On** or **Turn Off**. If Actions displays the Sleep status and a text command, choose **Input Calendars to Ignore** and replace the entire field with `/settings sleep on` or `/settings sleep off`. This changes only the Sleep preference. Run **Calendar Alarm Engine** once to sync after using the text command.
+Run **Calendar Alarms Actions** without input and choose **Skip other alarms during Sleep**. Shortcuts shows whether the setting is on or off. Tap **Turn On** or **Turn Off** to save the preference and sync your alarms, or **Cancel** to leave them as they are.
+
+Older Actions shortcuts without the Sleep menu display a text command. Choose **Input Calendars to Ignore** and replace the entire field with `/settings sleep on` or `/settings sleep off`. Your ignored calendars are preserved. Run **Calendar Alarm Engine** once to sync after using the text command.
 
 For example, if **Sleep** ends at 7:30 AM, the Engine skips a 7:15 AM gym reminder from another event. A sunrise-light action attached to **Sleep** with a −15 minute offset still runs at 7:15 AM. Change wake-up to 6:30 AM while the gym reminder is still in the future, and the next sync schedules it again. A skipped reminder does not mark its task complete.
 
